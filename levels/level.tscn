@@ -1,0 +1,76 @@
+[gd_scene format=3 uid="uid://y4dvn4u0s35"]
+
+[ext_resource type="PackedScene" uid="uid://bd48x5jqyuju7" path="res://scenes/terrain.tscn" id="1_80vhd"]
+[ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="2_hjsbj"]
+[ext_resource type="Material" uid="uid://cvfsibsoiya42" path="res://materials/slop.tres" id="3_cwqvt"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_hjsbj"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_cwqvt"]
+sky_material = SubResource("ProceduralSkyMaterial_hjsbj")
+
+[sub_resource type="Environment" id="Environment_5mrsh"]
+background_mode = 2
+sky = SubResource("Sky_cwqvt")
+tonemap_mode = 2
+glow_enabled = true
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_safpt"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_hjsbj"]
+frequency = 0.0034
+fractal_lacunarity = 1.36
+fractal_gain = 0.6
+
+[sub_resource type="BoxMesh" id="BoxMesh_80vhd"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_hjsbj"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_cwqvt"]
+
+[node name="Level" type="Node3D" unique_id=1527349519]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1045377955]
+environment = SubResource("Environment_5mrsh")
+camera_attributes = SubResource("CameraAttributesPractical_safpt")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1629302235]
+transform = Transform3D(-0.35666764, -0.45245296, -0.8173584, 0.22218518, -0.8908776, 0.39619476, -0.9074259, -0.040295023, 0.4182757, 0, 90.61831, 0)
+light_intensity_lux = 32766.99
+light_temperature = 2989.0
+light_energy = 2.0
+shadow_enabled = true
+directional_shadow_split_1 = 0.04
+directional_shadow_split_2 = 0.11
+directional_shadow_split_3 = 0.33
+directional_shadow_blend_splits = true
+directional_shadow_max_distance = 500.0
+
+[node name="Terrain" parent="." unique_id=689841449 node_paths=PackedStringArray("player_character", "physics_bodies") instance=ExtResource("1_80vhd")]
+amplitude = 200.0
+max_lod = 5
+noise_model = SubResource("FastNoiseLite_hjsbj")
+player_character = NodePath("../Player")
+physics_bodies = [NodePath("../Ball")]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=774567937]
+mesh = SubResource("BoxMesh_80vhd")
+
+[node name="Player" parent="." unique_id=917553470 instance=ExtResource("2_hjsbj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.1300507, 104.2209, -10.057459)
+
+[node name="Ball" type="RigidBody3D" parent="." unique_id=1835045290]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 61.45203, 102.935074, -13.445412)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ball" unique_id=922194099]
+mesh = SubResource("SphereMesh_hjsbj")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ball" unique_id=861289933]
+shape = SubResource("SphereShape3D_cwqvt")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=826389111]
+material = ExtResource("3_cwqvt")
+offset_right = 167.0
+offset_bottom = 152.0

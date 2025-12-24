@@ -1,0 +1,12 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://cwvqi646a7ddp"]
+
+[ext_resource type="Shader" uid="uid://dlfky3j4rd0m7" path="res://scenes/terrain_processor/terrain_2.gdshader" id="1_642g7"]
+
+[resource]
+shader = ExtResource("1_642g7")
+shader_parameter/mode = 1
+shader_parameter/amplitude = 45.8090021759275
+shader_parameter/offset = Vector2(5.455, 0.22)
+shader_parameter/frequency = Vector2(7.105, 7.11)
+shader_parameter/fbm_iterations = 4
+shader_parameter/fbm_lacunarity = 0.950000045125

@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://b5bnbjcgqujk3"]
+
+[ext_resource type="Shader" uid="uid://0ld7m3xw1e7m" path="res://scenes/terrain_chunk/terrain.gdshader" id="1_x8dx6"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_x8dx6")
+shader_parameter/normal_depth = 1.0
+shader_parameter/triplanar_blend_sharpness = 5.0

@@ -1,0 +1,21 @@
+[gd_scene format=3 uid="uid://bd48x5jqyuju7"]
+
+[ext_resource type="Script" uid="uid://ds4i0vssxwoag" path="res://scripts/terrain.gd" id="1_vjhlg"]
+[ext_resource type="PackedScene" uid="uid://cx25x8nsymh1u" path="res://scenes/terrain_processor/terrain_processor.tscn" id="3_vjhlg"]
+
+[node name="Terrain" type="Node3D" unique_id=689841449]
+physics_interpolation_mode = 2
+script = ExtResource("1_vjhlg")
+
+[node name="ColliderContainer" type="StaticBody3D" parent="." unique_id=1739867373]
+
+[node name="ChunkContainer" type="Marker3D" parent="." unique_id=1947806390]
+
+[node name="HeightMapSprite" type="Sprite2D" parent="." unique_id=26579761]
+centered = false
+
+[node name="NormalMapSprite" type="Sprite2D" parent="." unique_id=2040992155]
+position = Vector2(68, 0)
+centered = false
+
+[node name="TerrainProcessor" parent="." unique_id=971081177 instance=ExtResource("3_vjhlg")]

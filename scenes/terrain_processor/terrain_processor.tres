@@ -1,0 +1,10 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://b1811lb6r104r"]
+
+[ext_resource type="Shader" uid="uid://boo7tkit1sptb" path="res://scenes/terrain_processor/terrain_processor.gdshader" id="1_nvr2n"]
+
+[resource]
+shader = ExtResource("1_nvr2n")
+shader_parameter/mode = 0
+shader_parameter/amplitude = 172.8030082081425
+shader_parameter/offset = Vector2(1.32, 0.375)
+shader_parameter/frequency = Vector2(10.69, 9.88)

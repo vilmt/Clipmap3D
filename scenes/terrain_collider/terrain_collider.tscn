@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://csobs714vovvh"]
+
+[ext_resource type="Script" uid="uid://cxgxyn444imnl" path="res://scenes/terrain_collider/terrain_collider.gd" id="1_kiv5m"]
+
+[node name="TerrainCollider" type="CollisionShape3D" unique_id=375153145]
+script = ExtResource("1_kiv5m")

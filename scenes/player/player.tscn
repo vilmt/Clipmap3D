@@ -1,0 +1,33 @@
+[gd_scene format=3 uid="uid://drr32a4jrntnf"]
+
+[ext_resource type="Script" uid="uid://cpstqsjk2jo0l" path="res://scenes/player/player.gd" id="1_8afob"]
+[ext_resource type="Script" uid="uid://dc378wgjo7yag" path="res://scenes/player/fps_label.gd" id="2_dovo2"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_x7p2l"]
+radius = 0.4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_8afob"]
+top_radius = 0.4
+bottom_radius = 0.4
+
+[node name="Player" type="CharacterBody3D" unique_id=917553470]
+floor_max_angle = 1.0471976
+script = ExtResource("1_8afob")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1994699561]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+shape = SubResource("CylinderShape3D_x7p2l")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=880548590]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8664424, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1383782786]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+mesh = SubResource("CylinderMesh_8afob")
+
+[node name="FPSLabel" type="Label" parent="." unique_id=351731806]
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_constants/outline_size = 4
+text = "FPS"
+script = ExtResource("2_dovo2")

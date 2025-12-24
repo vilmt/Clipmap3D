@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://cx25x8nsymh1u"]
+
+[ext_resource type="Script" uid="uid://cq7m3q2alpn2y" path="res://scenes/terrain_processor/terrain_processor.gd" id="1_ovcli"]
+[ext_resource type="Material" uid="uid://b1811lb6r104r" path="res://scenes/terrain_processor/terrain_processor.tres" id="2_oxxtf"]
+
+[node name="TerrainProcessor" type="SubViewport" unique_id=971081177]
+use_hdr_2d = true
+canvas_item_default_texture_filter = 0
+render_target_update_mode = 4
+script = ExtResource("1_ovcli")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=903101406]
+material = ExtResource("2_oxxtf")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
