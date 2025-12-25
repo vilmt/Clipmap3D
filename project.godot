@@ -64,38 +64,3 @@ common/physics_interpolation=true
 rendering_device/driver.windows="d3d12"
 lights_and_shadows/use_physical_light_units=true
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
-
-[shader_globals]
-
-height_map={
-"type": "sampler2D",
-"value": ""
-}
-height_map_amplitude={
-"type": "float",
-"value": 0.0
-}
-normal_map={
-"type": "sampler2D",
-"value": ""
-}
-terrain_position={
-"type": "vec3",
-"value": Vector3(0, 0, 0)
-}
-terrain_lod_ring_thickness={
-"type": "int",
-"value": 0
-}
-terrain_lod_zero_radius={
-"type": "int",
-"value": 0
-}
-terrain_chunk_size={
-"type": "vec2",
-"value": Vector2(0, 0)
-}
-terrain_max_lod={
-"type": "int",
-"value": 0
-}

@@ -1,9 +1,0 @@
-[gd_scene format=3 uid="uid://juj7qjitxvqr"]
-
-[ext_resource type="Material" uid="uid://cvfsibsoiya42" path="res://materials/slop.tres" id="1_qbjnn"]
-
-[node name="ColorRect" type="ColorRect" unique_id=1784725548]
-texture_filter = 1
-material = ExtResource("1_qbjnn")
-offset_right = 637.0
-offset_bottom = 608.0

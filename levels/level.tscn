@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://y4dvn4u0s35"]
 
-[ext_resource type="PackedScene" uid="uid://bd48x5jqyuju7" path="res://scenes/terrain.tscn" id="1_80vhd"]
+[ext_resource type="PackedScene" uid="uid://bd48x5jqyuju7" path="res://scenes/terrain/terrain.tscn" id="1_80vhd"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="2_hjsbj"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_hjsbj"]
@@ -19,16 +19,14 @@ glow_enabled = true
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_safpt"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_cwqvt"]
-noise_type = 3
+noise_type = 0
 frequency = 0.001
-offset = Vector3(-31.91, 0, 0)
-fractal_lacunarity = 2.46
-domain_warp_type = 1
-domain_warp_amplitude = 26.885
-domain_warp_frequency = 0.045
-domain_warp_fractal_octaves = 1
+fractal_octaves = 4
+fractal_lacunarity = 2.705
+fractal_gain = 0.33
 
 [sub_resource type="BoxMesh" id="BoxMesh_80vhd"]
+size = Vector3(1, 300, 1)
 
 [sub_resource type="SphereMesh" id="SphereMesh_hjsbj"]
 
@@ -54,18 +52,21 @@ directional_shadow_max_distance = 500.0
 
 [node name="Terrain" parent="." unique_id=689841449 node_paths=PackedStringArray("player_character") instance=ExtResource("1_80vhd")]
 noise = SubResource("FastNoiseLite_cwqvt")
-amplitude = 300.0
+map_size = Vector2i(1024, 1024)
+lods = Array[int]([0, 0, 1, 1, 2, 2, 3])
 max_lod = 5
+amplitude = 300.0
 player_character = NodePath("../Player")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=774567937]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 150, 58.486298)
 mesh = SubResource("BoxMesh_80vhd")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("2_hjsbj")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.9889727, 268.95096, 45.138725)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.27916, 37.498734, 107.484985)
 
 [node name="Ball" type="RigidBody3D" parent="." unique_id=1835045290]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 61.45203, 102.935074, -13.445412)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -70.10414, 202.62433, -79.59586)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Ball" unique_id=922194099]
 mesh = SubResource("SphereMesh_hjsbj")
