@@ -2,7 +2,6 @@
 
 [ext_resource type="PackedScene" uid="uid://bd48x5jqyuju7" path="res://scenes/terrain.tscn" id="1_80vhd"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="2_hjsbj"]
-[ext_resource type="Material" uid="uid://cvfsibsoiya42" path="res://materials/slop.tres" id="3_cwqvt"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_hjsbj"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -19,10 +18,15 @@ glow_enabled = true
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_safpt"]
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_hjsbj"]
-frequency = 0.0034
-fractal_lacunarity = 1.36
-fractal_gain = 0.6
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_cwqvt"]
+noise_type = 3
+frequency = 0.001
+offset = Vector3(-31.91, 0, 0)
+fractal_lacunarity = 2.46
+domain_warp_type = 1
+domain_warp_amplitude = 26.885
+domain_warp_frequency = 0.045
+domain_warp_fractal_octaves = 1
 
 [sub_resource type="BoxMesh" id="BoxMesh_80vhd"]
 
@@ -48,18 +52,17 @@ directional_shadow_split_3 = 0.33
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 500.0
 
-[node name="Terrain" parent="." unique_id=689841449 node_paths=PackedStringArray("player_character", "physics_bodies") instance=ExtResource("1_80vhd")]
-amplitude = 200.0
+[node name="Terrain" parent="." unique_id=689841449 node_paths=PackedStringArray("player_character") instance=ExtResource("1_80vhd")]
+noise = SubResource("FastNoiseLite_cwqvt")
+amplitude = 300.0
 max_lod = 5
-noise_model = SubResource("FastNoiseLite_hjsbj")
 player_character = NodePath("../Player")
-physics_bodies = [NodePath("../Ball")]
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=774567937]
 mesh = SubResource("BoxMesh_80vhd")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("2_hjsbj")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.1300507, 104.2209, -10.057459)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.9889727, 268.95096, 45.138725)
 
 [node name="Ball" type="RigidBody3D" parent="." unique_id=1835045290]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 61.45203, 102.935074, -13.445412)
@@ -69,8 +72,3 @@ mesh = SubResource("SphereMesh_hjsbj")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Ball" unique_id=861289933]
 shape = SubResource("SphereShape3D_cwqvt")
-
-[node name="ColorRect" type="ColorRect" parent="." unique_id=826389111]
-material = ExtResource("3_cwqvt")
-offset_right = 167.0
-offset_bottom = 152.0

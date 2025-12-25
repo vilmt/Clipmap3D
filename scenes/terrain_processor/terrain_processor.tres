@@ -2,9 +2,21 @@
 
 [ext_resource type="Shader" uid="uid://boo7tkit1sptb" path="res://scenes/terrain_processor/terrain_processor.gdshader" id="1_nvr2n"]
 
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_cwqvt"]
+noise_type = 3
+frequency = 0.001
+offset = Vector3(-31.91, 0, 0)
+fractal_lacunarity = 2.46
+domain_warp_type = 1
+domain_warp_amplitude = 26.885
+domain_warp_frequency = 0.045
+domain_warp_fractal_octaves = 1
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_nvr2n"]
+noise = SubResource("FastNoiseLite_cwqvt")
+
 [resource]
 shader = ExtResource("1_nvr2n")
-shader_parameter/mode = 0
-shader_parameter/amplitude = 172.8030082081425
-shader_parameter/offset = Vector2(1.32, 0.375)
-shader_parameter/frequency = Vector2(10.69, 9.88)
+shader_parameter/mode = 1
+shader_parameter/amplitude = 490.194023284215
+shader_parameter/noise_texture = SubResource("NoiseTexture2D_nvr2n")

@@ -69,7 +69,7 @@ lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
 
 height_map={
 "type": "sampler2D",
-"value": "res://test_heightmap.png"
+"value": ""
 }
 height_map_amplitude={
 "type": "float",

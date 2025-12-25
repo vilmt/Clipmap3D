@@ -8,14 +8,14 @@ class_name Terrain
 @export_tool_button("Generate", "GridMap") var generate_button = generate_terrain
 @export_tool_button("Clear", "GridMap") var clear_button = clear_chunks
 
+@export var noise: FastNoiseLite
+
 @export var amplitude: float = 50.0
 @export var render_distance: int = 10
 @export var chunk_size := Vector2(32.0, 32.0)
 @export_range(0, 10) var max_lod: int = 4
 @export var lod_ring_thickness: int = 1
 @export var lod_zero_radius: int = 1
-
-@export var noise_model: FastNoiseLite
 
 @export var player_character: Node3D
 @export var physics_bodies: Array[PhysicsBody3D] = []
@@ -29,12 +29,15 @@ const COLLIDER := preload("res://scenes/terrain_collider/terrain_collider.tscn")
 @onready var height_map_sprite: Sprite2D = $HeightMapSprite
 @onready var normal_map_sprite: Sprite2D = $NormalMapSprite
 
-@onready var terrain_processor: TerrainProcessor = $TerrainProcessor
+#@onready var terrain_processor: TerrainProcessor = $TerrainProcessor
+
+var _height_texture: NoiseTexture2D
+var _normal_texture: NoiseTexture2D
 
 var _height_image: Image
-var _height_texture: ImageTexture
+#var _height_texture: ImageTexture
 var _normal_image: Image
-var _normal_texture: ImageTexture
+#var _normal_texture: ImageTexture
 
 func _ready():
 	if Engine.is_editor_hint():
@@ -59,7 +62,7 @@ func _physics_process(_delta):
 	#RenderingServer.global_shader_parameter_set("player_position", player_position)
 
 func generate_terrain():
-	if not noise_model:
+	if not noise:
 		return
 	await generate_maps()
 	await generate_chunks()
@@ -75,17 +78,21 @@ func clear_chunks():
 		chunk.queue_free()
 
 func generate_maps():
-	terrain_processor.set_noise_model(noise_model)
-	terrain_processor.set_amplitude(amplitude)
+	#terrain_processor.set_noise_model(noise_model)
+	#terrain_processor.set_amplitude(amplitude)
+	_height_texture = NoiseTexture2D.new()
+	_normal_texture = NoiseTexture2D.new()
+	_height_texture.noise = noise
+	_normal_texture.noise = noise
+	_normal_texture.as_normal_map = true
 	
-	_height_image = await terrain_processor.get_image(0)
-	_normal_image = await terrain_processor.get_image(1)
+	await _height_texture.changed
 	
-	_height_image.generate_mipmaps(true)
-	_normal_image.generate_mipmaps(true)
+	_height_image = _height_texture.get_image()
+	_normal_image = _normal_texture.get_image()
 	
-	_height_texture = ImageTexture.create_from_image(_height_image)
-	_normal_texture = ImageTexture.create_from_image(_normal_image)
+	#_height_image.generate_mipmaps(true)
+	#_normal_image.generate_mipmaps(true)
 	
 	height_map_sprite.texture = _height_texture
 	height_map_sprite.scale = Vector2(48, 48) / _height_texture.get_size()

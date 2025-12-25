@@ -4,3 +4,4 @@
 
 [resource]
 shader = ExtResource("1_w0wbc")
+shader_parameter/f = 0.035

@@ -26,14 +26,14 @@ float height(vec2 world_position) {
 	vec2 subdivision_size = terrain_chunk_size / float(1 << terrain_max_lod);
 	vec2 texel_pos = world_position / subdivision_size;
 	vec2 uv = (texel_pos + 0.5) / vec2(textureSize(height_map, 0)); // sample texel centers
-	return texture(height_map, uv + 0.5).r * height_map_amplitude; // arbitrary centering offset
+	return textureLod(height_map, uv + 0.5, 0.0).r * height_map_amplitude; // arbitrary centering offset
 }
 
 vec3 normal(vec2 world_position) {
 	vec2 subdivision_size = terrain_chunk_size / float(1 << terrain_max_lod);
 	vec2 texel_pos = world_position / subdivision_size;
 	vec2 uv = (texel_pos + 0.5) / vec2(textureSize(height_map, 0)); // sample texel centers
-	return texture(normal_map, uv + 0.5).rgb * 2.0 - vec3(1.0);
+	return textureLod(normal_map, uv + 0.5, 0.0).rgb * 2.0 - vec3(1.0);
 }
 
 void vertex() {
@@ -60,7 +60,7 @@ void vertex() {
 		),
 		ceil(fraction.y)
 	);
-
+	
 	global_position.y = VERTEX.y;
 
 	NORMAL = normal(global_position.xz);
