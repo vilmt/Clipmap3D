@@ -4,15 +4,20 @@ shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 // use uniform array for textures
 
-uniform float amplitude;
 uniform sampler2D height_map: hint_default_black, repeat_disable;
-
 uniform sampler2D normal_map: hint_normal, repeat_disable;
-uniform vec3 terrain_position;
 
+uniform float amplitude;
+
+uniform ivec2 map_origin;
+uniform ivec2 map_offset;
+
+uniform vec2 chunk_origin;
 uniform vec2 chunk_size;
+
 uniform int max_lod;
-uniform int[1] lods;
+const int MAX_RINGS = 20;
+uniform int[MAX_RINGS] lods;
 
 varying vec3 global_position;
 varying vec3 triplanar_weights;
@@ -22,53 +27,44 @@ varying vec3 debug_albedo;
 
 const float EPSILON = 0.00001;
 
-float height(vec2 world_position) {
+vec4 sample(sampler2D sampler, vec2 world_position) {
 	vec2 subdivision_size = chunk_size / float(1 << max_lod);
-	vec2 texel_pos = world_position / subdivision_size;
-	vec2 uv = (texel_pos + 0.5) / vec2(textureSize(height_map, 0)); // sample texel centers
-	return textureLod(height_map, uv + 0.5, 0.0).r * amplitude; // arbitrary centering offset
-}
-
-vec3 normal(vec2 world_position) {
-	vec2 subdivision_size = chunk_size / float(1 << max_lod);
-	vec2 texel_pos = world_position / subdivision_size;
-	vec2 uv = (texel_pos + 0.5) / vec2(textureSize(height_map, 0)); // sample texel centers
-	return textureLod(normal_map, uv + 0.5, 0.0).rgb * 2.0 - vec3(1.0);
+	vec2 map_position = world_position / subdivision_size;
+	vec2 uv = (map_position + vec2(map_origin + map_offset) + 0.5) / vec2(textureSize(height_map, 0));
+	return textureLod(sampler, uv, 0.0);
 }
 
 void vertex() {
 	global_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 
-	vec2 chunk = (global_position - terrain_position).xz / chunk_size;
+	vec2 chunk = (global_position.xz - chunk_origin) / chunk_size;
 	int ring = int(round(max(abs(chunk.x), abs(chunk.y)) + EPSILON));
-	// TODO TODO TODO
-	//ring = max(0, ring - terrain_lod_zero_radius);
-	int exponent = max(0, max_lod - ring);
+	int exponent = max(0, max_lod - lods[ring]);
 	vec2 subdivision_size = chunk_size / float(1 << exponent);
 
 	vec2 fraction = fract((VERTEX.xz + chunk_size / 2.0) / subdivision_size);
 	
-	//debug_albedo = vec3(fraction.x, fraction.y, 0.0);
-
-	VERTEX.y = mix(
+	global_position.y = amplitude * mix(
 		mix(
-			height(global_position.xz - vec2(fraction.x * subdivision_size.x, 0)),
-			height(global_position.xz + vec2((1.0 - fraction.x) * subdivision_size.x, 0)),
+			sample(height_map, global_position.xz - vec2(fraction.x * subdivision_size.x, 0)).r,
+			sample(height_map, global_position.xz + vec2((1.0 - fraction.x) * subdivision_size.x, 0)).r,
 			fraction.x
 		),
 		mix(
-			height(global_position.xz - vec2(0, fraction.y * subdivision_size.y)),
-			height(global_position.xz + vec2(0, (1.0 - fraction.y) * subdivision_size.y)),
+			sample(height_map, global_position.xz - vec2(0, fraction.y * subdivision_size.y)).r,
+			sample(height_map, global_position.xz + vec2(0, (1.0 - fraction.y) * subdivision_size.y)).r,
 			fraction.y
 		),
 		ceil(fraction.y)
 	);
 	
-	global_position.y = VERTEX.y;
+	VERTEX.y = global_position.y;
 
-	NORMAL = normal(global_position.xz);
+	NORMAL = sample(normal_map, global_position.xz).rgb * 2.0 - 1.0;
 }
 
 void fragment() {
 	ALBEDO = vec3(0.7);
+	vec3 n = sample(normal_map, global_position.xz).rgb;
+	//NORMAL_MAP = vec3(n.r, 1.0 - n.b, 0.0); // still wrong
 }

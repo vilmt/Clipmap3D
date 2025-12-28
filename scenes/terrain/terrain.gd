@@ -5,13 +5,18 @@ class_name Terrain
 @export_tool_button("Generate", "GridMap") var generate_button = generate_terrain
 @export_tool_button("Clear", "GridMap") var clear_button = clear_chunks
 
+# TODO: make export variables less fragile to runtime changes
+
 @export var noise: FastNoiseLite
-@export var map_size := Vector2i(512, 512)
+@export var map_size := Vector2i(512, 512) # BUG: crash after editor change + regenerate
+@export var map_offset := Vector2i(256, 256)
+
+@export var texel_snap := Vector2i(4, 4)
 
 @export var chunk_rings: int = 10
-@export var chunk_size := Vector2(32.0, 32.0)
-@export var lods: Array[int]
+@export var chunk_size := Vector2(64.0, 64.0)
 @export_range(0, 10) var max_lod: int = 4
+@export var lods: Array[int] = [0, 1, 2, 3]
 
 @export var amplitude: float = 50.0
 
@@ -34,98 +39,218 @@ var _height_texture: ImageTexture
 var _normal_image: Image
 var _normal_texture: ImageTexture
 
+var _map_origin := Vector2i.ZERO
+
+const skirt := Vector2i.ONE
+
 func _ready():
+	set_physics_process(false)
 	if Engine.is_editor_hint():
 		return
 	generate_terrain()
-
-#func _unhandled_key_input(event: InputEvent) -> void:
-	#if Engine.is_editor_hint():
-		#return
-	#if event.is_action_pressed("ui_accept"):
+	if chunk_material:
+		chunk_material.set_shader_parameter(&"chunk_origin", chunk_container.global_position)
 
 func _physics_process(_delta):
 	if not player_character or not chunk_material:
 		return
-	var target_position := player_character.global_position * Vector3(1.0, 0.0, 1.0)
-	var snap := Vector3(chunk_size.x, 0.0, chunk_size.y)
-	chunk_container.global_position = target_position.snapped(snap)
-	chunk_material.set_shader_parameter("terrain_position", chunk_container.global_position)
-	# TODO: offset and regenerate terrain image 
 	
-	# this is for water
-	#RenderingServer.global_shader_parameter_set("player_position", player_position)
+	var chunk_origin := Vector2(chunk_container.global_position.x, chunk_container.global_position.z)
+	var target_position := Vector2(player_character.global_position.x, player_character.global_position.z)
+	var new_chunk_origin: Vector2 = target_position.snapped(chunk_size)
+	
+	if not chunk_origin.is_equal_approx(new_chunk_origin):
+		chunk_container.global_position.x = new_chunk_origin.x
+		chunk_container.global_position.z = new_chunk_origin.y
+		chunk_material.set_shader_parameter(&"chunk_origin", new_chunk_origin)
+	
+	var texel_size: Vector2 = chunk_size / float(1 << max_lod)
+	var snap := Vector2(texel_snap) * texel_size
+	var new_map_origin := Vector2i((target_position / snap).round()) # wrong
+	
+	var delta := new_map_origin - _map_origin
 
+	if delta:
+		generate_maps()
+		#shift_maps(delta)
+		_map_origin = new_map_origin
+		chunk_material.set_shader_parameter(&"map_origin", -_map_origin)
+		#print("yo te paso a buscar")
+		#print("Moved ", _map_origin)
+		
+
+func generate_maps():
+	if not _height_image:
+		_height_image = Image.create_empty(map_size.x, map_size.y, true, Image.FORMAT_RF)
+	
+	var full_size: Vector2i = map_size + skirt * 2
+	var heights := PackedFloat32Array()
+	heights.resize(full_size.x * full_size.y)
+	
+	for s_y: int in full_size.y:
+		for s_x: int in full_size.x:
+			var s := Vector2i(s_x, s_y)
+			var p := s - skirt
+			var world_p := _map_origin + p
+			var h := noise.get_noise_2dv(world_p) * 0.5 + 0.5
+			heights[s_y * full_size.x + s_x] = h
+			if not Rect2i(Vector2.ZERO, map_size).has_point(p):
+				continue
+			_height_image.set_pixelv(p, Color(h, 0.0, 0.0))
+	
+	_height_image.generate_mipmaps()
+	
+	if not _normal_image:
+		_normal_image = Image.create_empty(map_size.x, map_size.y, true, Image.FORMAT_RGB8)
+	
+	var texel_world_size: Vector2 = chunk_size / float(1 << max_lod)
+	
+	for y: int in map_size.y:
+		for x: int in map_size.x:
+			var p := Vector2i(x, y)
+			var s := p + skirt
+			
+			var l := heights[s.y * full_size.x + (s.x - 1)]
+			var r := heights[s.y * full_size.x + (s.x + 1)]
+			var d := heights[(s.y - 1) * full_size.x + s.x]
+			var u := heights[(s.y + 1) * full_size.x + s.x]
+			
+			var dx := (r - l) * amplitude / (2.0 * texel_world_size.x)
+			var dz := (u - d) * amplitude / (2.0 * texel_world_size.y)
+			
+			var normal := Vector3(-dx, 1.0, -dz).normalized()
+			normal = (normal + Vector3.ONE) * 0.5
+			
+			_normal_image.set_pixelv(p, Color(normal.x, normal.y, normal.z))
+	
+	_normal_image.generate_mipmaps()
+	
+	if _height_texture:
+		_height_texture.update(_height_image)
+	else:
+		_height_texture = ImageTexture.create_from_image(_height_image)
+		chunk_material.set_shader_parameter(&"height_map", _height_texture)
+		
+		height_map_sprite.texture = _height_texture
+		height_map_sprite.scale = Vector2(128, 128) / _height_texture.get_size()
+	
+	if _normal_texture:
+		_normal_texture.update(_normal_image)
+	else:
+		_normal_texture = ImageTexture.create_from_image(_normal_image)
+		chunk_material.set_shader_parameter(&"normal_map", _normal_texture)
+		
+		normal_map_sprite.texture = _normal_texture
+		normal_map_sprite.scale = Vector2(128, 128) / _height_texture.get_size()
+	
+func shift_maps(delta: Vector2i):
+	if delta.x != 0:
+		print("Shifted by ", delta.x)
+		shift_maps_x(delta.x)
+	
+func shift_maps_x(delta_x: int):
+	var abs_x := absi(delta_x)
+	
+	assert(abs_x < map_size.x)
+	
+	var source_rect := Rect2i(Vector2i(maxi(-delta_x, 0), 0), Vector2i(map_size.x - abs_x, map_size.y))
+	var destination := Vector2i(maxi(delta_x, 0), 0)
+	
+	var temp: Image = _height_image.duplicate()
+	_height_image.blit_rect(temp, source_rect, destination)
+	
+	var size := Vector2i(abs_x, map_size.y)
+	var full_size := size + skirt * 2
+	var heights := PackedFloat32Array()
+	heights.resize(full_size.x * full_size.y)
+	
+	var offset := Vector2i.ZERO
+	##if delta_x < 0:
+		##offset.x = map_size.x - abs_x
+	if delta_x > 0:
+		offset.x = -abs_x
+	#else:
+		#offset.x = map_size.x - abs_x
+	##
+	for s_y: int in full_size.y:
+		for s_x: int in full_size.x:
+			var s := Vector2i(s_x, s_y)
+			var p := s + skirt
+			var world_p := _map_origin + p
+			var h := noise.get_noise_2dv(world_p) * 0.5 + 0.5
+			heights[s_y * full_size.x + s_x] = h
+			if not Rect2i(Vector2.ZERO, size).has_point(p):
+				continue
+			_height_image.set_pixelv(p, Color(h, 0.0, 0.0))
+	
+	_height_image.generate_mipmaps()
+	_height_texture.update(_height_image)
+	
+	temp = _normal_image.duplicate()
+	_normal_image.blit_rect(temp, source_rect, destination)
+	#
+	
+	#
+	#var texel_world_size: Vector2 = chunk_size / float(1 << max_lod)
+	#
+	#for y: int in size.y:
+		#for x: int in size.x:
+			#var p := Vector2i(x, y) + offset
+			#var s := Vector2i(x, y) + skirt
+			#
+			#var l := heights[s.y * full_size.x + (s.x - 1)]
+			#var r := heights[s.y * full_size.x + (s.x + 1)]
+			#var d := heights[(s.y - 1) * full_size.x + s.x]
+			#var u := heights[(s.y + 1) * full_size.x + s.x]
+			#
+			#var dx := (r - l) * amplitude / (2.0 * texel_world_size.x)
+			#var dz := (u - d) * amplitude / (2.0 * texel_world_size.y)
+			#
+			#var normal := Vector3(-dx, 1.0, -dz).normalized()
+			#normal = (normal + Vector3.ONE) * 0.5
+			#
+			#_normal_image.set_pixelv(p, Color(normal.x, normal.y, normal.z))
+	#
+	_normal_image.generate_mipmaps()
+	_normal_texture.update(_normal_image)
+	
+
+func shift_maps_y(delta_y: int):
+	pass
+
+func _exit_tree() -> void:
+	clear_chunks()
+	
 func generate_terrain():
 	if not noise or not chunk_material:
 		return
+	
+	chunk_material.set_shader_parameter(&"amplitude", amplitude)
+	chunk_material.set_shader_parameter(&"chunk_size", chunk_size)
+	chunk_material.set_shader_parameter(&"map_offset", map_offset)
+	var resized: Array[int] = []
+	resized.resize(20)
+	resized.fill(max_lod)
+	for i: int in lods.size():
+		resized[i] = lods[i]
+	chunk_material.set_shader_parameter(&"lods", resized)
+	chunk_material.set_shader_parameter(&"max_lod", max_lod)
+	
 	generate_maps()
 	generate_chunks()
 	if Engine.is_editor_hint():
 		return
 	generate_colliders()
-
-func clear_chunks():
-	if not chunk_container:
-		return
-	for chunk: Node in chunk_container.get_children():
-		chunk_container.remove_child(chunk)
-		chunk.queue_free()
-
-func generate_maps():
-	_height_image = Image.create(map_size.x, map_size.y, true, Image.FORMAT_RF)
-	_normal_image = Image.create(map_size.x, map_size.y, true, Image.FORMAT_RGB8)
 	
-	var heights := PackedFloat32Array()
-	heights.resize(map_size.x * map_size.y)
-	
-	for y: int in map_size.y:
-		for x: int in map_size.x:
-			var h := absf(noise.get_noise_2d(x, y))
-			heights[y * map_size.x + x] = h
-			_height_image.set_pixel(x, y, Color(h, 0.0, 0.0))
-	
-	var inv_amplitude: float = 1.0 / max(amplitude, 0.0001)
-	
-	for y: int in map_size.y:
-		for x: int in map_size.x:
-			var left := heights[y * map_size.x + maxi(x - 1, 0)]
-			var right := heights[y * map_size.x + mini(x + 1, map_size.x - 1)]
-			var down := heights[maxi(y - 1, 0) * map_size.x + x]
-			var up := heights[mini(y + 1, map_size.y - 1) * map_size.x + x]
-			
-			var normal := Vector3(left - right, inv_amplitude, down - up).normalized()
-			normal = (normal + Vector3.ONE) * 0.5
-			_normal_image.set_pixel(x, y, Color(normal.x, normal.y, normal.z))
-
-	_height_image.generate_mipmaps()
-	_normal_image.generate_mipmaps()
-	
-	_height_texture = ImageTexture.create_from_image(_height_image)
-	_normal_texture = ImageTexture.create_from_image(_normal_image)
-
-	height_map_sprite.texture = _height_texture
-	height_map_sprite.scale = Vector2(48, 48) / _height_texture.get_size()
-	normal_map_sprite.texture = _normal_texture
-	normal_map_sprite.scale = Vector2(48, 48) / _height_texture.get_size()
-	
-	chunk_material.set_shader_parameter("height_map", _height_texture)
-	chunk_material.set_shader_parameter("amplitude", amplitude)
-	chunk_material.set_shader_parameter("normal_map", _normal_texture)
-	
-	chunk_material.set_shader_parameter("max_lod", max_lod)
-	chunk_material.set_shader_parameter("lods", lods)
-	
-	chunk_material.set_shader_parameter("chunk_size", chunk_size)
-
 func generate_colliders():
 	if not physics_bodies.has(player_character):
 		physics_bodies.append(player_character)
+	var subdivision_size := chunk_size / float(1 << max_lod);
 	for physics_body: PhysicsBody3D in physics_bodies:
 		var collider: TerrainCollider = COLLIDER.instantiate()
 		
 		collider.physics_body = physics_body
-		collider.prepare_shape(_height_image, amplitude)
+		collider.prepare_shape(_height_image, amplitude, subdivision_size)
 		
 		collider_container.add_child.call_deferred(collider)
 
@@ -145,14 +270,23 @@ func generate_chunks():
 			chunk.position = Vector3(x * chunk_size.x, 0.0, z * chunk_size.y)
 			
 			var ring := maxi(absi(x), absi(z))
-			ring = maxi(0, ring - 1)
-			var exponent := maxi(0, max_lod - ring)
+			var lod: int = max_lod
+			if ring < lods.size():
+				lod = lods[ring]
+			var exponent := maxi(0, max_lod - lod)
 			var subdivisions := (1 << exponent) - 1
 			
 			chunk.prepare_mesh(chunk_size, subdivisions)
 			chunk.custom_aabb = chunk_custom_aabb
 			
 			chunk_container.add_child.call_deferred(chunk)
-			
-		#if Engine.is_editor_hint():
-			#await get_tree().process_frame
+	
+	set_physics_process(true)
+
+func clear_chunks():
+	if not chunk_container:
+		return
+	for chunk: Node in chunk_container.get_children():
+		chunk_container.remove_child(chunk)
+		chunk.queue_free()
+	set_physics_process(false)

@@ -13,8 +13,10 @@ chunk_material = ExtResource("2_5ibnn")
 [node name="ChunkContainer" type="Marker3D" parent="." unique_id=1947806390]
 
 [node name="HeightMapSprite" type="Sprite2D" parent="." unique_id=26579761]
+texture_filter = 1
 centered = false
 
 [node name="NormalMapSprite" type="Sprite2D" parent="." unique_id=2040992155]
-position = Vector2(68, 0)
+texture_filter = 1
+position = Vector2(128, 0)
 centered = false

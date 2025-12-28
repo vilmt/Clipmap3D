@@ -20,10 +20,10 @@ glow_enabled = true
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_cwqvt"]
 noise_type = 0
-frequency = 0.001
-fractal_octaves = 4
-fractal_lacunarity = 2.705
-fractal_gain = 0.33
+frequency = 0.0012
+fractal_octaves = 3
+fractal_lacunarity = 5.112
+fractal_gain = 0.15
 
 [sub_resource type="BoxMesh" id="BoxMesh_80vhd"]
 size = Vector3(1, 300, 1)
@@ -39,7 +39,7 @@ environment = SubResource("Environment_5mrsh")
 camera_attributes = SubResource("CameraAttributesPractical_safpt")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1629302235]
-transform = Transform3D(-0.35666764, -0.45245296, -0.8173584, 0.22218518, -0.8908776, 0.39619476, -0.9074259, -0.040295023, 0.4182757, 0, 90.61831, 0)
+transform = Transform3D(-0.6180794, 0.46370822, 0.6347854, 0.4798721, -0.4170337, 0.7718846, 0.6226562, 0.78170186, 0.03523932, 0, 90.61831, 0)
 light_intensity_lux = 32766.99
 light_temperature = 2989.0
 light_energy = 2.0
@@ -52,18 +52,19 @@ directional_shadow_max_distance = 500.0
 
 [node name="Terrain" parent="." unique_id=689841449 node_paths=PackedStringArray("player_character") instance=ExtResource("1_80vhd")]
 noise = SubResource("FastNoiseLite_cwqvt")
-map_size = Vector2i(1024, 1024)
-lods = Array[int]([0, 0, 1, 1, 2, 2, 3])
+chunk_rings = 12
 max_lod = 5
+lods = Array[int]([0, 1, 1, 2, 2, 3, 3, 4, 4])
 amplitude = 300.0
 player_character = NodePath("../Player")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=774567937]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 150, 58.486298)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 150, -48.768234)
 mesh = SubResource("BoxMesh_80vhd")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("2_hjsbj")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.27916, 37.498734, 107.484985)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -99.68001, 308.0554, 12.109451)
+walk_max_speed = 30.0
 
 [node name="Ball" type="RigidBody3D" parent="." unique_id=1835045290]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -70.10414, 202.62433, -79.59586)
