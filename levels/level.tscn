@@ -52,19 +52,21 @@ directional_shadow_max_distance = 500.0
 
 [node name="Terrain" parent="." unique_id=689841449 node_paths=PackedStringArray("player_character") instance=ExtResource("1_80vhd")]
 noise = SubResource("FastNoiseLite_cwqvt")
-chunk_rings = 12
+map_size = Vector2i(1024, 1024)
+map_offset = Vector2i(512, 512)
+chunk_rings = 16
 max_lod = 5
-lods = Array[int]([0, 1, 1, 2, 2, 3, 3, 4, 4])
+lods = Array[int]([0, 0, 1, 1, 2, 2, 3, 3, 4, 4])
 amplitude = 300.0
 player_character = NodePath("../Player")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=774567937]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 150, -48.768234)
+visible = false
 mesh = SubResource("BoxMesh_80vhd")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("2_hjsbj")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.398506, 308.0554, -63.046326)
-walk_max_speed = 30.0
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.104843, 308.05533, -11.348938)
 
 [node name="Ball" type="RigidBody3D" parent="." unique_id=1835045290]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -70.10414, 202.62433, -79.59586)

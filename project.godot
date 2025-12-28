@@ -13,8 +13,11 @@ config_version=5
 config/name="Dame Procedural Terrain"
 run/main_scene="uid://y4dvn4u0s35"
 config/features=PackedStringArray("4.6", "Forward Plus")
-run/max_fps=240
 config/icon="res://icon.svg"
+
+[debug]
+
+shapes/collision/shape_color=Color(0.89442784, 0, 0.25913548, 1)
 
 [display]
 

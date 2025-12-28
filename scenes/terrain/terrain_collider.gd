@@ -12,9 +12,10 @@ var _height_image: Image
 var _amplitude: float
 var _subdivision_size: Vector2
 
-var _polygon_shape: ConcavePolygonShape3D
+var _map_offset: Vector2i
+var _map_origin: Vector2i
 
-# TODO: use concave polygon again...
+var _polygon_shape: ConcavePolygonShape3D
 
 func prepare_shape(height_image: Image, amplitude: float, subdivision_size: Vector2):
 	_height_image = height_image
@@ -30,12 +31,12 @@ func prepare_shape(height_image: Image, amplitude: float, subdivision_size: Vect
 	_polygon_shape = ConcavePolygonShape3D.new()
 	shape = _polygon_shape
 	
-	update_shape()
+	#update_shape()
 
-#func _ready() -> void:
-	#if shape:
-		#update_shape()
-	
+func update_offset_and_origin(map_offset, map_origin):
+	_map_offset = map_offset
+	_map_origin = map_origin
+
 func _physics_process(delta):
 	if not physics_body:
 		return
@@ -43,21 +44,28 @@ func _physics_process(delta):
 	if not global_position.is_equal_approx(rounded_body_position):
 		global_position = rounded_body_position
 		update_shape()
+
+func sample_height(world_position: Vector2) -> float:
+	# 1. world → map texel space
+	var map_position := world_position / _subdivision_size
+
+	# 2. apply clipmap offsets
+	var texel := map_position + Vector2(_map_offset - _map_origin) + Vector2(0.5, 0.5)
+
+	# 3. convert to integer texel index
+	var texel_i := Vector2i(floor(texel.x), floor(texel.y))
+
+	# 4. clamp (important for collision!)
+	texel_i.x = clampi(texel_i.x, 0, _height_image.get_width()  - 1)
+	texel_i.y = clampi(texel_i.y, 0, _height_image.get_height() - 1)
+
+	# 5. fetch height
+	return _height_image.get_pixel(texel_i.x, texel_i.y).r * _amplitude
 	
 func update_shape():
+	var xform := global_transform
 	for i: int in _faces.size():
-		#var global_vertex: Vector3 = _faces[i] + global_position
-		#var texel_position: Vector2 = global_vertex
-		_faces[i].y = 300.0 #get_height(global_vertex.x, global_vertex.z)
-		#_height_image.get_pixelv()
+		var v_world := xform * _faces[i]
+		_faces[i].y = sample_height(Vector2(v_world.x, v_world.z))
+		
 	_polygon_shape.set_faces(_faces)
-	
-	
-	#var image_size: Vector2i = _height_image.get_size()
-	#var half := Vector2i(image_size.x / 2, image_size.y / 2)
-	## TODO: replace half with proper offset and take chunk size into account
-	## TODO: figure out why its a bit off
-	#var bottom: Vector3 = global_position - snap
-	#var region := Rect2i(bottom.x + half.x, bottom.z + half.y, size.x, size.y)
-	#var sub_image := _height_image.get_region(region)
-	#_height_map_shape.update_map_data_from_image(sub_image, 0.0, _amplitude)

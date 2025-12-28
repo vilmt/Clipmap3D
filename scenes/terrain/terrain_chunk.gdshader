@@ -62,6 +62,6 @@ void vertex() {
 
 void fragment() {
 	ALBEDO = vec3(0.7);
-	//vec3 n = sample(normal_map, global_position.xz).rgb;
-	//NORMAL_MAP = vec3(n.r, 1.0 - n.b, 0.0); // still wrong
+	vec3 n = sample(normal_map, global_position.xz).rgb;
+	NORMAL_MAP = vec3(n.r, 1.0 - n.b, 0.0); // still wrong
 }
