@@ -20,7 +20,6 @@ const int MAX_RINGS = 20;
 uniform int[MAX_RINGS] lods;
 
 varying vec3 global_position;
-varying vec3 triplanar_weights;
 
 //varying vec3 vertex_normal;
 varying vec3 debug_albedo;
@@ -28,9 +27,8 @@ varying vec3 debug_albedo;
 const float EPSILON = 0.00001;
 
 vec4 sample(sampler2D sampler, vec2 world_position) {
-	vec2 subdivision_size = chunk_size / float(1 << max_lod);
-	vec2 map_position = world_position / subdivision_size;
-	vec2 uv = (map_position + vec2(map_origin + map_offset) + 0.5) / vec2(textureSize(height_map, 0));
+	vec2 map_position = world_position * float(1 << max_lod) / chunk_size;
+	vec2 uv = (map_position + vec2(map_offset - map_origin) + 0.5) / vec2(textureSize(height_map, 0));
 	return textureLod(sampler, uv, 0.0);
 }
 
@@ -59,12 +57,11 @@ void vertex() {
 	);
 	
 	VERTEX.y = global_position.y;
-
 	NORMAL = sample(normal_map, global_position.xz).rgb * 2.0 - 1.0;
 }
 
 void fragment() {
 	ALBEDO = vec3(0.7);
-	vec3 n = sample(normal_map, global_position.xz).rgb;
+	//vec3 n = sample(normal_map, global_position.xz).rgb;
 	//NORMAL_MAP = vec3(n.r, 1.0 - n.b, 0.0); // still wrong
 }

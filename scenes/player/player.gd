@@ -2,16 +2,16 @@ extends CharacterBody3D
 
 @export var sensitivity: float = 3.0
 
-@export_group("Walk")
+@export_group("Walk", "walk")
 @export var walk_max_speed: float = 10
 @export var walk_acceleration: float = 12
 @export var walk_friction: float = 40
 
-@export_group("Jump")
+@export_group("Jump", "jump")
 @export var jump_speed: float = 10
 @export var jump_leniency_time: float = 0.15
 
-@export_group("Air")
+@export_group("Air", "air")
 @export var air_max_speed: float = 2
 @export var air_acceleration: float = 12
 @export var air_gravity: float = 25

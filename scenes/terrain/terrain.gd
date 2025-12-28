@@ -50,6 +50,7 @@ func _ready():
 	generate_terrain()
 	if chunk_material:
 		chunk_material.set_shader_parameter(&"chunk_origin", chunk_container.global_position)
+		# TODO: other offset
 
 func _physics_process(_delta):
 	if not player_character or not chunk_material:
@@ -63,20 +64,20 @@ func _physics_process(_delta):
 		chunk_container.global_position.x = new_chunk_origin.x
 		chunk_container.global_position.z = new_chunk_origin.y
 		chunk_material.set_shader_parameter(&"chunk_origin", new_chunk_origin)
-	
-	var texel_size: Vector2 = chunk_size / float(1 << max_lod)
-	var snap := Vector2(texel_snap) * texel_size
-	var new_map_origin := Vector2i((target_position / snap).round()) # wrong
-	
-	var delta := new_map_origin - _map_origin
-
-	if delta:
-		generate_maps()
-		#shift_maps(delta)
-		_map_origin = new_map_origin
-		chunk_material.set_shader_parameter(&"map_origin", -_map_origin)
-		#print("yo te paso a buscar")
-		#print("Moved ", _map_origin)
+		
+		var subdivision_size := chunk_size / float(1 << max_lod)
+		var new_map_origin := Vector2i((new_chunk_origin / subdivision_size).floor())
+		var delta := new_map_origin - _map_origin
+		#_map_origin = new_map_origin
+		
+		if delta.x != 0:
+			_map_origin.x = new_map_origin.x
+			shift_maps_x(delta.x)
+		if delta.y != 0:
+			_map_origin.y = new_map_origin.y
+			shift_maps_y(delta.y)
+		
+		chunk_material.set_shader_parameter(&"map_origin", _map_origin)
 		
 
 func generate_maps():
@@ -143,43 +144,34 @@ func generate_maps():
 		normal_map_sprite.texture = _normal_texture
 		normal_map_sprite.scale = Vector2(128, 128) / _height_texture.get_size()
 	
-func shift_maps(delta: Vector2i):
-	if delta.x != 0:
-		print("Shifted by ", delta.x)
-		shift_maps_x(delta.x)
-	
 func shift_maps_x(delta_x: int):
 	var abs_x := absi(delta_x)
 	
 	assert(abs_x < map_size.x)
 	
-	var source_rect := Rect2i(Vector2i(maxi(-delta_x, 0), 0), Vector2i(map_size.x - abs_x, map_size.y))
-	var destination := Vector2i(maxi(delta_x, 0), 0)
+	var source_rect := Rect2i(Vector2i(maxi(delta_x, 0), 0), Vector2i(map_size.x - abs_x, map_size.y))
+	var destination := Vector2i(maxi(-delta_x, 0), 0)
 	
 	var temp: Image = _height_image.duplicate()
 	_height_image.blit_rect(temp, source_rect, destination)
 	
-	var size := Vector2i(abs_x, map_size.y)
-	var full_size := size + skirt * 2
+	var strip_size := Vector2i(abs_x, map_size.y)
+	var full_size := strip_size + skirt * 2
 	var heights := PackedFloat32Array()
 	heights.resize(full_size.x * full_size.y)
 	
 	var offset := Vector2i.ZERO
-	##if delta_x < 0:
-		##offset.x = map_size.x - abs_x
 	if delta_x > 0:
-		offset.x = -abs_x
-	#else:
-		#offset.x = map_size.x - abs_x
-	##
+		offset.x = map_size.x - delta_x
+
 	for s_y: int in full_size.y:
 		for s_x: int in full_size.x:
 			var s := Vector2i(s_x, s_y)
-			var p := s + skirt
+			var p := s - skirt + offset
 			var world_p := _map_origin + p
 			var h := noise.get_noise_2dv(world_p) * 0.5 + 0.5
 			heights[s_y * full_size.x + s_x] = h
-			if not Rect2i(Vector2.ZERO, size).has_point(p):
+			if not Rect2i(offset, strip_size).has_point(p):
 				continue
 			_height_image.set_pixelv(p, Color(h, 0.0, 0.0))
 	
@@ -188,35 +180,89 @@ func shift_maps_x(delta_x: int):
 	
 	temp = _normal_image.duplicate()
 	_normal_image.blit_rect(temp, source_rect, destination)
-	#
 	
-	#
-	#var texel_world_size: Vector2 = chunk_size / float(1 << max_lod)
-	#
-	#for y: int in size.y:
-		#for x: int in size.x:
-			#var p := Vector2i(x, y) + offset
-			#var s := Vector2i(x, y) + skirt
-			#
-			#var l := heights[s.y * full_size.x + (s.x - 1)]
-			#var r := heights[s.y * full_size.x + (s.x + 1)]
-			#var d := heights[(s.y - 1) * full_size.x + s.x]
-			#var u := heights[(s.y + 1) * full_size.x + s.x]
-			#
-			#var dx := (r - l) * amplitude / (2.0 * texel_world_size.x)
-			#var dz := (u - d) * amplitude / (2.0 * texel_world_size.y)
-			#
-			#var normal := Vector3(-dx, 1.0, -dz).normalized()
-			#normal = (normal + Vector3.ONE) * 0.5
-			#
-			#_normal_image.set_pixelv(p, Color(normal.x, normal.y, normal.z))
-	#
+	var texel_world_size: Vector2 = chunk_size / float(1 << max_lod)
+	
+	for y: int in strip_size.y:
+		for x: int in strip_size.x:
+			var p := Vector2i(x, y) + offset
+			var s := Vector2i(x, y) + skirt
+			
+			var l := heights[s.y * full_size.x + (s.x - 1)]
+			var r := heights[s.y * full_size.x + (s.x + 1)]
+			var d := heights[(s.y - 1) * full_size.x + s.x]
+			var u := heights[(s.y + 1) * full_size.x + s.x]
+			
+			var dx := (r - l) * amplitude / (2.0 * texel_world_size.x)
+			var dz := (u - d) * amplitude / (2.0 * texel_world_size.y)
+			
+			var normal := Vector3(-dx, 1.0, -dz).normalized()
+			normal = (normal + Vector3.ONE) * 0.5
+			
+			_normal_image.set_pixelv(p, Color(normal.x, normal.y, normal.z))
+	
 	_normal_image.generate_mipmaps()
 	_normal_texture.update(_normal_image)
 	
-
 func shift_maps_y(delta_y: int):
-	pass
+	var abs_y := absi(delta_y)
+	
+	assert(abs_y < map_size.y)
+	
+	var source_rect := Rect2i(Vector2i(0, maxi(delta_y, 0)), Vector2i(map_size.x, map_size.y - abs_y))
+	var destination := Vector2i(0, maxi(-delta_y, 0))
+	
+	var temp: Image = _height_image.duplicate()
+	_height_image.blit_rect(temp, source_rect, destination)
+	
+	var strip_size := Vector2i(map_size.x, abs_y)
+	var full_size := strip_size + skirt * 2
+	var heights := PackedFloat32Array()
+	heights.resize(full_size.x * full_size.y)
+	
+	var offset := Vector2i.ZERO
+	if delta_y > 0:
+		offset.y = map_size.y - delta_y
+
+	for s_y: int in full_size.y:
+		for s_x: int in full_size.x:
+			var s := Vector2i(s_x, s_y)
+			var p := s - skirt + offset
+			var world_p := _map_origin + p
+			var h := noise.get_noise_2dv(world_p) * 0.5 + 0.5
+			heights[s_y * full_size.x + s_x] = h
+			if not Rect2i(offset, strip_size).has_point(p):
+				continue
+			_height_image.set_pixelv(p, Color(h, 0.0, 0.0))
+	
+	_height_image.generate_mipmaps()
+	_height_texture.update(_height_image)
+	
+	temp = _normal_image.duplicate()
+	_normal_image.blit_rect(temp, source_rect, destination)
+	
+	var texel_world_size: Vector2 = chunk_size / float(1 << max_lod)
+	
+	for y: int in strip_size.y:
+		for x: int in strip_size.x:
+			var p := Vector2i(x, y) + offset
+			var s := Vector2i(x, y) + skirt
+			
+			var l := heights[s.y * full_size.x + (s.x - 1)]
+			var r := heights[s.y * full_size.x + (s.x + 1)]
+			var d := heights[(s.y - 1) * full_size.x + s.x]
+			var u := heights[(s.y + 1) * full_size.x + s.x]
+			
+			var dx := (r - l) * amplitude / (2.0 * texel_world_size.x)
+			var dz := (u - d) * amplitude / (2.0 * texel_world_size.y)
+			
+			var normal := Vector3(-dx, 1.0, -dz).normalized()
+			normal = (normal + Vector3.ONE) * 0.5
+			
+			_normal_image.set_pixelv(p, Color(normal.x, normal.y, normal.z))
+	
+	_normal_image.generate_mipmaps()
+	_normal_texture.update(_normal_image)
 
 func _exit_tree() -> void:
 	clear_chunks()
