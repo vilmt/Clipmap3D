@@ -2,8 +2,8 @@
 extends Node3D
 class_name Terrain
 
-@export_tool_button("Generate", "GridMap") var generate_button = _generate_terrain
-@export_tool_button("Clear", "GridMap") var clear_button = _clear_chunks
+@export_tool_button("Generate", "MeshItem") var generate_button = _generate_terrain
+@export_tool_button("Clear", "Remove") var clear_button = _clear_chunks
 
 @export var noise: FastNoiseLite
 @export var map_size := Vector2i(512, 512)
@@ -65,7 +65,6 @@ func _generate_maps():
 	var size_changed := _map_size != map_size
 	
 	if not _height_image or size_changed:
-		print("Created new images.")
 		_map_size = map_size
 		_height_image = Image.create_empty(_map_size.x, _map_size.y, true, Image.FORMAT_RF)
 		_normal_image = Image.create_empty(_map_size.x, _map_size.y, true, Image.FORMAT_RGB8)

@@ -21,9 +21,9 @@ glow_enabled = true
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_cwqvt"]
 noise_type = 0
 frequency = 0.0024
-fractal_octaves = 3
-fractal_lacunarity = 5.112
-fractal_gain = 0.15
+fractal_octaves = 4
+fractal_lacunarity = 4.262
+fractal_gain = 0.125
 
 [sub_resource type="BoxMesh" id="BoxMesh_80vhd"]
 size = Vector3(1, 300, 1)
@@ -54,7 +54,7 @@ directional_shadow_max_distance = 500.0
 noise = SubResource("FastNoiseLite_cwqvt")
 map_size = Vector2i(1024, 1024)
 map_offset = Vector2i(512, 512)
-chunk_rings = 16
+chunk_rings = 15
 max_lod = 5
 lods = Array[int]([0, 0, 1, 1, 2, 2, 3, 3, 4, 4])
 amplitude = 300.0
@@ -66,7 +66,7 @@ visible = false
 mesh = SubResource("BoxMesh_80vhd")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("2_hjsbj")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.104843, 308.05533, -11.348938)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.218567, 308.05527, 4.405838)
 
 [node name="Ball" type="RigidBody3D" parent="." unique_id=1835045290]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -70.10414, 202.62433, -79.59586)

@@ -21,7 +21,6 @@ uniform int[MAX_RINGS] lods;
 
 varying vec3 global_position;
 
-//varying vec3 vertex_normal;
 varying vec3 debug_albedo;
 
 const float EPSILON = 0.00001;
@@ -57,11 +56,11 @@ void vertex() {
 	);
 	
 	VERTEX.y = global_position.y;
-	NORMAL = sample(normal_map, global_position.xz).rgb * 2.0 - 1.0;
+	//NORMAL = sample(normal_map, global_position.xz).rgb * 2.0 - 1.0;
 }
 
 void fragment() {
 	ALBEDO = vec3(0.7);
 	vec3 n = sample(normal_map, global_position.xz).rgb;
-	NORMAL_MAP = vec3(n.r, 1.0 - n.b, 0.0); // still wrong
+	NORMAL_MAP = vec3(n.r, 1.0 - n.b, 0.0);
 }
