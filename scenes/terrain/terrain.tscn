@@ -10,8 +10,6 @@ chunk_material = ExtResource("2_5ibnn")
 
 [node name="ColliderContainer" type="StaticBody3D" parent="." unique_id=1739867373]
 
-[node name="ChunkContainer" type="Marker3D" parent="." unique_id=1947806390]
-
 [node name="HeightMapSprite" type="Sprite2D" parent="." unique_id=26579761]
 texture_filter = 1
 centered = false

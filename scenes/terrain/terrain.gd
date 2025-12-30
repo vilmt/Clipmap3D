@@ -6,40 +6,45 @@ class_name Terrain
 @export_tool_button("Clear", "Remove") var clear_button = _clear_chunks
 
 @export var noise: FastNoiseLite
+@export var amplitude: float = 50.0
 @export var map_size := Vector2i(512, 512)
 @export var map_offset := Vector2i(256, 256)
 
-@export var chunk_rings: int = 10
+const MAX_RINGS: int = 20
+@export_range(0, MAX_RINGS) var chunk_rings: int = 10
 @export var chunk_size := Vector2(64.0, 64.0)
 @export_range(0, 10) var max_lod: int = 4
 @export var lods: Array[int] = [0, 1, 2, 3]
-
-@export var amplitude: float = 50.0
 
 @export var player_character: Node3D
 @export var physics_bodies: Array[PhysicsBody3D] = []
 
 @export var chunk_material: ShaderMaterial
 
-const CHUNK := preload("res://scenes/terrain/terrain_chunk.tscn")
 const COLLIDER := preload("res://scenes/terrain/terrain_collider.tscn")
 
 @onready var collider_container: StaticBody3D = $ColliderContainer
-@onready var chunk_container: Marker3D = $ChunkContainer
 
 @onready var height_map_sprite: Sprite2D = $HeightMapSprite
 @onready var normal_map_sprite: Sprite2D = $NormalMapSprite
+
+var _chunk_rids: Array[RID] = []
+var _chunk_positions := PackedVector3Array()
+var _chunk_meshes: Array[Mesh] = []
 
 # Duplicate private values to prevent unexpected runtime changes
 var _map_size: Vector2i
 var _chunk_size: Vector2
 var _max_lod: int
+var _lods: Array[int]
 var _amplitude: float
 
 var _height_image: Image
 var _height_texture: ImageTexture
 var _normal_image: Image
 var _normal_texture: ImageTexture
+
+var _chunk_origin: Vector2
 
 var _map_origin := Vector2i.ZERO
 
@@ -50,7 +55,6 @@ func _ready():
 	if Engine.is_editor_hint():
 		return
 	_generate_terrain()
-	#_follow_player()
 
 func _physics_process(_delta):
 	if not player_character or not chunk_material:
@@ -166,16 +170,21 @@ func _generate_region(image_rect: Rect2i, world_offset: Vector2i):
 			_normal_image.set_pixelv(p_image, Color(normal.x, normal.y, normal.z))
 
 func _follow_player():
-	var chunk_origin := Vector2(chunk_container.global_position.x, chunk_container.global_position.z)
 	var target_position := Vector2(player_character.global_position.x, player_character.global_position.z)
 	var new_chunk_origin: Vector2 = target_position.snapped(_chunk_size)
 	
-	if chunk_origin.is_equal_approx(new_chunk_origin):
+	if _chunk_origin.is_equal_approx(new_chunk_origin):
 		return
 	
-	chunk_container.global_position.x = new_chunk_origin.x
-	chunk_container.global_position.z = new_chunk_origin.y
-	chunk_material.set_shader_parameter(&"chunk_origin", new_chunk_origin)
+	_chunk_origin = new_chunk_origin
+	chunk_material.set_shader_parameter(&"chunk_origin", _chunk_origin)
+	
+	for i: int in _chunk_rids.size():
+		var chunk_rid := _chunk_rids[i]
+		var chunk_position := _chunk_positions[i] + Vector3(_chunk_origin.x, 0.0, _chunk_origin.y)
+		
+		var chunk_transform := Transform3D(Basis.IDENTITY, chunk_position)
+		RenderingServer.instance_set_transform(chunk_rid, chunk_transform)
 	
 	var subdivision_size := _chunk_size / float(1 << _max_lod)
 	var new_map_origin := Vector2i((new_chunk_origin / subdivision_size).floor())
@@ -218,12 +227,11 @@ func _generate_terrain():
 	chunk_material.set_shader_parameter(&"amplitude", _amplitude)
 	chunk_material.set_shader_parameter(&"chunk_size", _chunk_size)
 	chunk_material.set_shader_parameter(&"map_offset", map_offset)
-	var resized: Array[int] = []
-	resized.resize(20)
-	resized.fill(_max_lod)
+	_lods.resize(MAX_RINGS)
+	_lods.fill(_max_lod)
 	for i: int in lods.size():
-		resized[i] = lods[i]
-	chunk_material.set_shader_parameter(&"lods", resized)
+		_lods[i] = lods[i]
+	chunk_material.set_shader_parameter(&"lods", _lods)
 	chunk_material.set_shader_parameter(&"max_lod", _max_lod)
 	
 	_generate_maps()
@@ -249,38 +257,57 @@ func _generate_colliders():
 		collider_container.add_child.call_deferred(collider)
 
 func _generate_chunks():
-	if not chunk_container:
-		return
 	_clear_chunks()
 	
 	var bottom_corner := Vector3(-_chunk_size.x, 0.0, -_chunk_size.y) / 2.0
 	var top_corner := Vector3(_chunk_size.x, _amplitude, _chunk_size.y)
 	var chunk_custom_aabb := AABB(bottom_corner, top_corner)
+	var scenario: RID
+	if Engine.is_editor_hint():
+		scenario = EditorInterface.get_editor_viewport_3d().find_world_3d().scenario
+	else:
+		scenario = get_world_3d().scenario
+	
+	var lod_meshes: Dictionary[int, PlaneMesh] = {}
 	
 	for x: int in range(-chunk_rings, chunk_rings + 1):
 		for z: int in range(-chunk_rings, chunk_rings + 1):
-			var chunk: TerrainChunk = CHUNK.instantiate()
-			
-			chunk.position = Vector3(x * _chunk_size.x, 0.0, z * _chunk_size.y)
-			
 			var ring := maxi(absi(x), absi(z))
-			var lod: int = _max_lod
-			if ring < lods.size():
-				lod = lods[ring]
-			var exponent := maxi(0, _max_lod - lod)
-			var subdivisions := (1 << exponent) - 1
+			var lod := _lods[ring]
 			
-			chunk.prepare_mesh(_chunk_size, subdivisions)
-			chunk.custom_aabb = chunk_custom_aabb
+			var mesh: PlaneMesh = lod_meshes.get(lod)
+			if not mesh:
+				var exponent := maxi(0, _max_lod - lod)
+				var subdivisions := (1 << exponent) - 1
+				
+				mesh = PlaneMesh.new()
+				mesh.size = _chunk_size
+				mesh.subdivide_width = subdivisions
+				mesh.subdivide_depth = subdivisions
+				mesh.material = chunk_material
+				
+				lod_meshes[lod] = mesh
+				
+			_chunk_meshes.append(mesh)
 			
-			chunk_container.add_child.call_deferred(chunk)
+			var chunk_position := Vector3(x * _chunk_size.x, 0.0, z * _chunk_size.y)
+			var chunk_transform := Transform3D(Basis.IDENTITY, chunk_position)
+			
+			var chunk_rid := RenderingServer.instance_create()
+			_chunk_rids.append(chunk_rid)
+			_chunk_positions.append(chunk_position)
+			
+			RenderingServer.instance_set_scenario(chunk_rid, scenario)
+			RenderingServer.instance_set_base(chunk_rid, mesh.get_rid())
+			RenderingServer.instance_set_custom_aabb(chunk_rid, chunk_custom_aabb)
+			RenderingServer.instance_set_transform(chunk_rid, chunk_transform)
 	
 	set_physics_process(true)
 
 func _clear_chunks():
-	if not chunk_container:
-		return
-	for chunk: Node in chunk_container.get_children():
-		chunk_container.remove_child(chunk)
-		chunk.queue_free()
+	for chunk_rid: RID in _chunk_rids:
+		RenderingServer.free_rid(chunk_rid)
+	_chunk_rids.clear()
+	_chunk_positions.clear()
+	_chunk_meshes.clear()
 	set_physics_process(false)

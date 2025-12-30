@@ -37,7 +37,7 @@ func update_offset_and_origin(map_offset, map_origin):
 	_map_offset = map_offset
 	_map_origin = map_origin
 
-func _physics_process(delta):
+func _physics_process(_delta):
 	if not physics_body:
 		return
 	var rounded_body_position := physics_body.global_position.snapped(snap) * Vector3(1.0, 0.0, 1.0)
@@ -46,21 +46,9 @@ func _physics_process(delta):
 		update_shape()
 
 func sample_height(world_position: Vector2) -> float:
-	# 1. world → map texel space
 	var map_position := world_position / _subdivision_size
-
-	# 2. apply clipmap offsets
 	var texel := map_position + Vector2(_map_offset - _map_origin) + Vector2(0.5, 0.5)
-
-	# 3. convert to integer texel index
-	var texel_i := Vector2i(floor(texel.x), floor(texel.y))
-
-	# 4. clamp (important for collision!)
-	texel_i.x = clampi(texel_i.x, 0, _height_image.get_width()  - 1)
-	texel_i.y = clampi(texel_i.y, 0, _height_image.get_height() - 1)
-
-	# 5. fetch height
-	return _height_image.get_pixel(texel_i.x, texel_i.y).r * _amplitude
+	return _height_image.get_pixelv(Vector2i(texel.floor())).r * _amplitude
 	
 func update_shape():
 	var xform := global_transform
