@@ -68,11 +68,16 @@ func generate_terrain():
 			var bottom_corner := Vector3(-size.x, 0.0, -size.y) / 2.0
 			var top_corner := Vector3(size.x, amplitude, size.y)
 			var custom_aabb := AABB(bottom_corner, top_corner)
-	
-			var mesh := _create_chunk_mesh(size, Vector2i(subdivisions, subdivisions))
+			
+			var mesh := PlaneMesh.new()
+			mesh.size = size
+			mesh.subdivide_width = subdivisions
+			mesh.subdivide_depth = subdivisions
+			mesh.material = chunk_material
+			_chunk_meshes.append(mesh)
 			
 			var rid := RenderingServer.instance_create2(mesh, scenario)
-			RenderingServer.instance_set_transform(rid, Transform3D(Basis.IDENTITY, Vector3.ZERO))
+			RenderingServer.instance_set_transform(rid, Transform3D.IDENTITY)
 			RenderingServer.instance_set_custom_aabb(rid, custom_aabb)
 			_chunk_rids.append(rid)
 			
@@ -81,61 +86,39 @@ func generate_terrain():
 			var tangential_length: int = cumulative_thickness + ring_thickness
 			var radial_length: int = ring_thickness
 			
-			var tangential_offset: float = (cumulative_thickness - tangential_length) / 2.0
-			var radial_offset: float = (cumulative_thickness + radial_length) / 2.0
-			
 			var z_chunks := Vector2i(tangential_length, radial_length)
-			var x_chunks := Vector2i(radial_length, tangential_length)
-			
 			var z_size := Vector2(z_chunks) * chunk_size
-			var x_size := Vector2(x_chunks) * chunk_size
 			
-			var z_bottom_corner := Vector3(-z_size.x, 0.0, -z_size.y) / 2.0
-			var z_top_corner := Vector3(z_size.x, amplitude, z_size.y)
-			var z_custom_aabb := AABB(z_bottom_corner, z_top_corner)
-			
-			var x_bottom_corner := Vector3(-x_size.x, 0.0, -x_size.y) / 2.0
-			var x_top_corner := Vector3(x_size.x, amplitude, x_size.y)
-			var x_custom_aabb := AABB(x_bottom_corner, x_top_corner)
-			
-			var z_coordinates := Vector2(-tangential_offset, radial_offset) * chunk_size
-			var z_position := Vector3(z_coordinates.x, 0.0, z_coordinates.y)
-			
-			var x_coordinates := Vector2(radial_offset, tangential_offset) * chunk_size
-			var x_position := Vector3(x_coordinates.x, 0.0, x_coordinates.y)
+			var z_position := Vector3(0.0, 0.0, (cumulative_thickness / 2.0 + 0.5) * chunk_size.y)
+			var z_center := Vector3(
+				(z_chunks.x - cumulative_thickness) / 2.0 * chunk_size.x,
+				0.0, 
+				(z_chunks.y / 2.0 - 0.5) * chunk_size.y
+			)
 			
 			var z_subdivisions := z_chunks * vertices_per_chunk_edge - Vector2i.ONE
-			var x_subdivisions := x_chunks * vertices_per_chunk_edge - Vector2i.ONE
-		
-			var z_mesh := _create_chunk_mesh(z_size, z_subdivisions)
 			
-			var pos_z_rid := RenderingServer.instance_create2(z_mesh, scenario)
-			RenderingServer.instance_set_transform(pos_z_rid, Transform3D(Basis.IDENTITY, z_position))
-			RenderingServer.instance_set_custom_aabb(pos_z_rid, z_custom_aabb)
-			_chunk_rids.append(pos_z_rid)
-			var neg_z_rid := RenderingServer.instance_create2(z_mesh, scenario)
-			RenderingServer.instance_set_transform(neg_z_rid, Transform3D(Basis(Vector3.UP, PI), -z_position))
-			RenderingServer.instance_set_custom_aabb(neg_z_rid, z_custom_aabb)
-			_chunk_rids.append(neg_z_rid)
-			
-			var x_mesh := _create_chunk_mesh(x_size, x_subdivisions)
-			
-			var pos_x_rid := RenderingServer.instance_create2(x_mesh, scenario)
-			RenderingServer.instance_set_transform(pos_x_rid, Transform3D(Basis.IDENTITY, x_position))
-			RenderingServer.instance_set_custom_aabb(pos_x_rid, x_custom_aabb)
-			_chunk_rids.append(pos_x_rid)
-			var neg_x_rid := RenderingServer.instance_create2(x_mesh, scenario)
-			RenderingServer.instance_set_transform(neg_x_rid, Transform3D(Basis.IDENTITY, -x_position))
-			RenderingServer.instance_set_custom_aabb(neg_x_rid, x_custom_aabb)
-			_chunk_rids.append(neg_x_rid)
+			_create_ring_axis(scenario, z_position, z_center, z_size, z_subdivisions)
 
 			cumulative_thickness += ring_thickness * 2
 
-func _create_chunk_mesh(size: Vector2, subdivisions: Vector2i) -> Mesh:
+func _create_ring_axis(scenario: RID, p: Vector3, c: Vector3, s: Vector2, subdivisions: Vector2i):
 	var mesh := PlaneMesh.new()
-	mesh.size = size
+	mesh.size = s
 	mesh.subdivide_width = subdivisions.x
 	mesh.subdivide_depth = subdivisions.y
+	mesh.center_offset = c
 	mesh.material = chunk_material
 	_chunk_meshes.append(mesh)
-	return mesh
+	
+	var aabb = AABB(Vector3(-s.x, 0.0, -s.y) / 2.0 + c, Vector3(s.x, amplitude, s.y))
+	
+	var pos_rid := RenderingServer.instance_create2(mesh, scenario)
+	RenderingServer.instance_set_transform(pos_rid, Transform3D(Basis.IDENTITY, p))
+	RenderingServer.instance_set_custom_aabb(pos_rid, aabb)
+	_chunk_rids.append(pos_rid)
+	
+	var neg_rid := RenderingServer.instance_create2(mesh, scenario)
+	RenderingServer.instance_set_transform(neg_rid, Transform3D(Basis(Vector3.UP, PI), -p))
+	RenderingServer.instance_set_custom_aabb(neg_rid, aabb)
+	_chunk_rids.append(neg_rid)

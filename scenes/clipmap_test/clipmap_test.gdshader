@@ -41,8 +41,8 @@ void vertex() {
 	vec2 fraction = fract((VERTEX.xz + chunk_size / 2.0) / subdivision_size);
 
 	//debug_albedo.rg = fraction;
-	vec2 fake_fraction = (VERTEX.xz) / chunk_size;
-	debug_albedo.rgb = vec3(fraction.x);
+	vec2 fake_fraction = fract(VERTEX.xz / chunk_size);
+	debug_albedo.rg = fraction.xy;
 	
 	global_position.y = amplitude * mix(
 		mix(
