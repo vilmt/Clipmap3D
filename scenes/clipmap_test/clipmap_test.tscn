@@ -1,0 +1,49 @@
+[gd_scene format=3 uid="uid://cq6vicc6yy7nc"]
+
+[ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://scenes/clipmap_test/clipmap_test.gd" id="1_a1u1q"]
+[ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/clipmap_test/clipmap_test.tres" id="1_tog6l"]
+[ext_resource type="Script" uid="uid://dxs1yofxiw81l" path="res://scenes/clipmap_test/player.gd" id="3_tjx8f"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tjx8f"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_rm2gq"]
+sky_material = SubResource("ProceduralSkyMaterial_tjx8f")
+
+[sub_resource type="Environment" id="Environment_pvg1d"]
+background_mode = 2
+sky = SubResource("Sky_rm2gq")
+tonemap_mode = 2
+glow_enabled = true
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_o33rx"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_tjx8f"]
+
+[node name="ClipmapTest" type="Node3D" unique_id=932743419]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=564487209]
+environment = SubResource("Environment_pvg1d")
+camera_attributes = SubResource("CameraAttributesPractical_o33rx")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=2043225864]
+transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
+shadow_enabled = true
+
+[node name="Player" type="Node3D" parent="." unique_id=2121843380]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -47.6205, 312.89386, 91.45471)
+script = ExtResource("3_tjx8f")
+max_speed = 100.0
+acceleration = 100.0
+friction = 100.0
+
+[node name="Camera3D" type="Camera3D" parent="Player" unique_id=376850146]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Player" unique_id=1234344361]
+mesh = SubResource("SphereMesh_tjx8f")
+
+[node name="Terrain" type="Node3D" parent="." unique_id=1286659521]
+script = ExtResource("1_a1u1q")
+amplitude = 300.0
+chunk_material = ExtResource("1_tog6l")

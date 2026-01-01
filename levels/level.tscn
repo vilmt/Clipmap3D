@@ -55,7 +55,6 @@ noise = SubResource("FastNoiseLite_cwqvt")
 amplitude = 300.0
 map_size = Vector2i(1024, 1024)
 map_offset = Vector2i(512, 512)
-chunk_rings = 15
 max_lod = 5
 lods = Array[int]([0, 0, 1, 1, 2, 2, 3, 3, 4, 4])
 player_character = NodePath("../Player")
