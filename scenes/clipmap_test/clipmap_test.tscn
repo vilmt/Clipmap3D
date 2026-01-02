@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://scenes/clipmap_test/clipmap_test.gd" id="1_a1u1q"]
 [ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/clipmap_test/clipmap_test.tres" id="1_tog6l"]
+[ext_resource type="Script" uid="uid://dc378wgjo7yag" path="res://scenes/player/fps_label.gd" id="2_rm2gq"]
 [ext_resource type="Script" uid="uid://dxs1yofxiw81l" path="res://scenes/clipmap_test/player.gd" id="3_tjx8f"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tjx8f"]
@@ -43,7 +44,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 500.0
 
 [node name="Player" type="Node3D" parent="." unique_id=2121843380]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -47.6205, 312.89386, 91.45471)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6064758, 111.399414, -7.878441)
 script = ExtResource("3_tjx8f")
 max_speed = 200.0
 acceleration = 200.0
@@ -54,12 +55,17 @@ friction = 200.0
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Player" unique_id=1234344361]
 mesh = SubResource("SphereMesh_tjx8f")
 
+[node name="FPSLabel" type="Label" parent="Player" unique_id=21435007]
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_constants/outline_size = 4
+text = "FPS"
+script = ExtResource("2_rm2gq")
+
 [node name="Terrain" type="Node3D" parent="." unique_id=1286659521]
 script = ExtResource("1_a1u1q")
 amplitude = 300.0
-lod_0_vertex_resolution = 8
-chunk_size = Vector2(128, 128)
-lod_rings = Array[int]([1, 1, 1, 1, 2, 2, 2])
+mesh_size = 16
 chunk_material = ExtResource("1_tog6l")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=749457015]
