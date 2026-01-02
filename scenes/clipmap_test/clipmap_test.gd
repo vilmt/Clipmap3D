@@ -2,6 +2,8 @@
 extends Node3D
 
 # TODO: allow terrain to move along y axis freely
+# TODO: map offset from other terrain implementation
+# TODO: terrain regions? noise is unoptimized
 
 @export var target_node: Node3D:
 	set(value):
@@ -9,11 +11,17 @@ extends Node3D
 			return
 		target_node = value
 		_update_target_priority()
-		
+
+# TODO: amplitude setter
 @export var amplitude: float = 100.0
 
 @export_group("Mesh", "mesh")
-@export_range(0.25, 100.0) var mesh_vertex_spacing: float = 1.0
+@export_range(0.1, 100.0) var mesh_vertex_spacing: float = 1.0:
+	set(value):
+		if mesh_vertex_spacing == value:
+			return
+		mesh_vertex_spacing = value
+		snap_to_target(mesh_vertex_spacing, true)
 
 @export var mesh_size: int = 32:
 	set(value):
@@ -22,13 +30,22 @@ extends Node3D
 		mesh_size = value
 		initialize()
 		
-@export_range(1, 10, 1) var mesh_lods: int = 5
+@export_range(1, 10, 1) var mesh_lods: int = 5:
+	set(value):
+		if mesh_lods == value:
+			return
+		mesh_lods = value
+		initialize()
 
 @export var chunk_material: ShaderMaterial
 
 var _last_target_p_2d := Vector2.ZERO
 
 # LODs -> MeshTypes -> Instances # TODO: ravel
+# Notes:
+# * The meshtype layer is unnecessary for iteration. Still if spammed.
+# * LOD iteration is necessary for separating layers.
+# * LODs -> Instances.MeshTypes also possible
 var _clipmap_rids: Array
 var _mesh_rids: Array[RID]
 
@@ -110,6 +127,9 @@ func update():
 				RenderingServer.instance_set_scenario(rid, scenario)
 
 func snap_to_target(vertex_spacing: float, force: bool = false) -> void:
+	if not is_inside_tree():
+		return
+	
 	var target_p: Vector3 = global_position
 	if target_node:
 		target_p = target_node.global_position
@@ -203,14 +223,16 @@ func _generate_mesh_types(size: int):
 	_mesh_rids.append(_generate_mesh(Vector2i(size * 4 + 4, 2), true))
 	
 func _generate_mesh(size: Vector2i, use_standard_grid: bool = false) -> RID:
-	var vertices := PackedVector3Array()
-	var indices := PackedInt32Array()
-	var aabb := AABB(Vector3.ZERO, Vector3(size.x, 0.1, size.y))
+	var mesh_arrays: Array = []
+	mesh_arrays.resize(RenderingServer.ARRAY_MAX)
 	
+	var vertices := PackedVector3Array()
 	for y: int in size.y + 1:
 		for x: int in size.x + 1:
 			vertices.append(Vector3(x, 0.0, y))
+	mesh_arrays[RenderingServer.ARRAY_VERTEX] = vertices
 	
+	var indices := PackedInt32Array()
 	for y: int in size.y:
 		for x: int in size.x:
 			var b_l: int = y * (size.x + 1) + x
@@ -234,26 +256,21 @@ func _generate_mesh(size: Vector2i, use_standard_grid: bool = false) -> RID:
 				indices.append(t_l)
 				indices.append(b_r)
 				indices.append(t_r)
-	
-	var arrays: Array
-	arrays.resize(RenderingServer.ARRAY_MAX)
-	
-	arrays[RenderingServer.ARRAY_VERTEX] = vertices
-	arrays[RenderingServer.ARRAY_INDEX] = indices
+	mesh_arrays[RenderingServer.ARRAY_INDEX] = indices
 	
 	var normals := PackedVector3Array()
 	normals.resize(vertices.size())
 	normals.fill(Vector3.UP)
-	arrays[RenderingServer.ARRAY_NORMAL] = normals
+	mesh_arrays[RenderingServer.ARRAY_NORMAL] = normals
 	
 	var tangents := PackedFloat32Array()
 	tangents.resize(vertices.size() * 4)
 	tangents.fill(0.0)
-	arrays[RenderingServer.ARRAY_TANGENT] = tangents
+	mesh_arrays[RenderingServer.ARRAY_TANGENT] = tangents
 	
 	var mesh := RenderingServer.mesh_create()
-	RenderingServer.mesh_add_surface_from_arrays(mesh, RenderingServer.PRIMITIVE_TRIANGLES, arrays)
-	RenderingServer.mesh_set_custom_aabb(mesh, aabb)
+	RenderingServer.mesh_add_surface_from_arrays(mesh, RenderingServer.PRIMITIVE_TRIANGLES, mesh_arrays)
+	RenderingServer.mesh_set_custom_aabb(mesh, AABB(Vector3.ZERO, Vector3(size.x, 0.1, size.y)))
 	RenderingServer.mesh_surface_set_material(mesh, 0, chunk_material.get_rid())
 	
 	return mesh
