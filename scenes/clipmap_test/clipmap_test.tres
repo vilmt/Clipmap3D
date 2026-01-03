@@ -1,7 +1,0 @@
-[gd_resource type="ShaderMaterial" format=3 uid="uid://sppic5ftnktj"]
-
-[ext_resource type="Shader" uid="uid://co8jxwmiyfqh3" path="res://scenes/clipmap_test/clipmap_test.gdshader" id="1_xxpvx"]
-
-[resource]
-render_priority = 0
-shader = ExtResource("1_xxpvx")
