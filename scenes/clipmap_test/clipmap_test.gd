@@ -1,6 +1,7 @@
 @tool
 extends Node3D
 
+# BUG: sometimes when opening scene, terrain is invisible until update
 # TODO: allow terrain to move along y axis freely
 # TODO: map offset from other terrain implementation
 # TODO: terrain regions? noise is unoptimized
@@ -81,12 +82,16 @@ enum MeshType {
 }
 
 func _ready():
+	#print("alright")
 	initialize()
 
 func initialize():
 	if not is_inside_tree():
+		#print("Skipped cause not in tree")
 		return
-		
+	#
+	#var scenario: RID
+	#
 	_generate_clipmap(mesh_size, mesh_lods, get_world_3d().scenario)
 	_update_aabbs()
 	
@@ -113,6 +118,9 @@ func _notification(what: int) -> void:
 		NOTIFICATION_TRANSFORM_CHANGED:
 			snap_to_target(mesh_vertex_spacing)
 		NOTIFICATION_ENTER_WORLD:
+			#print("alright entered world so should do smth")
+			update()
+		NOTIFICATION_VISIBILITY_CHANGED:
 			update()
 
 func update():
@@ -129,10 +137,12 @@ func update():
 func snap_to_target(vertex_spacing: float, force: bool = false) -> void:
 	if not is_inside_tree():
 		return
+	# TODO: vertex spacing should be vector2
 	
 	var target_p: Vector3 = global_position
 	if target_node:
 		target_p = target_node.global_position
+		target_p.y = 0.0
 		global_position.x = target_p.x
 		global_position.z = target_p.z
 	
@@ -144,22 +154,24 @@ func snap_to_target(vertex_spacing: float, force: bool = false) -> void:
 		return
 	
 	_last_target_p_2d = target_p_2d
-	var snapped_p: Vector3 = (target_p / vertex_spacing).floor() * vertex_spacing
-	var p := Vector3.ZERO
-	for lod: int in _clipmap_rids.size():
-		var snap: float = pow(2.0, float(lod) + 1.0) * vertex_spacing
-		var lod_scale := Vector3(pow(2.0, lod) * vertex_spacing, 1.0, pow(2.0, lod) * vertex_spacing)
-		
-		# TODO: use vec2s
-		p.x = roundf(snapped_p.x / snap) * snap
-		p.z = roundf(snapped_p.z / snap) * snap
+	var snapped_p_2d: Vector2 = (target_p_2d / vertex_spacing).floor() * vertex_spacing
 	
-		var next_snap := pow(2.0, lod + 2.0) * vertex_spacing
-		var next_x = roundf(snapped_p.x / next_snap) * next_snap
-		var next_z = roundf(snapped_p.z / next_snap) * next_snap
+	for lod: int in _clipmap_rids.size():
+		print("LOD: ", lod)
+		var snap: float = pow(2.0, float(lod) + 1.0) * vertex_spacing
+		print("SNAP: ", snap)
+		var lod_scale := Vector3(pow(2.0, lod) * vertex_spacing, 1.0, pow(2.0, lod) * vertex_spacing)
+		print("LOD SCALE: ", lod_scale)
 		
-		var test_x = clampi(int(round((p.x - next_x) / snap)) + 1, 0, 2)
-		var test_z = clampi(int(round((p.z - next_z) / snap)) + 1, 0, 2)
+		var p_2d := (snapped_p_2d / snap).round() * snap
+		
+		var next_snap := pow(2.0, float(lod) + 2.0) * vertex_spacing
+		
+		var next_p_2d := (snapped_p_2d / next_snap).round() * next_snap
+		
+		# TODO: clean up this logic... vector elements being accessed with these indices is super confusing
+		var test_p_2d := (Vector2i(((p_2d - next_p_2d) / snap).round()) + Vector2i.ONE).clampi(0, 2)
+		
 		
 		var lod_array = _clipmap_rids[lod]
 		
@@ -176,12 +188,14 @@ func snap_to_target(vertex_spacing: float, force: bool = false) -> void:
 							t.origin = _tile_ps[instance_i]
 					MeshType.EDGE_A:
 						var edge_p_instance: Vector3 = _edge_ps[instance_i]
-						t.origin.x = edge_p_instance[test_x]
-						t.origin.z -= _offset_a + (test_z * 2.0)
+						# t.origin = Vector3(edge_p_instance[test_x], 0.0, -_offset_a + (test_z * 2.0))
+						t.origin.x = edge_p_instance[test_p_2d.x]
+						t.origin.z -= _offset_a + (test_p_2d.y * 2.0)
 					MeshType.EDGE_B:
 						var edge_p_instance: Vector3 = _edge_ps[instance_i]
+						# t.origin = Vector3(-_offset_a, 0.0, edge_p_instance[test_z])
 						t.origin.x -= _offset_a
-						t.origin.z = edge_p_instance[test_z]
+						t.origin.z = edge_p_instance[test_p_2d.y]
 					MeshType.FILL_A:
 						if lod == 0:
 							t.origin = _trim_a_ps[instance_i]
@@ -194,7 +208,7 @@ func snap_to_target(vertex_spacing: float, force: bool = false) -> void:
 							t.origin = _fill_b_ps[instance_i]
 				
 				t = t.scaled(lod_scale)
-				t.origin += p
+				t.origin += Vector3(p_2d.x, 0.0, p_2d.y)
 				RenderingServer.instance_set_transform(mesh_array[instance_i], t)
 				RenderingServer.instance_teleport(mesh_array[instance_i])
 				

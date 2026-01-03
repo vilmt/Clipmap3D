@@ -51,6 +51,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 500.0
 
 [node name="Terrain" parent="." unique_id=689841449 node_paths=PackedStringArray("player_character", "physics_bodies") instance=ExtResource("1_80vhd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -64.52898, 0, 0)
 noise = SubResource("FastNoiseLite_cwqvt")
 amplitude = 300.0
 map_size = Vector2i(1024, 1024)
@@ -66,7 +67,7 @@ visible = false
 mesh = SubResource("BoxMesh_80vhd")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("2_hjsbj")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.4605713, 308.055, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.97548294, 308.055, 0)
 
 [node name="Ball" type="RigidBody3D" parent="." unique_id=1835045290]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -70.10414, 202.62433, -79.59586)

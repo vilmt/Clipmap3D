@@ -1,6 +1,6 @@
 shader_type spatial;
 
-render_mode wireframe;
+//render_mode wireframe;
 render_mode diffuse_burley, specular_schlick_ggx;
 // use uniform array for textures
 
@@ -41,7 +41,7 @@ void vertex() {
 
 	vec2 fraction = fract((VERTEX.xz + chunk_size / 2.0) / subdivision_size);
 	
-	debug_albedo.rgb = vec3(abs(VERTEX.x / 64.0));
+	//debug_albedo.rgb = vec3(abs(VERTEX.x / 64.0));
 	
 	global_position.y = amplitude * mix(
 		mix(
@@ -62,7 +62,8 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = debug_albedo;
+	//ALBEDO = debug_albedo;
+	ALBEDO = vec3(0.7);
 	vec3 n = sample(normal_map, global_position.xz).rgb;
 	NORMAL_MAP = vec3(n.r, 1.0 - n.b, 0.0);
 }
