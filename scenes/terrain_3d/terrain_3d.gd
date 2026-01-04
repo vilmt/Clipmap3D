@@ -50,7 +50,7 @@ class_name Terrain3D extends Node3D
 		if not Engine.is_editor_hint():
 			_collision_handler.update_vertex_spacing(mesh_vertex_spacing)
 		
-@export var mesh_size: int = 32:
+@export var mesh_size := Vector2i(32, 32):
 	set(value):
 		if mesh_size == value:
 			return
@@ -59,6 +59,7 @@ class_name Terrain3D extends Node3D
 			return
 		
 		_mesh_handler.update_size(mesh_size)
+		snap_to_target(true)
 
 @export_range(1, 10, 1) var mesh_lods: int = 5:
 	set(value):
@@ -69,6 +70,7 @@ class_name Terrain3D extends Node3D
 			return
 		
 		_mesh_handler.update_lods(mesh_lods)
+		snap_to_target(true)
 
 @export var shader_material: ShaderMaterial:
 	set(value):

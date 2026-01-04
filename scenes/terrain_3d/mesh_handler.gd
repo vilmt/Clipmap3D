@@ -1,9 +1,7 @@
 class_name Terrain3DMeshHandler
 
-# TODO: make size vector2i
-
 var _lods: int
-var _size: int
+var _size: Vector2i
 var _vertex_spacing: Vector2
 var _material: ShaderMaterial
 var _scenario: RID
@@ -24,11 +22,16 @@ var _fill_a_ps: PackedVector3Array
 var _fill_b_ps: PackedVector3Array
 var _tile_ps: PackedVector3Array
 
-var _offset_a: float
-var _offset_b: float
-var _offset_c: float
+var _offset_a_x: float
+var _offset_b_x: float
+var _offset_c_x: float
 
-var _edge_ps: PackedVector3Array
+var _offset_a_z: float
+var _offset_b_z: float
+var _offset_c_z: float
+
+var _edge_x_ps: PackedVector3Array
+var _edge_z_ps: PackedVector3Array
 
 var _last_target_p_2d := Vector2.ZERO
 
@@ -60,7 +63,7 @@ func update_height_map(height_map: HeightMap):
 func _on_height_map_changed():
 	update_amplitude(_height_map.amplitude)
 
-func update_size(size: int):
+func update_size(size: Vector2i):
 	_size = size
 	
 	_generate_mesh_types()
@@ -68,7 +71,6 @@ func update_size(size: int):
 	_generate_instances()
 
 func update_lods(lods: int):
-	# instead of generating again completely, only delete or add requested lods.
 	_lods = lods
 	
 	_generate_instances()
@@ -125,11 +127,8 @@ func snap_to_target(target_position: Vector2, vertex_spacing: Vector2, force: bo
 	var snapped_p_2d: Vector2 = (target_p_2d / vertex_spacing).floor() * vertex_spacing
 	
 	for lod: int in _clipmap_rids.size():
-		#print("LOD: ", lod)
 		var snap: Vector2 = pow(2.0, float(lod) + 1.0) * vertex_spacing
-		#print("SNAP: ", snap)
 		var lod_scale := Vector3(pow(2.0, lod) * vertex_spacing.x, 1.0, pow(2.0, lod) * vertex_spacing.y)
-		#print("LOD SCALE: ", lod_scale)
 		
 		var p_2d := (snapped_p_2d / snap).round() * snap
 		
@@ -139,7 +138,6 @@ func snap_to_target(target_position: Vector2, vertex_spacing: Vector2, force: bo
 		
 		# TODO: clean up this logic... vector elements being accessed with these indices is super confusing
 		var test_p_2d := (Vector2i(((p_2d - next_p_2d) / snap).round()) + Vector2i.ONE).clampi(0, 2)
-		
 		
 		var lod_array = _clipmap_rids[lod]
 		
@@ -155,14 +153,12 @@ func snap_to_target(target_position: Vector2, vertex_spacing: Vector2, force: bo
 						else:
 							t.origin = _tile_ps[instance_i]
 					MeshType.EDGE_A:
-						var edge_p_instance: Vector3 = _edge_ps[instance_i]
-						# t.origin = Vector3(edge_p_instance[test_x], 0.0, -_offset_a + (test_z * 2.0))
+						var edge_p_instance: Vector3 = _edge_x_ps[instance_i]
 						t.origin.x = edge_p_instance[test_p_2d.x]
-						t.origin.z -= _offset_a + (test_p_2d.y * 2.0)
+						t.origin.z -= _offset_a_z + (test_p_2d.y * 2.0)
 					MeshType.EDGE_B:
-						var edge_p_instance: Vector3 = _edge_ps[instance_i]
-						# t.origin = Vector3(-_offset_a, 0.0, edge_p_instance[test_z])
-						t.origin.x -= _offset_a
+						var edge_p_instance: Vector3 = _edge_z_ps[instance_i]
+						t.origin.x -= _offset_a_x
 						t.origin.z = edge_p_instance[test_p_2d.y]
 					MeshType.FILL_A:
 						if lod == 0:
@@ -270,25 +266,25 @@ func _generate_instances() -> void:
 func _generate_mesh_types():
 	_clear_mesh_types()
 	# 0 TILE - mesh_size x mesh_size tiles
-	_mesh_rids.append(_generate_mesh(Vector2i(_size, _size)))
+	_mesh_rids.append(_generate_mesh(_size))
 	# 1 EDGE_A - 2 by (mesh_size * 4 + 8) strips to bridge LOD transitions along Z axis
-	_mesh_rids.append(_generate_mesh(Vector2i(2, _size * 4 + 8)))
+	_mesh_rids.append(_generate_mesh(Vector2i(2, _size.y * 4 + 8)))
 	# 2 EDGE_B - (mesh_size * 4 + 4) by 2 strips to bridge LOD transitions along X axis
-	_mesh_rids.append(_generate_mesh(Vector2i(_size * 4 + 4, 2)))
+	_mesh_rids.append(_generate_mesh(Vector2i(_size.x * 4 + 4, 2)))
 	# 3 FILL_A - 4 by mesh_size
-	_mesh_rids.append(_generate_mesh(Vector2i(4, _size)))
+	_mesh_rids.append(_generate_mesh(Vector2i(4, _size.y)))
 	# 4 FILL_B - mesh_size by 4
-	_mesh_rids.append(_generate_mesh(Vector2i(_size, 4)))
+	_mesh_rids.append(_generate_mesh(Vector2i(_size.x, 4)))
 	# 5 STANDARD_TRIM_A - 2 by (mesh_size * 4 + 2) strips for LOD0 Z axis edge
-	_mesh_rids.append(_generate_mesh(Vector2i(2, _size * 4 + 2), true))
+	_mesh_rids.append(_generate_mesh(Vector2i(2, _size.y * 4 + 2), true))
 	# 6 STANDARD_TRIM_B - (mesh_size * 4 + 2) by 2 strips for LOD0 X axis edge
-	_mesh_rids.append(_generate_mesh(Vector2i(_size * 4 + 2, 2), true))
+	_mesh_rids.append(_generate_mesh(Vector2i(_size.x * 4 + 2, 2), true))
 	# 7 STANDARD_TILE - mesh_size x mesh_size tiles
-	_mesh_rids.append(_generate_mesh(Vector2i(_size, _size), true))
+	_mesh_rids.append(_generate_mesh(_size, true))
 	 # 8 STANDARD_EDGE_A - 2 by (mesh_size * 4 + 8) strips to bridge LOD transitions along Z axis
-	_mesh_rids.append(_generate_mesh(Vector2i(2, _size * 4 + 8), true))
+	_mesh_rids.append(_generate_mesh(Vector2i(2, _size.y * 4 + 8), true))
 	# 9 STANDARD_EDGE_B - (mesh_size * 4 + 4) by 2 strips to bridge LOD transitions along X axis
-	_mesh_rids.append(_generate_mesh(Vector2i(_size * 4 + 4, 2), true))
+	_mesh_rids.append(_generate_mesh(Vector2i(_size.x * 4 + 4, 2), true))
 	
 	for rid: RID in _mesh_rids:
 		var aabb := RenderingServer.mesh_get_custom_aabb(rid) # TODO: remove this, probably expensive
@@ -353,64 +349,73 @@ func _generate_offsets():
 	_tile_ps_lod_0.clear()
 	_trim_a_ps.clear()
 	_trim_b_ps.clear()
-	_edge_ps.clear()
+	_edge_x_ps.clear()
+	_edge_z_ps.clear()
 	_fill_a_ps.clear()
 	_fill_b_ps.clear()
 	_tile_ps.clear()
 	
 	# LOD 0 Tiles: Full 4x4 Grid of mesh _size tiles
-	_tile_ps_lod_0.append(Vector3(0, 0, _size))
-	_tile_ps_lod_0.append(Vector3(_size, 0, _size))
-	_tile_ps_lod_0.append(Vector3(_size, 0, 0))
-	_tile_ps_lod_0.append(Vector3(_size, 0, -_size))
-	_tile_ps_lod_0.append(Vector3(_size, 0, -_size * 2))
-	_tile_ps_lod_0.append(Vector3(0, 0, -_size * 2))
-	_tile_ps_lod_0.append(Vector3(-_size, 0, -_size * 2))
-	_tile_ps_lod_0.append(Vector3(-_size * 2, 0, -_size * 2))
-	_tile_ps_lod_0.append(Vector3(-_size * 2, 0, -_size))
-	_tile_ps_lod_0.append(Vector3(-_size * 2, 0, 0))
-	_tile_ps_lod_0.append(Vector3(-_size * 2, 0, _size))
-	_tile_ps_lod_0.append(Vector3(-_size, 0, _size))
+	_tile_ps_lod_0.append(Vector3(0, 0, _size.y))
+	_tile_ps_lod_0.append(Vector3(_size.x, 0, _size.y))
+	_tile_ps_lod_0.append(Vector3(_size.x, 0, 0))
+	_tile_ps_lod_0.append(Vector3(_size.x, 0, -_size.y))
+	_tile_ps_lod_0.append(Vector3(_size.x, 0, -_size.y * 2))
+	_tile_ps_lod_0.append(Vector3(0, 0, -_size.y * 2))
+	_tile_ps_lod_0.append(Vector3(-_size.x, 0, -_size.y * 2))
+	_tile_ps_lod_0.append(Vector3(-_size.x * 2, 0, -_size.y * 2))
+	_tile_ps_lod_0.append(Vector3(-_size.x * 2, 0, -_size.y))
+	_tile_ps_lod_0.append(Vector3(-_size.x * 2, 0, 0))
+	_tile_ps_lod_0.append(Vector3(-_size.x * 2, 0, _size.y))
+	_tile_ps_lod_0.append(Vector3(-_size.x, 0, _size.y))
 	
 	# Inner tiles
 	_tile_ps_lod_0.append(Vector3.ZERO)
-	_tile_ps_lod_0.append(Vector3(-_size, 0, 0))
-	_tile_ps_lod_0.append(Vector3(0, 0, -_size))
-	_tile_ps_lod_0.append(Vector3(-_size, 0, -_size))
+	_tile_ps_lod_0.append(Vector3(-_size.x, 0, 0))
+	_tile_ps_lod_0.append(Vector3(0, 0, -_size.y))
+	_tile_ps_lod_0.append(Vector3(-_size.x, 0, -_size.y))
 
 	# LOD 0 Trims: Fixed 2 unit wide ring around LOD0 tiles.
-	_trim_a_ps.append(Vector3(_size * 2, 0, -_size * 2))
-	_trim_a_ps.append(Vector3(-_size * 2 - 2, 0, -_size * 2 - 2))
-	_trim_b_ps.append(Vector3(-_size * 2, 0, -_size * 2 - 2))
-	_trim_b_ps.append(Vector3(-_size * 2 - 2, 0, _size * 2))
+	_trim_a_ps.append(Vector3(_size.x * 2, 0, -_size.y * 2))
+	_trim_a_ps.append(Vector3(-_size.x * 2 - 2, 0, -_size.y * 2 - 2))
+	_trim_b_ps.append(Vector3(-_size.x * 2, 0, -_size.y * 2 - 2))
+	_trim_b_ps.append(Vector3(-_size.x * 2 - 2, 0, _size.y * 2))
 
 	# LOD 1+: 4x4 Ring of mesh _size tiles, with one 2 unit wide gap on each axis for fill meshes.
-	_tile_ps.append(Vector3(2, 0, _size + 2))
-	_tile_ps.append(Vector3(_size + 2, 0, _size + 2))
-	_tile_ps.append(Vector3(_size + 2, 0, -2))
-	_tile_ps.append(Vector3(_size + 2, 0, -_size - 2))
-	_tile_ps.append(Vector3(_size + 2, 0, -_size * 2 - 2))
-	_tile_ps.append(Vector3(-2, 0, -_size * 2 - 2))
-	_tile_ps.append(Vector3(-_size - 2, 0, -_size * 2 - 2))
-	_tile_ps.append(Vector3(-_size * 2 - 2, 0, -_size * 2 - 2))
-	_tile_ps.append(Vector3(-_size * 2 - 2, 0, -_size + 2))
-	_tile_ps.append(Vector3(-_size * 2 - 2, 0, +2))
-	_tile_ps.append(Vector3(-_size * 2 - 2, 0, _size + 2))
-	_tile_ps.append(Vector3(-_size + 2, 0, _size + 2))
+	_tile_ps.append(Vector3(2, 0, _size.y + 2))
+	_tile_ps.append(Vector3(_size.x + 2, 0, _size.y + 2))
+	_tile_ps.append(Vector3(_size.x + 2, 0, -2))
+	_tile_ps.append(Vector3(_size.x + 2, 0, -_size.y - 2))
+	_tile_ps.append(Vector3(_size.x + 2, 0, -_size.y * 2 - 2))
+	_tile_ps.append(Vector3(-2, 0, -_size.y * 2 - 2))
+	_tile_ps.append(Vector3(-_size.x - 2, 0, -_size.y * 2 - 2))
+	_tile_ps.append(Vector3(-_size.x * 2 - 2, 0, -_size.y * 2 - 2))
+	_tile_ps.append(Vector3(-_size.x * 2 - 2, 0, -_size.y + 2))
+	_tile_ps.append(Vector3(-_size.x * 2 - 2, 0, +2))
+	_tile_ps.append(Vector3(-_size.x * 2 - 2, 0, _size.y + 2))
+	_tile_ps.append(Vector3(-_size.x + 2, 0, _size.y + 2))
 
 	# Edge offsets set edge pair psitions to either both before, straddle, or both after
-	# Depending on current LOD psition within the next LOD, (via test_x or test_z in snap())
-	_offset_a = float(_size * 2) + 2.0
-	_offset_b = float(_size * 2) + 4.0
-	_offset_c = float(_size * 2) + 6.0
-	_edge_ps.append(Vector3(_offset_a, _offset_a, -_offset_b))
-	_edge_ps.append(Vector3(_offset_b, -_offset_b, -_offset_c))
+	# Depending on current LOD psition within the next LOD
+	_offset_a_x = _size.x * 2.0 + 2.0
+	_offset_b_x = _size.x * 2.0 + 4.0
+	_offset_c_x = _size.x * 2.0 + 6.0
+	
+	_offset_a_z = _size.y * 2.0 + 2.0
+	_offset_b_z = _size.y * 2.0 + 4.0
+	_offset_c_z = _size.y * 2.0 + 6.0
+	
+	_edge_x_ps.append(Vector3(_offset_a_x, _offset_a_x, -_offset_b_x))
+	_edge_x_ps.append(Vector3(_offset_b_x, -_offset_b_x, -_offset_c_x))
+	
+	_edge_z_ps.append(Vector3(_offset_a_z, _offset_a_z, -_offset_b_z))
+	_edge_z_ps.append(Vector3(_offset_b_z, -_offset_b_z, -_offset_c_z))
 
 	# Fills: Occupies the gaps between tiles for LOD1+ to complete the ring.
-	_fill_a_ps.append(Vector3(_size - 2, 0, -_size * 2 - 2))
-	_fill_a_ps.append(Vector3(-_size - 2, 0, _size + 2))
-	_fill_b_ps.append(Vector3(_size + 2, 0, _size - 2))
-	_fill_b_ps.append(Vector3(-_size * 2 - 2, 0, -_size - 2))
+	_fill_a_ps.append(Vector3(_size.x - 2, 0, -_size.y * 2 - 2))
+	_fill_a_ps.append(Vector3(-_size.x - 2, 0, _size.y + 2))
+	_fill_b_ps.append(Vector3(_size.x + 2, 0, _size.y - 2))
+	_fill_b_ps.append(Vector3(-_size.x * 2 - 2, 0, -_size.y - 2))
 
 func _clear_instances():
 	for lod_array in _clipmap_rids:

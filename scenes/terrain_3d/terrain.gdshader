@@ -47,5 +47,5 @@ void fragment() {
 	NORMAL_MAP = normal_map.xzy;
 	
 	ALBEDO = vec3(0.7);
-	//ALBEDO = debug_albedo;
+	ALBEDO = debug_albedo;
 }
