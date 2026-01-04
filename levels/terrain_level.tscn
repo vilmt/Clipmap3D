@@ -2,8 +2,7 @@
 
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://scenes/terrain_3d/terrain_3d.gd" id="1_a1u1q"]
 [ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/terrain_3d/terrain.tres" id="1_tog6l"]
-[ext_resource type="Script" uid="uid://dc378wgjo7yag" path="res://scenes/player/fps_label.gd" id="2_rm2gq"]
-[ext_resource type="Script" uid="uid://dxs1yofxiw81l" path="res://scenes/terrain_3d/player.gd" id="3_tjx8f"]
+[ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="4_owj7c"]
 [ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/terrain_3d/height_map/noise_height_map.gd" id="4_vn06u"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tjx8f"]
@@ -21,8 +20,6 @@ glow_enabled = true
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pvg1d"]
 
-[sub_resource type="SphereMesh" id="SphereMesh_tjx8f"]
-
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_6mm2f"]
 frequency = 0.0015
 
@@ -30,11 +27,16 @@ frequency = 0.0015
 script = ExtResource("4_vn06u")
 noise = SubResource("FastNoiseLite_6mm2f")
 amplitude = 300.0
-origin = Vector2i(4, 0)
+size = Vector2i(1024, 1024)
+origin = Vector2i(8, -44)
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="BoxMesh" id="BoxMesh_tjx8f"]
 size = Vector3(10, 10, 10)
+
+[sub_resource type="SphereMesh" id="SphereMesh_owj7c"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_vn06u"]
 
 [node name="TerrainLevel" type="Node3D" unique_id=932743419]
 
@@ -54,33 +56,29 @@ directional_shadow_split_3 = 0.33
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 500.0
 
-[node name="Player" type="Node3D" parent="." unique_id=2121843380]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.176788, 111.399414, 21.882355)
-script = ExtResource("3_tjx8f")
-max_speed = 200.0
-acceleration = 200.0
-friction = 200.0
-
-[node name="Camera3D" type="Camera3D" parent="Player" unique_id=376850146]
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Player" unique_id=1234344361]
-mesh = SubResource("SphereMesh_tjx8f")
-
-[node name="FPSLabel" type="Label" parent="Player" unique_id=21435007]
-offset_right = 40.0
-offset_bottom = 23.0
-theme_override_constants/outline_size = 4
-text = "FPS"
-script = ExtResource("2_rm2gq")
-
-[node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.935211, 44.573193, -0.9260864)
+[node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("target_node", "physics_target_bodies")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.603592, 44.57307, -42.39514)
 script = ExtResource("1_a1u1q")
+target_node = NodePath("../Player")
 height_map = SubResource("Resource_acxjd")
+physics_target_bodies = [NodePath("../Player"), NodePath("../Ball")]
 mesh_size = 16
-mesh_lods = 7
+mesh_lods = 6
 shader_material = ExtResource("1_tog6l")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=749457015]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 300, 0)
+visible = false
 mesh = SubResource("BoxMesh_tjx8f")
+
+[node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.603592, 232.6409, -42.39514)
+
+[node name="Ball" type="RigidBody3D" parent="." unique_id=505955257]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ball" unique_id=1210926565]
+mesh = SubResource("SphereMesh_owj7c")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ball" unique_id=1461795616]
+shape = SubResource("SphereShape3D_vn06u")

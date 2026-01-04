@@ -13,10 +13,28 @@ class_name Terrain3D extends Node3D
 		if not is_node_ready():
 			return
 		_update_target_priority()
-
-@export_group("Height", "height")
-@export var height_map: HeightMap
+		
+# TODO: setters
+@export var height_map: HeightMap:
+	set(value):
+		if height_map == value:
+			return
+		height_map = value
+		if not is_node_ready():
+			return
+		_mesh_handler.update_height_map(height_map)
+		if not Engine.is_editor_hint():
+			_collision_handler.update_height_map(height_map)
+		
 @export var height_map_origin_snap := Vector2i(4, 4)
+
+# TODO: collider generation and setters
+@export_group("Physics", "physics")
+@export var collision_mesh_size := Vector2i(8, 8)
+@export var physics_enable_collision: bool = true
+@export var physics_target_bodies: Array[PhysicsBody3D]
+@export_flags_3d_physics var physics_layer: int = 1
+@export_flags_3d_physics var physics_mask: int = 1
 
 @export_group("Mesh", "mesh")
 @export var mesh_vertex_spacing := Vector2.ONE:
@@ -26,9 +44,11 @@ class_name Terrain3D extends Node3D
 		mesh_vertex_spacing = value
 		if not is_node_ready():
 			return
-		if shader_material:
-			shader_material.set_shader_parameter(&"vertex_spacing", mesh_vertex_spacing)
+		_mesh_handler.update_vertex_spacing(mesh_vertex_spacing)
 		snap_to_target(true)
+		
+		if not Engine.is_editor_hint():
+			_collision_handler.update_vertex_spacing(mesh_vertex_spacing)
 		
 @export var mesh_size: int = 32:
 	set(value):
@@ -37,7 +57,8 @@ class_name Terrain3D extends Node3D
 		mesh_size = value
 		if not is_node_ready():
 			return
-		initialize()
+		
+		_mesh_handler.update_size(mesh_size)
 
 @export_range(1, 10, 1) var mesh_lods: int = 5:
 	set(value):
@@ -46,9 +67,8 @@ class_name Terrain3D extends Node3D
 		mesh_lods = value
 		if not is_node_ready():
 			return
-		initialize()
-
-@export_group("Collision", "collision")
+		
+		_mesh_handler.update_lods(mesh_lods)
 
 @export var shader_material: ShaderMaterial:
 	set(value):
@@ -58,16 +78,16 @@ class_name Terrain3D extends Node3D
 		if not is_node_ready():
 			return
 		if shader_material:
-			_clipmap.update_material(shader_material.get_rid())
+			_mesh_handler.update_material(shader_material.get_rid())
 
-@export_flags_3d_render var render_mask: int = 1:
+@export_flags_3d_render var render_layer: int = 1:
 	set(value):
-		if render_mask == value:
+		if render_layer == value:
 			return
-		render_mask = value
+		render_layer = value
 		if not is_node_ready():
 			return
-		_clipmap.update_layer_mask(render_mask)
+		_mesh_handler.update_render_layer(render_layer)
 
 @export_enum("Off:0", "On:1", "Double-Sided:2", "Shadows Only:3") var cast_shadows: int = 1:
 	set(value):
@@ -76,49 +96,57 @@ class_name Terrain3D extends Node3D
 		cast_shadows = value
 		if not is_node_ready():
 			return
-		_clipmap.update_cast_shadows(cast_shadows as RenderingServer.ShadowCastingSetting)
+		_mesh_handler.update_cast_shadows(cast_shadows as RenderingServer.ShadowCastingSetting)
 
-var _clipmap := Clipmap.new()
+var _mesh_handler: Terrain3DMeshHandler
+var _collision_handler: Terrain3DCollisionHandler
+
+func _init() -> void:
+	_mesh_handler = Terrain3DMeshHandler.new()
+	if Engine.is_editor_hint():
+		return
+	_collision_handler = Terrain3DCollisionHandler.new()
 
 func _ready():
-	initialize()
+	_mesh_handler.generate(self)
 	
-	_clipmap.update_layer_mask(render_mask)
-	_clipmap.update_cast_shadows(cast_shadows as RenderingServer.ShadowCastingSetting)
+	snap_to_target(true)
+	_update_target_priority()
+	
+	# TODO: remove updaters in ready
+	
 	if shader_material:
-		_clipmap.update_material(shader_material.get_rid())
 		shader_material.set_shader_parameter(&"vertex_spacing", mesh_vertex_spacing)
 	
-	_update_shader_params()
-	height_map.changed.connect(_update_shader_params)
+	if height_map:
+		_update_shader_params()
+		height_map.changed.connect(_update_shader_params)
+	
+	if Engine.is_editor_hint():
+		set_physics_process(false)
+	else:
+		_collision_handler.initialize(height_map, collision_mesh_size, mesh_vertex_spacing, get_world_3d().space)
+		_collision_handler.add_bodies(physics_target_bodies)
 
 func _process(_delta: float) -> void:
 	snap_to_target()
 
+func _physics_process(_delta: float) -> void:
+	_collision_handler.update()
+	
 func _exit_tree() -> void:
-	_clipmap.clear()
+	_mesh_handler.clear()
+	if not Engine.is_editor_hint():
+		_collision_handler.clear()
 
 func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_TRANSFORM_CHANGED:
 			snap_to_target()
 		NOTIFICATION_ENTER_WORLD:
-			_clipmap.update_scenario(get_world_3d().scenario)
+			_mesh_handler.update_scenario(get_world_3d().scenario)
 		NOTIFICATION_VISIBILITY_CHANGED:
-			_clipmap.update_visible(is_visible_in_tree())
-	
-func initialize():
-	if not is_inside_tree():
-		return
-	
-	_clipmap.generate(mesh_size, mesh_lods, get_world_3d().scenario)
-	var amplitude: float = 0.1
-	if height_map:
-		amplitude = height_map.amplitude
-	_clipmap.update_aabbs(amplitude)
-	
-	snap_to_target(true)
-	_update_target_priority()
+			_mesh_handler.update_visible(is_visible_in_tree())
 
 func snap_to_target(force: bool = false) -> void:
 	if not is_inside_tree():
@@ -138,7 +166,7 @@ func snap_to_target(force: bool = false) -> void:
 		var snap_2d = Vector2(height_map_origin_snap) * mesh_vertex_spacing
 		height_map.set_origin(Vector2(target_p_2d.snapped(snap_2d)))
 		
-	_clipmap.snap_to_target(target_p_2d, mesh_vertex_spacing, force)
+	_mesh_handler.snap_to_target(target_p_2d, mesh_vertex_spacing, force)
 
 func _update_shader_params():
 	if not shader_material or not height_map:

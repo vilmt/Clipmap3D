@@ -43,11 +43,22 @@ func set_noise(value: Noise):
 	
 	emit_changed()
 
-func get_image():
+func get_image() -> Image:
 	return _image
 
-func get_texture():
+func get_texture() -> ImageTexture:
 	return _texture
+
+@warning_ignore_start("integer_division")
+func sample(world_position: Vector2, vertex_spacing: Vector2) -> float:
+	if not _image:
+		return 0.0
+	var map_position := Vector2i((world_position / vertex_spacing).round())
+	var image_size := _image.get_size()
+	var texel := map_position - origin + image_size / 2;
+	if not Rect2i(Vector2i.ZERO, image_size).has_point(texel):
+		return 0.0
+	return _image.get_pixelv(texel).r * amplitude
 
 func _create_maps():
 	_image = Image.create_empty(size.x, size.y, true, Image.FORMAT_RF)

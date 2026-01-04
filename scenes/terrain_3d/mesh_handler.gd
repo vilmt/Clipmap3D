@@ -1,4 +1,17 @@
-class_name Clipmap
+class_name Terrain3DMeshHandler
+
+# TODO: make size vector2i
+
+var _lods: int
+var _size: int
+var _vertex_spacing: Vector2
+var _material: ShaderMaterial
+var _scenario: RID
+var _visible: bool
+var _cast_shadows: RenderingServer.ShadowCastingSetting
+var _render_layer: int
+var _amplitude: float = 0.1
+var _height_map: HeightMap
 
 var _clipmap_rids: Array
 var _mesh_rids: Array[RID]
@@ -36,6 +49,35 @@ enum MeshType {
 	STANDARD_EDGE_B
 }
 
+func update_height_map(height_map: HeightMap):
+	if _height_map:
+		_height_map.changed.disconnect(_on_height_map_changed)
+	_height_map = height_map
+	if _height_map:
+		_height_map.changed.connect(_on_height_map_changed)
+	_on_height_map_changed()
+
+func _on_height_map_changed():
+	update_amplitude(_height_map.amplitude)
+
+func update_size(size: int):
+	_size = size
+	
+	_generate_mesh_types()
+	_generate_offsets()
+	_generate_instances()
+
+func update_lods(lods: int):
+	# instead of generating again completely, only delete or add requested lods.
+	_lods = lods
+	
+	_generate_instances()
+
+func update_vertex_spacing(vertex_spacing: Vector2):
+	_vertex_spacing = vertex_spacing
+	if _material:
+		_material.set_shader_parameter(&"vertex_spacing", vertex_spacing)
+
 func update_material(material_rid: RID):
 	for mesh_rid: RID in _mesh_rids:
 		RenderingServer.mesh_surface_set_material(mesh_rid, 0, material_rid)
@@ -52,11 +94,11 @@ func update_visible(visible: bool):
 			for rid: RID in mesh_array:
 				RenderingServer.instance_set_visible(rid, visible)
 
-func update_layer_mask(layer_mask: int):
+func update_render_layer(render_layer: int):
 	for lod_array in _clipmap_rids:
 		for mesh_array in lod_array:
 			for rid: RID in mesh_array:
-				RenderingServer.instance_set_layer_mask(rid, layer_mask)
+				RenderingServer.instance_set_layer_mask(rid, render_layer)
 
 func update_cast_shadows(cast_shadows: RenderingServer.ShadowCastingSetting):
 	for lod_array in _clipmap_rids:
@@ -64,9 +106,14 @@ func update_cast_shadows(cast_shadows: RenderingServer.ShadowCastingSetting):
 			for rid: RID in mesh_array:
 				RenderingServer.instance_geometry_set_cast_shadows_setting(rid, cast_shadows)
 
+func update_amplitude(amplitude: float):
+	_amplitude = amplitude
+	for rid: RID in _mesh_rids:
+		var aabb := RenderingServer.mesh_get_custom_aabb(rid) # TODO: remove this, probably expensive
+		aabb.size.y = _amplitude
+		RenderingServer.mesh_set_custom_aabb(rid, aabb)
+
 func snap_to_target(target_position: Vector2, vertex_spacing: Vector2, force: bool = false) -> void:
-	#if not is_inside_tree():
-		#return
 	var target_p_2d := target_position
 	
 	var must_snap: bool = absf(_last_target_p_2d.x - target_p_2d.x) >= vertex_spacing.x or absf(_last_target_p_2d.y - target_p_2d.y) >= vertex_spacing.y
@@ -133,12 +180,28 @@ func snap_to_target(target_position: Vector2, vertex_spacing: Vector2, force: bo
 				RenderingServer.instance_set_transform(mesh_array[instance_i], t)
 				RenderingServer.instance_teleport(mesh_array[instance_i])
 
-func generate(size: int, lods: int, scenario: RID) -> void:
-	clear()
-	_generate_mesh_types(size)
-	_generate_offsets(size)
+func generate(terrain: Terrain3D) -> void:
+	_size = terrain.mesh_size
+	_lods = terrain.mesh_lods
+	_scenario = terrain.get_world_3d().scenario
+	_visible = terrain.is_visible_in_tree()
+	_material = terrain.shader_material
+	_cast_shadows = terrain.cast_shadows as RenderingServer.ShadowCastingSetting
+	_render_layer = terrain.render_layer
 	
-	for level: int in lods:
+	update_height_map(terrain.height_map)
+	
+	_generate_mesh_types()
+	_generate_offsets()
+	_generate_instances()
+
+func clear():
+	_clear_instances()
+	_clear_mesh_types()
+	
+func _generate_instances() -> void:
+	_clear_instances()
+	for level: int in _lods:
 		var lod_array: Array = []
 		
 		var tile_amount: int = 12
@@ -151,7 +214,7 @@ func generate(size: int, lods: int, scenario: RID) -> void:
 			var instance_i := MeshType.TILE
 			if level == 0:
 				instance_i = MeshType.STANDARD_TILE
-			tile_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], scenario))
+			tile_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], _scenario))
 		lod_array.append(tile_rids) # Index 0: TILE
 		
 		var edge_a_rids: Array = []
@@ -159,7 +222,7 @@ func generate(size: int, lods: int, scenario: RID) -> void:
 			var instance_i := MeshType.EDGE_A
 			if level == 0:
 				instance_i = MeshType.STANDARD_EDGE_A
-			edge_a_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], scenario))
+			edge_a_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], _scenario))
 		lod_array.append(edge_a_rids) # Index 1: EDGE_A
 		
 		var edge_b_rids: Array = []
@@ -167,68 +230,70 @@ func generate(size: int, lods: int, scenario: RID) -> void:
 			var instance_i := MeshType.EDGE_B
 			if level == 0:
 				instance_i = MeshType.STANDARD_EDGE_B
-			edge_b_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], scenario))
+			edge_b_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], _scenario))
 		lod_array.append(edge_b_rids) # Index 2: EDGE_B
 		
 		if level == 0:
 			var trim_a_rids: Array[RID] = []
 			for i: int in 2:
 				var instance_i := MeshType.STANDARD_TRIM_A
-				trim_a_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], scenario))
+				trim_a_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], _scenario))
 			lod_array.append(trim_a_rids) # Index 4: TRIM_A
 			
 			var trim_b_rids: Array[RID] = []
 			for i: int in 2:
 				var instance_i := MeshType.STANDARD_TRIM_B
-				trim_b_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], scenario))
+				trim_b_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], _scenario))
 			lod_array.append(trim_b_rids) # Index 5: TRIM_B
 		else:
 			var fill_a_rids: Array[RID] = []
 			for i: int in 2:
 				var instance_i := MeshType.FILL_A
-				fill_a_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], scenario))
+				fill_a_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], _scenario))
 			lod_array.append(fill_a_rids) # Index 4: FILL_A
 			
 			var fill_b_rids: Array[RID] = []
 			for i: int in 2:
 				var instance_i := MeshType.FILL_B
-				fill_b_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], scenario))
+				fill_b_rids.append(RenderingServer.instance_create2(_mesh_rids[instance_i], _scenario))
 			lod_array.append(fill_b_rids) # Index 4: FILL_B
 		
 		_clipmap_rids.append(lod_array)
-
-func clear():
+	
 	for lod_array in _clipmap_rids:
 		for mesh_array in lod_array:
-			for rid in mesh_array:
-				RenderingServer.free_rid(rid)
-	_clipmap_rids.clear()
+			for rid: RID in mesh_array:
+				RenderingServer.instance_set_visible(rid, _visible)
+				RenderingServer.instance_set_layer_mask(rid, _render_layer)
+				RenderingServer.instance_geometry_set_cast_shadows_setting(rid, _cast_shadows)
+
+func _generate_mesh_types():
+	_clear_mesh_types()
+	# 0 TILE - mesh_size x mesh_size tiles
+	_mesh_rids.append(_generate_mesh(Vector2i(_size, _size)))
+	# 1 EDGE_A - 2 by (mesh_size * 4 + 8) strips to bridge LOD transitions along Z axis
+	_mesh_rids.append(_generate_mesh(Vector2i(2, _size * 4 + 8)))
+	# 2 EDGE_B - (mesh_size * 4 + 4) by 2 strips to bridge LOD transitions along X axis
+	_mesh_rids.append(_generate_mesh(Vector2i(_size * 4 + 4, 2)))
+	# 3 FILL_A - 4 by mesh_size
+	_mesh_rids.append(_generate_mesh(Vector2i(4, _size)))
+	# 4 FILL_B - mesh_size by 4
+	_mesh_rids.append(_generate_mesh(Vector2i(_size, 4)))
+	# 5 STANDARD_TRIM_A - 2 by (mesh_size * 4 + 2) strips for LOD0 Z axis edge
+	_mesh_rids.append(_generate_mesh(Vector2i(2, _size * 4 + 2), true))
+	# 6 STANDARD_TRIM_B - (mesh_size * 4 + 2) by 2 strips for LOD0 X axis edge
+	_mesh_rids.append(_generate_mesh(Vector2i(_size * 4 + 2, 2), true))
+	# 7 STANDARD_TILE - mesh_size x mesh_size tiles
+	_mesh_rids.append(_generate_mesh(Vector2i(_size, _size), true))
+	 # 8 STANDARD_EDGE_A - 2 by (mesh_size * 4 + 8) strips to bridge LOD transitions along Z axis
+	_mesh_rids.append(_generate_mesh(Vector2i(2, _size * 4 + 8), true))
+	# 9 STANDARD_EDGE_B - (mesh_size * 4 + 4) by 2 strips to bridge LOD transitions along X axis
+	_mesh_rids.append(_generate_mesh(Vector2i(_size * 4 + 4, 2), true))
 	
 	for rid: RID in _mesh_rids:
-		RenderingServer.free_rid(rid)
-	_mesh_rids.clear()
-	
-func _generate_mesh_types(size: int):
-	# 0 TILE - mesh_size x mesh_size tiles
-	_mesh_rids.append(_generate_mesh(Vector2i(size, size)))
-	# 1 EDGE_A - 2 by (mesh_size * 4 + 8) strips to bridge LOD transitions along Z axis
-	_mesh_rids.append(_generate_mesh(Vector2i(2, size * 4 + 8)))
-	# 2 EDGE_B - (mesh_size * 4 + 4) by 2 strips to bridge LOD transitions along X axis
-	_mesh_rids.append(_generate_mesh(Vector2i(size * 4 + 4, 2)))
-	# 3 FILL_A - 4 by mesh_size
-	_mesh_rids.append(_generate_mesh(Vector2i(4, size)))
-	# 4 FILL_B - mesh_size by 4
-	_mesh_rids.append(_generate_mesh(Vector2i(size, 4)))
-	# 5 STANDARD_TRIM_A - 2 by (mesh_size * 4 + 2) strips for LOD0 Z axis edge
-	_mesh_rids.append(_generate_mesh(Vector2i(2, size * 4 + 2), true))
-	# 6 STANDARD_TRIM_B - (mesh_size * 4 + 2) by 2 strips for LOD0 X axis edge
-	_mesh_rids.append(_generate_mesh(Vector2i(size * 4 + 2, 2), true))
-	# 7 STANDARD_TILE - mesh_size x mesh_size tiles
-	_mesh_rids.append(_generate_mesh(Vector2i(size, size), true))
-	 # 8 STANDARD_EDGE_A - 2 by (mesh_size * 4 + 8) strips to bridge LOD transitions along Z axis
-	_mesh_rids.append(_generate_mesh(Vector2i(2, size * 4 + 8), true))
-	# 9 STANDARD_EDGE_B - (mesh_size * 4 + 4) by 2 strips to bridge LOD transitions along X axis
-	_mesh_rids.append(_generate_mesh(Vector2i(size * 4 + 4, 2), true))
+		var aabb := RenderingServer.mesh_get_custom_aabb(rid) # TODO: remove this, probably expensive
+		aabb.size.y = _amplitude
+		RenderingServer.mesh_set_custom_aabb(rid, aabb)
 	
 func _generate_mesh(size: Vector2i, use_standard_grid: bool = false) -> RID:
 	var mesh_arrays: Array = []
@@ -279,10 +344,12 @@ func _generate_mesh(size: Vector2i, use_standard_grid: bool = false) -> RID:
 	var mesh := RenderingServer.mesh_create()
 	RenderingServer.mesh_add_surface_from_arrays(mesh, RenderingServer.PRIMITIVE_TRIANGLES, mesh_arrays)
 	RenderingServer.mesh_set_custom_aabb(mesh, AABB(Vector3.ZERO, Vector3(size.x, 0.1, size.y)))
+	if _material:
+		RenderingServer.mesh_surface_set_material(mesh, 0, _material.get_rid())
 	
 	return mesh
 	
-func _generate_offsets(size: int):
+func _generate_offsets():
 	_tile_ps_lod_0.clear()
 	_trim_a_ps.clear()
 	_trim_b_ps.clear()
@@ -291,62 +358,68 @@ func _generate_offsets(size: int):
 	_fill_b_ps.clear()
 	_tile_ps.clear()
 	
-	# LOD 0 Tiles: Full 4x4 Grid of mesh size tiles
-	_tile_ps_lod_0.append(Vector3(0, 0, size))
-	_tile_ps_lod_0.append(Vector3(size, 0, size))
-	_tile_ps_lod_0.append(Vector3(size, 0, 0))
-	_tile_ps_lod_0.append(Vector3(size, 0, -size))
-	_tile_ps_lod_0.append(Vector3(size, 0, -size * 2))
-	_tile_ps_lod_0.append(Vector3(0, 0, -size * 2))
-	_tile_ps_lod_0.append(Vector3(-size, 0, -size * 2))
-	_tile_ps_lod_0.append(Vector3(-size * 2, 0, -size * 2))
-	_tile_ps_lod_0.append(Vector3(-size * 2, 0, -size))
-	_tile_ps_lod_0.append(Vector3(-size * 2, 0, 0))
-	_tile_ps_lod_0.append(Vector3(-size * 2, 0, size))
-	_tile_ps_lod_0.append(Vector3(-size, 0, size))
+	# LOD 0 Tiles: Full 4x4 Grid of mesh _size tiles
+	_tile_ps_lod_0.append(Vector3(0, 0, _size))
+	_tile_ps_lod_0.append(Vector3(_size, 0, _size))
+	_tile_ps_lod_0.append(Vector3(_size, 0, 0))
+	_tile_ps_lod_0.append(Vector3(_size, 0, -_size))
+	_tile_ps_lod_0.append(Vector3(_size, 0, -_size * 2))
+	_tile_ps_lod_0.append(Vector3(0, 0, -_size * 2))
+	_tile_ps_lod_0.append(Vector3(-_size, 0, -_size * 2))
+	_tile_ps_lod_0.append(Vector3(-_size * 2, 0, -_size * 2))
+	_tile_ps_lod_0.append(Vector3(-_size * 2, 0, -_size))
+	_tile_ps_lod_0.append(Vector3(-_size * 2, 0, 0))
+	_tile_ps_lod_0.append(Vector3(-_size * 2, 0, _size))
+	_tile_ps_lod_0.append(Vector3(-_size, 0, _size))
 	
 	# Inner tiles
 	_tile_ps_lod_0.append(Vector3.ZERO)
-	_tile_ps_lod_0.append(Vector3(-size, 0, 0))
-	_tile_ps_lod_0.append(Vector3(0, 0, -size))
-	_tile_ps_lod_0.append(Vector3(-size, 0, -size))
+	_tile_ps_lod_0.append(Vector3(-_size, 0, 0))
+	_tile_ps_lod_0.append(Vector3(0, 0, -_size))
+	_tile_ps_lod_0.append(Vector3(-_size, 0, -_size))
 
 	# LOD 0 Trims: Fixed 2 unit wide ring around LOD0 tiles.
-	_trim_a_ps.append(Vector3(size * 2, 0, -size * 2))
-	_trim_a_ps.append(Vector3(-size * 2 - 2, 0, -size * 2 - 2))
-	_trim_b_ps.append(Vector3(-size * 2, 0, -size * 2 - 2))
-	_trim_b_ps.append(Vector3(-size * 2 - 2, 0, size * 2))
+	_trim_a_ps.append(Vector3(_size * 2, 0, -_size * 2))
+	_trim_a_ps.append(Vector3(-_size * 2 - 2, 0, -_size * 2 - 2))
+	_trim_b_ps.append(Vector3(-_size * 2, 0, -_size * 2 - 2))
+	_trim_b_ps.append(Vector3(-_size * 2 - 2, 0, _size * 2))
 
-	# LOD 1+: 4x4 Ring of mesh size tiles, with one 2 unit wide gap on each axis for fill meshes.
-	_tile_ps.append(Vector3(2, 0, size + 2))
-	_tile_ps.append(Vector3(size + 2, 0, size + 2))
-	_tile_ps.append(Vector3(size + 2, 0, -2))
-	_tile_ps.append(Vector3(size + 2, 0, -size - 2))
-	_tile_ps.append(Vector3(size + 2, 0, -size * 2 - 2))
-	_tile_ps.append(Vector3(-2, 0, -size * 2 - 2))
-	_tile_ps.append(Vector3(-size - 2, 0, -size * 2 - 2))
-	_tile_ps.append(Vector3(-size * 2 - 2, 0, -size * 2 - 2))
-	_tile_ps.append(Vector3(-size * 2 - 2, 0, -size + 2))
-	_tile_ps.append(Vector3(-size * 2 - 2, 0, +2))
-	_tile_ps.append(Vector3(-size * 2 - 2, 0, size + 2))
-	_tile_ps.append(Vector3(-size + 2, 0, size + 2))
+	# LOD 1+: 4x4 Ring of mesh _size tiles, with one 2 unit wide gap on each axis for fill meshes.
+	_tile_ps.append(Vector3(2, 0, _size + 2))
+	_tile_ps.append(Vector3(_size + 2, 0, _size + 2))
+	_tile_ps.append(Vector3(_size + 2, 0, -2))
+	_tile_ps.append(Vector3(_size + 2, 0, -_size - 2))
+	_tile_ps.append(Vector3(_size + 2, 0, -_size * 2 - 2))
+	_tile_ps.append(Vector3(-2, 0, -_size * 2 - 2))
+	_tile_ps.append(Vector3(-_size - 2, 0, -_size * 2 - 2))
+	_tile_ps.append(Vector3(-_size * 2 - 2, 0, -_size * 2 - 2))
+	_tile_ps.append(Vector3(-_size * 2 - 2, 0, -_size + 2))
+	_tile_ps.append(Vector3(-_size * 2 - 2, 0, +2))
+	_tile_ps.append(Vector3(-_size * 2 - 2, 0, _size + 2))
+	_tile_ps.append(Vector3(-_size + 2, 0, _size + 2))
 
 	# Edge offsets set edge pair psitions to either both before, straddle, or both after
 	# Depending on current LOD psition within the next LOD, (via test_x or test_z in snap())
-	_offset_a = float(size * 2) + 2.0
-	_offset_b = float(size * 2) + 4.0
-	_offset_c = float(size * 2) + 6.0
+	_offset_a = float(_size * 2) + 2.0
+	_offset_b = float(_size * 2) + 4.0
+	_offset_c = float(_size * 2) + 6.0
 	_edge_ps.append(Vector3(_offset_a, _offset_a, -_offset_b))
 	_edge_ps.append(Vector3(_offset_b, -_offset_b, -_offset_c))
 
 	# Fills: Occupies the gaps between tiles for LOD1+ to complete the ring.
-	_fill_a_ps.append(Vector3(size - 2, 0, -size * 2 - 2))
-	_fill_a_ps.append(Vector3(-size - 2, 0, size + 2))
-	_fill_b_ps.append(Vector3(size + 2, 0, size - 2))
-	_fill_b_ps.append(Vector3(-size * 2 - 2, 0, -size - 2))
-	
-func update_aabbs(amplitude: float):
+	_fill_a_ps.append(Vector3(_size - 2, 0, -_size * 2 - 2))
+	_fill_a_ps.append(Vector3(-_size - 2, 0, _size + 2))
+	_fill_b_ps.append(Vector3(_size + 2, 0, _size - 2))
+	_fill_b_ps.append(Vector3(-_size * 2 - 2, 0, -_size - 2))
+
+func _clear_instances():
+	for lod_array in _clipmap_rids:
+		for mesh_array in lod_array:
+			for rid in mesh_array:
+				RenderingServer.free_rid(rid)
+	_clipmap_rids.clear()
+
+func _clear_mesh_types():
 	for rid: RID in _mesh_rids:
-		var aabb := RenderingServer.mesh_get_custom_aabb(rid) # TODO: remove this, probably expensive
-		aabb.size.y = amplitude
-		RenderingServer.mesh_set_custom_aabb(rid, aabb)
+		RenderingServer.free_rid(rid)
+	_mesh_rids.clear()

@@ -1,6 +1,7 @@
 extends Node3D
 
 @export var sensitivity: float = 3.0
+
 @export var max_speed: float = 10
 @export var acceleration: float = 12
 @export var friction: float = 40

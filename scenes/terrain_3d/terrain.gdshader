@@ -15,8 +15,8 @@ varying vec3 global_position;
 varying vec3 debug_albedo;
 
 ivec2 to_texel(vec2 world_position) {
-	vec2 map_position = world_position / vertex_spacing;
-	return ivec2(round(map_position)) + textureSize(height_map, 0) / 2 - map_origin;
+	ivec2 map_position = ivec2(round(world_position / vertex_spacing));
+	return map_position - map_origin + textureSize(height_map, 0) / 2;
 }
 
 void vertex() {

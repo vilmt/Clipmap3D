@@ -12,14 +12,17 @@ class_name HeightMap extends Resource
 signal image_changed(new_image: Image)
 signal texture_changed(new_texture: Texture)
 
-func update_sampling_parameters(shader_material: ShaderMaterial):
-	shader_material.set_shader_parameter(&"amplitude", amplitude)
+#func update_sampling_parameters(shader_material: ShaderMaterial):
+	#shader_material.set_shader_parameter(&"amplitude", amplitude)
 
 @abstract
 func get_image() -> Image
 
 @abstract
 func get_texture() -> ImageTexture
+
+@abstract
+func sample(world_position: Vector2, vertex_spacing: Vector2) -> float
 
 func set_amplitude(value: float):
 	if amplitude == value:

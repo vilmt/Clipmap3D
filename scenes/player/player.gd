@@ -16,6 +16,11 @@ extends CharacterBody3D
 @export var air_acceleration: float = 12
 @export var air_gravity: float = 25
 
+@export_group("Fly", "fly")
+@export var fly_max_speed: float = 200
+@export var fly_acceleration: float = 200
+@export var fly_friction: float = 200
+
 const MIN_SPEED: float = 0.1
 
 @onready var camera: Camera3D = $Camera3D
@@ -37,6 +42,7 @@ func _ready() -> void:
 	state_machine.add_state(_walk)
 	state_machine.add_state(_jump)
 	state_machine.add_state(_air)
+	state_machine.add_state(_fly)
 	
 	state_machine.queue_state(_walk)
 
@@ -46,6 +52,11 @@ func _physics_process(delta: float) -> void:
 	state_machine.update()
 
 func _unhandled_input(event: InputEvent):
+	if event.is_action_pressed("fly"):
+		if state_machine.get_current_state() == _fly:
+			state_machine.queue_state(_walk)
+		else:
+			state_machine.queue_state(_fly)
 	if event.is_action_pressed("jump"):
 		_last_jump_input_ticks = Time.get_ticks_msec()
 		if _can_jump():
@@ -102,6 +113,24 @@ func _air():
 	
 	if is_on_floor():
 		state_machine.queue_state(_walk)
+#endregion
+
+#region fly
+func _fly():
+	var delta := get_physics_process_delta_time()
+	var raw_input := Input.get_vector("left", "right", "up", "down")
+	var input_vector := global_basis * Vector3(raw_input.x, 0.0, raw_input.y)
+	var alternate_y := Input.get_axis("crouch", "jump")
+	if absf(alternate_y) > absf(input_vector.y):
+		input_vector.y = alternate_y
+	input_vector = input_vector.normalized()
+	
+	if not input_vector:
+		velocity = velocity.move_toward(Vector3.ZERO, fly_friction * delta)
+	else:
+		velocity = velocity.move_toward(input_vector * fly_max_speed, fly_acceleration * delta)
+	
+	move_and_slide()
 #endregion
 
 func _get_acceleration(acceleration: float, max_speed: float, delta: float) -> Vector3:
