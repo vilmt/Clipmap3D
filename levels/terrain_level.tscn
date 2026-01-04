@@ -28,7 +28,7 @@ script = ExtResource("4_vn06u")
 noise = SubResource("FastNoiseLite_6mm2f")
 amplitude = 300.0
 size = Vector2i(1024, 1024)
-origin = Vector2i(-4, -8)
+origin = Vector2i(4, -8)
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="BoxMesh" id="BoxMesh_tjx8f"]
@@ -57,7 +57,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 500.0
 
 [node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("target_node", "physics_target_bodies")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.1629086, 61.250805, -8.103924)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.087906, 61.25079, -6.152849)
 script = ExtResource("1_a1u1q")
 target_node = NodePath("../Player")
 height_map = SubResource("Resource_acxjd")
@@ -71,7 +71,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.1629086, 232.6409, -8.103924)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.087906, 232.64088, -6.152849)
 
 [node name="Ball" type="RigidBody3D" parent="." unique_id=505955257]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

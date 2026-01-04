@@ -1,7 +1,5 @@
 class_name Terrain3DMeshHandler
 
-# TODO: try to use same meshes in lod 0, would be funny
-
 var _lods: int
 var _size: Vector2i
 var _vertex_spacing: Vector2
@@ -17,8 +15,7 @@ var _instance_rids: Array[RID]
 var _instance_mesh_types: Array[MeshType]
 var _mesh_rids: Dictionary[MeshType, RID]
 
-var _instance_ps: PackedVector3Array
-var _instance_ps_lod_0: PackedVector3Array
+var _mesh_ps: Dictionary[MeshType, PackedVector3Array]
 
 var _offset_a_x: float
 var _offset_b_x: float
@@ -30,19 +27,17 @@ var _offset_c_z: float
 
 var _last_target_p_2d := Vector2.ZERO
 
-# TODO: refactor "standard", very unclear
 enum MeshType {
+	CORE,
 	TILE,
 	EDGE_X,
 	EDGE_Z,
 	FILL_X,
-	FILL_Z,
-	TILE_LOD_0,
-	EDGE_X_LOD_0,
-	EDGE_Z_LOD_0,
-	FILL_X_LOD_0,
-	FILL_Z_LOD_0
+	FILL_Z
 }
+
+const LOD_0_INSTANCES: int = 21
+const LOD_X_INSTANCES: int = 20
 
 func update_height_map(height_map: HeightMap):
 	if _height_map:
@@ -99,11 +94,6 @@ func update_amplitude(amplitude: float):
 		aabb.size.y = _amplitude
 		RenderingServer.mesh_set_custom_aabb(rid, aabb)
 
-func _get_starting_index(lod: int):
-	if lod == 0:
-		return 0
-	return 24 + (lod - 1) * 20
-
 func snap_to_target(target_position: Vector2, vertex_spacing: Vector2, force: bool = false) -> void:
 	var target_p_2d := target_position
 	
@@ -115,7 +105,11 @@ func snap_to_target(target_position: Vector2, vertex_spacing: Vector2, force: bo
 	_last_target_p_2d = target_p_2d
 	var snapped_p_2d: Vector2 = (target_p_2d / vertex_spacing).floor() * vertex_spacing
 	
+	var starting_i: int = 0
+	var ending_i: int = LOD_0_INSTANCES
+	
 	for lod: int in _lods:
+		# TODO: clean up
 		var snap: Vector2 = pow(2.0, float(lod) + 1.0) * vertex_spacing
 		var lod_scale := Vector3(pow(2.0, lod) * vertex_spacing.x, 1.0, pow(2.0, lod) * vertex_spacing.y)
 		
@@ -126,28 +120,26 @@ func snap_to_target(target_position: Vector2, vertex_spacing: Vector2, force: bo
 		var next_p_2d := (snapped_p_2d / next_snap).round() * next_snap
 		var test_p_2d := (Vector2i(((p_2d - next_p_2d) / snap).round()) + Vector2i.ONE).clampi(0, 2)
 		
-		var i0: int = _get_starting_index(lod)
-		var i1: int = _get_starting_index(lod + 1)
+		var instance_count: Dictionary[MeshType, int] = {}
 		
-		for i: int in range(i0, i1):
-			var j: int = i - i0
-			var _instance_rid := _instance_rids[i]
-			var _mesh_type := _instance_mesh_types[i]
+		for i: int in range(starting_i, ending_i):
+			var instance_rid := _instance_rids[i]
+			var mesh_type := _instance_mesh_types[i]
 			
-			var base_p: Vector3
-			if lod == 0:
-				base_p = _instance_ps_lod_0[j]
+			var count: int = instance_count.get(mesh_type, 0)
+			if count == 0:
+				instance_count[mesh_type] = 1
 			else:
-				base_p = _instance_ps[j]
+				instance_count[mesh_type] += 1
 			
+			var base_p: Vector3 = _mesh_ps[mesh_type][count]
+
 			var t := Transform3D.IDENTITY
 			# if edge, interpret components of p as offsets (refactor)
-			if _mesh_type == MeshType.EDGE_X or _mesh_type == MeshType.EDGE_X_LOD_0:
+			if mesh_type == MeshType.EDGE_X:
 				t.origin.x = base_p[test_p_2d.x]
 				t.origin.z -= _offset_a_z + (test_p_2d.y * 2.0)
-			
-			# BROKEN
-			elif _mesh_type == MeshType.EDGE_Z or _mesh_type == MeshType.EDGE_Z_LOD_0:
+			elif mesh_type == MeshType.EDGE_Z:
 				t.origin.x -= _offset_a_x
 				t.origin.z = base_p[test_p_2d.y]
 			else:
@@ -155,8 +147,11 @@ func snap_to_target(target_position: Vector2, vertex_spacing: Vector2, force: bo
 				
 			t = t.scaled(lod_scale)
 			t.origin += Vector3(p_2d.x, 0.0, p_2d.y)
-			RenderingServer.instance_set_transform(_instance_rid, t)
-			RenderingServer.instance_teleport(_instance_rid)
+			RenderingServer.instance_set_transform(instance_rid, t)
+			RenderingServer.instance_teleport(instance_rid)
+		
+		starting_i = ending_i
+		ending_i += LOD_X_INSTANCES
 
 func generate(terrain: Terrain3D) -> void:
 	_size = terrain.mesh_size
@@ -189,55 +184,29 @@ func _generate_instances() -> void:
 	_clear_instances()
 	for lod: int in _lods:
 		if lod == 0:
-			for i: int in 16:
-				_create_instance(MeshType.TILE_LOD_0)
-			for i: int in 2:
-				_create_instance(MeshType.FILL_X_LOD_0)
-			for i: int in 2:
-				_create_instance(MeshType.FILL_Z_LOD_0)
-			for i: int in 2:
-				_create_instance(MeshType.EDGE_X_LOD_0)
-			for i: int in 2:
-				_create_instance(MeshType.EDGE_Z_LOD_0)
-		else:
-			for i: int in 12:
-				_create_instance(MeshType.TILE)
-			for i: int in 2:
-				_create_instance(MeshType.FILL_X)
-			for i: int in 2:
-				_create_instance(MeshType.FILL_Z)
-			for i: int in 2:
-				_create_instance(MeshType.EDGE_X)
-			for i: int in 2:
-				_create_instance(MeshType.EDGE_Z)
+			_create_instance(MeshType.CORE)
+		for i: int in 12:
+			_create_instance(MeshType.TILE)
+		for i: int in 2:
+			_create_instance(MeshType.FILL_X)
+		for i: int in 2:
+			_create_instance(MeshType.FILL_Z)
+		for i: int in 2:
+			_create_instance(MeshType.EDGE_X)
+		for i: int in 2:
+			_create_instance(MeshType.EDGE_Z)
 			
 func _generate_mesh_types():
 	_clear_mesh_types()
-	# 7 STANDARD_TILE - mesh_size x mesh_size tiles
-	_mesh_rids[MeshType.TILE_LOD_0] = _generate_mesh(_size, true)
-	# 5 STANDARD_TRIM_A - 2 by (mesh_size * 4 + 2) strips for LOD0 Z axis edge
-	_mesh_rids[MeshType.FILL_X_LOD_0] = _generate_mesh(Vector2i(2, _size.y * 4 + 2), true)
-	# 6 STANDARD_TRIM_B - (mesh_size * 4 + 2) by 2 strips for LOD0 X axis edge
-	_mesh_rids[MeshType.FILL_Z_LOD_0] = _generate_mesh(Vector2i(_size.x * 4 + 2, 2), true)
-	 # 8 STANDARD_EDGE_A - 2 by (mesh_size * 4 + 8) strips to bridge LOD transitions along Z axis
-	_mesh_rids[MeshType.EDGE_X_LOD_0] = _generate_mesh(Vector2i(2, _size.y * 4 + 8), true)
-	# 9 STANDARD_EDGE_B - (mesh_size * 4 + 4) by 2 strips to bridge LOD transitions along X axis
-	_mesh_rids[MeshType.EDGE_Z_LOD_0] = _generate_mesh(Vector2i(_size.x * 4 + 4, 2), true)
 	
-	# 0 TILE - mesh_size x mesh_size tiles
+	_mesh_rids[MeshType.CORE] = _generate_mesh(_size * 2 + Vector2i.ONE * 4)
 	_mesh_rids[MeshType.TILE] = _generate_mesh(_size)
-	# 3 FILL_A - 4 by mesh_size
 	_mesh_rids[MeshType.FILL_X] = _generate_mesh(Vector2i(4, _size.y))
-	# 4 FILL_B - mesh_size by 4
 	_mesh_rids[MeshType.FILL_Z] = _generate_mesh(Vector2i(_size.x, 4))
-	# 1 EDGE_A - 2 by (mesh_size * 4 + 8) strips to bridge LOD transitions along Z axis
 	_mesh_rids[MeshType.EDGE_X] = _generate_mesh(Vector2i(2, _size.y * 4 + 8))
-	# 2 EDGE_B - (mesh_size * 4 + 4) by 2 strips to bridge LOD transitions along X axis
 	_mesh_rids[MeshType.EDGE_Z] = _generate_mesh(Vector2i(_size.x * 4 + 4, 2))
 	
-	
-	
-func _generate_mesh(size: Vector2i, use_standard_grid: bool = false) -> RID:
+func _generate_mesh(size: Vector2i) -> RID:
 	var mesh_arrays: Array = []
 	mesh_arrays.resize(RenderingServer.ARRAY_MAX)
 	
@@ -255,22 +224,14 @@ func _generate_mesh(size: Vector2i, use_standard_grid: bool = false) -> RID:
 			var t_l: int = (y + 1) * (size.x + 1) + x
 			var t_r: int = t_l + 1
 			
-			if (x + y) % 2 == 0 or use_standard_grid:
-				indices.append(b_l)
-				indices.append(t_r)
-				indices.append(t_l)
+			indices.append(b_l)
+			indices.append(t_r)
+			indices.append(t_l)
 				
-				indices.append(b_l)
-				indices.append(b_r)
-				indices.append(t_r)
-			else:
-				indices.append(b_l)
-				indices.append(b_r)
-				indices.append(t_l)
-				
-				indices.append(t_l)
-				indices.append(b_r)
-				indices.append(t_r)
+			indices.append(b_l)
+			indices.append(b_r)
+			indices.append(t_r)
+			
 	mesh_arrays[RenderingServer.ARRAY_INDEX] = indices
 	
 	var normals := PackedVector3Array()
@@ -293,56 +254,33 @@ func _generate_mesh(size: Vector2i, use_standard_grid: bool = false) -> RID:
 	
 func _generate_offsets():
 	# TODO: calculate all offsets from center of mesh
-	_instance_ps_lod_0.clear()
-	_instance_ps.clear()
-	
-	# LOD 0 Tiles: Full 4x4 Grid of mesh _size tiles
-	_instance_ps_lod_0.append(Vector3(0, 0, _size.y))
-	_instance_ps_lod_0.append(Vector3(_size.x, 0, _size.y))
-	_instance_ps_lod_0.append(Vector3(_size.x, 0, 0))
-	_instance_ps_lod_0.append(Vector3(_size.x, 0, -_size.y))
-	_instance_ps_lod_0.append(Vector3(_size.x, 0, -_size.y * 2))
-	_instance_ps_lod_0.append(Vector3(0, 0, -_size.y * 2))
-	_instance_ps_lod_0.append(Vector3(-_size.x, 0, -_size.y * 2))
-	_instance_ps_lod_0.append(Vector3(-_size.x * 2, 0, -_size.y * 2))
-	_instance_ps_lod_0.append(Vector3(-_size.x * 2, 0, -_size.y))
-	_instance_ps_lod_0.append(Vector3(-_size.x * 2, 0, 0))
-	_instance_ps_lod_0.append(Vector3(-_size.x * 2, 0, _size.y))
-	_instance_ps_lod_0.append(Vector3(-_size.x, 0, _size.y))
-	# Inner tiles
-	_instance_ps_lod_0.append(Vector3.ZERO)
-	_instance_ps_lod_0.append(Vector3(-_size.x, 0, 0))
-	_instance_ps_lod_0.append(Vector3(0, 0, -_size.y))
-	_instance_ps_lod_0.append(Vector3(-_size.x, 0, -_size.y))
+	_mesh_ps.clear()
 
-	# LOD 0 Trims: Fixed 2 unit wide ring around LOD0 tiles.
-	_instance_ps_lod_0.append(Vector3(_size.x * 2, 0, -_size.y * 2))
-	_instance_ps_lod_0.append(Vector3(-_size.x * 2 - 2, 0, -_size.y * 2 - 2))
-	_instance_ps_lod_0.append(Vector3(-_size.x * 2, 0, -_size.y * 2 - 2))
-	_instance_ps_lod_0.append(Vector3(-_size.x * 2 - 2, 0, _size.y * 2))
-
-	# LOD 1+: 4x4 Ring of mesh _size tiles, with one 2 unit wide gap on each axis for fill meshes.
-	_instance_ps.append(Vector3(2, 0, _size.y + 2))
-	_instance_ps.append(Vector3(_size.x + 2, 0, _size.y + 2))
-	_instance_ps.append(Vector3(_size.x + 2, 0, -2))
-	_instance_ps.append(Vector3(_size.x + 2, 0, -_size.y - 2))
-	_instance_ps.append(Vector3(_size.x + 2, 0, -_size.y * 2 - 2))
-	_instance_ps.append(Vector3(-2, 0, -_size.y * 2 - 2))
-	_instance_ps.append(Vector3(-_size.x - 2, 0, -_size.y * 2 - 2))
-	_instance_ps.append(Vector3(-_size.x * 2 - 2, 0, -_size.y * 2 - 2))
-	_instance_ps.append(Vector3(-_size.x * 2 - 2, 0, -_size.y + 2))
-	_instance_ps.append(Vector3(-_size.x * 2 - 2, 0, +2))
-	_instance_ps.append(Vector3(-_size.x * 2 - 2, 0, _size.y + 2))
-	_instance_ps.append(Vector3(-_size.x + 2, 0, _size.y + 2))
+	_mesh_ps[MeshType.CORE] = PackedVector3Array()
+	_mesh_ps[MeshType.CORE].append(Vector3(-_size.x - 2, 0.0, -_size.y - 2))
 	
-	# Fills: Occupies the gaps between tiles for LOD1+ to complete the ring.
-	_instance_ps.append(Vector3(_size.x - 2, 0, -_size.y * 2 - 2))
-	_instance_ps.append(Vector3(-_size.x - 2, 0, _size.y + 2))
-	_instance_ps.append(Vector3(_size.x + 2, 0, _size.y - 2))
-	_instance_ps.append(Vector3(-_size.x * 2 - 2, 0, -_size.y - 2))
+	_mesh_ps[MeshType.TILE] = PackedVector3Array()
+	_mesh_ps[MeshType.TILE].append(Vector3(2, 0, _size.y + 2))
+	_mesh_ps[MeshType.TILE].append(Vector3(_size.x + 2, 0, _size.y + 2))
+	_mesh_ps[MeshType.TILE].append(Vector3(_size.x + 2, 0, -2))
+	_mesh_ps[MeshType.TILE].append(Vector3(_size.x + 2, 0, -_size.y - 2))
+	_mesh_ps[MeshType.TILE].append(Vector3(_size.x + 2, 0, -_size.y * 2 - 2))
+	_mesh_ps[MeshType.TILE].append(Vector3(-2, 0, -_size.y * 2 - 2))
+	_mesh_ps[MeshType.TILE].append(Vector3(-_size.x - 2, 0, -_size.y * 2 - 2))
+	_mesh_ps[MeshType.TILE].append(Vector3(-_size.x * 2 - 2, 0, -_size.y * 2 - 2))
+	_mesh_ps[MeshType.TILE].append(Vector3(-_size.x * 2 - 2, 0, -_size.y + 2))
+	_mesh_ps[MeshType.TILE].append(Vector3(-_size.x * 2 - 2, 0, +2))
+	_mesh_ps[MeshType.TILE].append(Vector3(-_size.x * 2 - 2, 0, _size.y + 2))
+	_mesh_ps[MeshType.TILE].append(Vector3(-_size.x + 2, 0, _size.y + 2))
 	
-	# Edge offsets set edge pair positions to either both before, alternate, or both after
-	# Depending on current LOD position within the next LOD
+	_mesh_ps[MeshType.FILL_X] = PackedVector3Array()
+	_mesh_ps[MeshType.FILL_X].append(Vector3(_size.x - 2, 0, -_size.y * 2 - 2))
+	_mesh_ps[MeshType.FILL_X].append(Vector3(-_size.x - 2, 0, _size.y + 2))
+	
+	_mesh_ps[MeshType.FILL_Z] = PackedVector3Array()
+	_mesh_ps[MeshType.FILL_Z].append(Vector3(_size.x + 2, 0, _size.y - 2))
+	_mesh_ps[MeshType.FILL_Z].append(Vector3(-_size.x * 2 - 2, 0, -_size.y - 2))
+	
 	_offset_a_x = _size.x * 2.0 + 2.0
 	_offset_b_x = _size.x * 2.0 + 4.0
 	_offset_c_x = _size.x * 2.0 + 6.0
@@ -351,15 +289,13 @@ func _generate_offsets():
 	_offset_b_z = _size.y * 2.0 + 4.0
 	_offset_c_z = _size.y * 2.0 + 6.0
 	
-	_instance_ps_lod_0.append(Vector3(_offset_a_x, _offset_a_x, -_offset_b_x))
-	_instance_ps_lod_0.append(Vector3(_offset_b_x, -_offset_b_x, -_offset_c_x))
-	_instance_ps_lod_0.append(Vector3(_offset_a_z, _offset_a_z, -_offset_b_z))
-	_instance_ps_lod_0.append(Vector3(_offset_b_z, -_offset_b_z, -_offset_c_z))
+	_mesh_ps[MeshType.EDGE_X] = PackedVector3Array()
+	_mesh_ps[MeshType.EDGE_X].append(Vector3(_offset_a_x, _offset_a_x, -_offset_b_x))
+	_mesh_ps[MeshType.EDGE_X].append(Vector3(_offset_b_x, -_offset_b_x, -_offset_c_x))
 	
-	_instance_ps.append(Vector3(_offset_a_x, _offset_a_x, -_offset_b_x))
-	_instance_ps.append(Vector3(_offset_b_x, -_offset_b_x, -_offset_c_x))
-	_instance_ps.append(Vector3(_offset_a_z, _offset_a_z, -_offset_b_z))
-	_instance_ps.append(Vector3(_offset_b_z, -_offset_b_z, -_offset_c_z))
+	_mesh_ps[MeshType.EDGE_Z] = PackedVector3Array()
+	_mesh_ps[MeshType.EDGE_Z].append(Vector3(_offset_a_z, _offset_a_z, -_offset_b_z))
+	_mesh_ps[MeshType.EDGE_Z].append(Vector3(_offset_b_z, -_offset_b_z, -_offset_c_z))
 
 func _clear_instances():
 	for instance_rid: RID in _instance_rids:
