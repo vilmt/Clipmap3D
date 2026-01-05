@@ -1,6 +1,6 @@
 shader_type spatial;
 
-render_mode wireframe;
+//render_mode wireframe;
 uniform highp sampler2D height_map: hint_default_black, repeat_disable;
 
 uniform float amplitude;
@@ -8,7 +8,6 @@ uniform float amplitude;
 uniform ivec2 map_origin;
 
 uniform vec2 vertex_spacing;
-//uniform vec2 snap_origin;
 
 varying vec3 global_position;
 

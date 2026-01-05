@@ -15,13 +15,12 @@ var _instance_rids: Array[RID]
 var _instance_mesh_types: Array[MeshType]
 
 var _mesh_rids: Dictionary[MeshType, RID]
-var _mesh_ps: Dictionary[MeshType, PackedVector3Array]
 var _mesh_aabbs: Dictionary[MeshType, AABB]
+var _mesh_xzs: Dictionary[MeshType, PackedVector2Array]
+var _edge_x_xzs: Dictionary[Vector2i, Vector2]
+var _edge_z_xzs: Dictionary[Vector2i, Vector2]
 
-var _edge_x_offsets: Dictionary[int, float]
-var _edge_z_offsets: Dictionary[int, float]
-
-var _last_p_2d := Vector2.ZERO
+var _last_p_xz := Vector2.ZERO
 
 enum MeshType {
 	CORE,
@@ -51,19 +50,19 @@ func update_size(size: Vector2i):
 	_generate_mesh_types()
 	_generate_offsets()
 	_generate_instances()
-	snap(_last_p_2d, true)
+	snap(_last_p_xz, true)
 
 func update_lods(lods: int):
 	_lods = lods
 	
 	_generate_instances()
-	snap(_last_p_2d, true)
+	snap(_last_p_xz, true)
 
 func update_vertex_spacing(vertex_spacing: Vector2):
 	_vertex_spacing = vertex_spacing
 	if _material:
 		_material.set_shader_parameter(&"vertex_spacing", vertex_spacing)
-	snap(_last_p_2d, true)
+	snap(_last_p_xz, true)
 
 func update_material(material_rid: RID):
 	for mesh_rid: RID in _mesh_rids.values():
@@ -92,26 +91,25 @@ func update_amplitude(amplitude: float):
 		aabb.size.y = _amplitude
 		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
 
-func snap(p_2d: Vector2, force: bool = false) -> void:
-	var must_snap: bool = absf(_last_p_2d.x - p_2d.x) >= _vertex_spacing.x / 2.0 or absf(_last_p_2d.y - p_2d.y) >= _vertex_spacing.y / 2.0
+func snap(p_xz: Vector2, force: bool = false) -> void:
+	var snapped_p_xz_0 = (p_xz / _vertex_spacing).floor() * _vertex_spacing
+	var must_snap: bool = not _last_p_xz.is_equal_approx(snapped_p_xz_0)
 	
 	if not (must_snap or force):
 		return
 	
-	_last_p_2d = p_2d
+	_last_p_xz = snapped_p_xz_0
 	
 	var starting_i: int = 0
 	var ending_i: int = LOD_0_INSTANCES
 	
 	for lod: int in _lods:
 		var scale: Vector2 = _vertex_spacing * float(1 << lod)
-		var snapped_p_2d := p_2d.snapped(scale)
-		
-		print(snapped_p_2d)
+		var snapped_p_xz = (p_xz / scale).floor() * scale
 		
 		var next_scale: Vector2 = scale * 2.0
-		var next_p_2d := p_2d.snapped(next_scale)
-		var edge_alternate := Vector2i(((snapped_p_2d - next_p_2d) / next_scale).round()).clampi(-1, 1)
+		var next_p_xz := (p_xz / next_scale).floor() * next_scale
+		var edge := Vector2i(((snapped_p_xz - next_p_xz) / next_scale).round())
 		
 		var instance_count: Dictionary[MeshType, int] = {}
 		
@@ -120,20 +118,18 @@ func snap(p_2d: Vector2, force: bool = false) -> void:
 			var type := _instance_mesh_types[i]
 			var count: int = instance_count.get(type, 0)
 			
-			var t := Transform3D.IDENTITY
+			var xz: Vector2
+			match type:
+				MeshType.EDGE_X:
+					xz = _edge_x_xzs[edge]
+				MeshType.EDGE_Z:
+					xz = _edge_z_xzs[edge]
+				_:
+					xz = _mesh_xzs[type][count]
 			
-			# WIP
-			if type == MeshType.EDGE_X:
-				t.origin.x = _edge_x_offsets[edge_alternate.x] + 1000.0
-				t.origin.z -= edge_alternate.y * 2.0
-			elif type == MeshType.EDGE_Z:
-				t.origin.z = _edge_z_offsets[edge_alternate.y] + 1000.0
-				t.origin.x -= edge_alternate.x * 2.0
-			else:
-				t.origin = _mesh_ps[type][count]
-				
+			var t := Transform3D(Basis(), Vector3(xz.x, 0.0, xz.y))
 			t = t.scaled(Vector3(scale.x, 1.0, scale.y))
-			t.origin += Vector3(snapped_p_2d.x, 0.0, snapped_p_2d.y)
+			t.origin += Vector3(snapped_p_xz.x, 0.0, snapped_p_xz.y)
 			RenderingServer.instance_set_transform(instance_rid, t)
 			RenderingServer.instance_teleport(instance_rid)
 			
@@ -154,15 +150,17 @@ func generate(terrain: Terrain3D) -> void:
 	_material = terrain.shader_material
 	_cast_shadows = terrain.cast_shadows as RenderingServer.ShadowCastingSetting
 	_render_layer = terrain.render_layer
-	
-	update_height_map(terrain.height_map)
+	if terrain.height_map:
+		_height_map = terrain.height_map
+		_amplitude = _height_map.amplitude
+		_height_map.changed.connect(_on_height_map_changed)
 	
 	_generate_mesh_types()
 	_generate_offsets()
 	_generate_instances()
 	
-	_last_p_2d = terrain.get_target_p_2d()
-	snap(_last_p_2d, true)
+	_last_p_xz = terrain.get_target_p_2d()
+	snap(_last_p_xz, true)
 
 func clear():
 	_clear_instances()
@@ -184,11 +182,10 @@ func _generate_instances() -> void:
 			_create_instance(MeshType.TILE)
 		for i: int in 2:
 			_create_instance(MeshType.FILL_X)
-		for i: int in 2:
 			_create_instance(MeshType.FILL_Z)
 		_create_instance(MeshType.EDGE_X)
 		_create_instance(MeshType.EDGE_Z)
-			
+
 func _generate_mesh_types():
 	_clear_mesh_types()
 	
@@ -203,12 +200,10 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 	var mesh_arrays: Array = []
 	mesh_arrays.resize(RenderingServer.ARRAY_MAX)
 	
-	var half := Vector2(size) / 2.0
-	
 	var vertices := PackedVector3Array()
 	for z: int in size.y + 1:
 		for x: int in size.x + 1:
-			vertices.append(Vector3(float(x) - half.x, 0.0, float(z) - half.y))
+			vertices.append(Vector3(float(x) - size.x / 2.0, 0.0, float(z) - size.y / 2.0))
 	mesh_arrays[RenderingServer.ARRAY_VERTEX] = vertices
 	
 	var indices := PackedInt32Array()
@@ -242,7 +237,7 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 	RenderingServer.mesh_add_surface_from_arrays(mesh, RenderingServer.PRIMITIVE_TRIANGLES, mesh_arrays)
 	_mesh_rids[type] = mesh
 	
-	var aabb := AABB(Vector3(-half.x, 0.0, -half.y), Vector3(size.x, _amplitude, size.y))
+	var aabb := AABB(Vector3(-size.x, 0.0, -size.y) / 2.0, Vector3(size.x, _amplitude, size.y))
 	RenderingServer.mesh_set_custom_aabb(mesh, aabb)
 	_mesh_aabbs[type] = aabb
 	
@@ -250,73 +245,50 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 		RenderingServer.mesh_surface_set_material(mesh, 0, _material.get_rid())
 
 func _generate_offsets():
-	_mesh_ps.clear()
-	_edge_x_offsets.clear()
-	_edge_z_offsets.clear()
+	_mesh_xzs.clear()
+	_edge_x_xzs.clear()
+	_edge_z_xzs.clear()
 
-	_mesh_ps[MeshType.CORE] = PackedVector3Array([Vector3.ZERO])
+	_mesh_xzs[MeshType.CORE] = PackedVector2Array([Vector2(0.5, 0.5)])
 	
-	_mesh_ps[MeshType.TILE] = PackedVector3Array([
-		Vector3(_size.x * +1.5 + 0.5, 0.0, _size.y * +1.5 + 0.5),
-		Vector3(_size.x * +0.5 + 0.5, 0.0, _size.y * +1.5 + 0.5),
-		Vector3(_size.x * -0.5 - 0.5, 0.0, _size.y * +1.5 + 0.5),
-		Vector3(_size.x * -1.5 - 0.5, 0.0, _size.y * +1.5 + 0.5),
-		Vector3(_size.x * -1.5 - 0.5, 0.0, _size.y * +0.5 + 0.5),
-		Vector3(_size.x * -1.5 - 0.5, 0.0, _size.y * -0.5 - 0.5),
-		Vector3(_size.x * -1.5 - 0.5, 0.0, _size.y * -1.5 - 0.5),
-		Vector3(_size.x * -0.5 - 0.5, 0.0, _size.y * -1.5 - 0.5),
-		Vector3(_size.x * +0.5 + 0.5, 0.0, _size.y * -1.5 - 0.5),
-		Vector3(_size.x * +1.5 + 0.5, 0.0, _size.y * -1.5 - 0.5),
-		Vector3(_size.x * +1.5 + 0.5, 0.0, _size.y * -0.5 - 0.5),
-		Vector3(_size.x * +1.5 + 0.5, 0.0, _size.y * +0.5 + 0.5),
+	_mesh_xzs[MeshType.TILE] = PackedVector2Array([
+		Vector2(_size.x * +1.5 + 1.0, _size.y * +1.5 + 1.0),
+		Vector2(_size.x * +0.5 + 1.0, _size.y * +1.5 + 1.0),
+		Vector2(_size.x * -0.5, _size.y * +1.5 + 1.0),
+		Vector2(_size.x * -1.5, _size.y * +1.5 + 1.0),
+		Vector2(_size.x * -1.5, _size.y * +0.5 + 1.0),
+		Vector2(_size.x * -1.5, _size.y * -0.5),
+		Vector2(_size.x * -1.5, _size.y * -1.5),
+		Vector2(_size.x * -0.5, _size.y * -1.5),
+		Vector2(_size.x * +0.5 + 1.0, _size.y * -1.5),
+		Vector2(_size.x * +1.5 + 1.0, _size.y * -1.5),
+		Vector2(_size.x * +1.5 + 1.0, _size.y * -0.5),
+		Vector2(_size.x * +1.5 + 1.0, _size.y * +0.5 + 1.0),
 	])
 	
-	_mesh_ps[MeshType.FILL_X] = PackedVector3Array([
-		Vector3(0.0, 0.0, _size.y * 1.5 + 0.5),
-		Vector3(0.0, 0.0, _size.y * -1.5 - 0.5)
+	_mesh_xzs[MeshType.FILL_X] = PackedVector2Array([
+		Vector2(0.5, _size.y * 1.5 + 1.0),
+		Vector2(0.5, _size.y * -1.5)
 	])
 	
-	_mesh_ps[MeshType.FILL_Z] = PackedVector3Array([
-		Vector3(_size.x * 1.5 + 0.5, 0.0, 0.0),
-		Vector3(_size.x * -1.5 - 0.5, 0.0, 0.0)
+	_mesh_xzs[MeshType.FILL_Z] = PackedVector2Array([
+		Vector2(_size.x * 1.5 + 1.0, 0.5),
+		Vector2(_size.x * -1.5, 0.5)
 	])
 	
-	#_offset_a_x = 
-	#_offset_b_x = _size.x * 2.0 + 3.0
-	#_offset_c_x = _size.x * 2.0 + 5.0
-	#
-	#_offset_a_z = _size.y * 2.0 + 2.0
-	#_offset_b_z = _size.y * 2.0 + 4.0
-	#_offset_c_z = _size.y * 2.0 + 6.0
-	#
-	## parcerita dime que hubo
+	_edge_x_xzs = {
+		Vector2i(0, 0): Vector2(_size.x * 2.0 + 1.5, 1.0),
+		Vector2i(1, 0): Vector2(_size.x * -2.0 - 0.5, 1.0),
+		Vector2i(0, 1): Vector2(_size.x * 2.0 + 1.5, 0.0),
+		Vector2i(1, 1): Vector2(_size.x * -2.0 - 0.5, 0.0)
+	}
 	
-	# NOTE: There are 2 correct combinations of offsets. When both edges are on one side, they can be arranged either way.
-	# In Terrain3D, one offset stays still.
-	
-	_edge_x_offsets[-1] = _size.x * 2.0 + 3.0
-	_edge_x_offsets[0] = _size.x * 2.0 + 3.0 # changed
-	_edge_x_offsets[1] = _size.x * -2.0 - 3.0 # correct
-	
-	#_edge_x_offsets_1[-1] = _size.x * 2.0 + 3.0
-	#_edge_x_offsets_1[0] = _size.x * -2.0 - 3.0
-	#_edge_x_offsets_1[1] = _size.x * -2.0 - 5.0
-	
-	_edge_z_offsets[-1] = _size.y * 2.0 + 1.0
-	_edge_z_offsets[0] = _size.y * 2.0 + 1.0
-	_edge_z_offsets[1] = -(_size.y * 2.0 + 3.0)
-	
-	#_edge_z_offsets_1[-1] = _size.y * 2.0 + 3.0
-	#_edge_z_offsets_1[0] = -(_size.y * 2.0 + 3.0)
-	#_edge_z_offsets_1[1] = -(_size.y * 2.0 + 5.0)
-	#
-	#_mesh_ps[MeshType.EDGE_X] = PackedVector3Array()
-	#_mesh_ps[MeshType.EDGE_X].append(Vector3(_offset_a_x, _offset_a_x, -_offset_b_x))
-	#_mesh_ps[MeshType.EDGE_X].append(Vector3(_offset_b_x, -_offset_b_x, -_offset_c_x))
-	#
-	#_mesh_ps[MeshType.EDGE_Z] = PackedVector3Array()
-	#_mesh_ps[MeshType.EDGE_Z].append(Vector3(_offset_a_z, _offset_a_z, -_offset_b_z))
-	#_mesh_ps[MeshType.EDGE_Z].append(Vector3(_offset_b_z, -_offset_b_z, -_offset_c_z))
+	_edge_z_xzs = {
+		Vector2i(0, 0): Vector2(0.5, _size.y * 2.0 + 1.5),
+		Vector2i(1, 0): Vector2(0.5, _size.y * 2.0 + 1.5),
+		Vector2i(0, 1): Vector2(0.5, _size.y * -2.0 - 0.5),
+		Vector2i(1, 1): Vector2(0.5, _size.y * -2.0 - 0.5)
+	}
 
 func _clear_instances():
 	for instance_rid: RID in _instance_rids:
@@ -328,5 +300,4 @@ func _clear_mesh_types():
 	for rid: RID in _mesh_rids.values():
 		RenderingServer.free_rid(rid)
 	_mesh_rids.clear()
-	_mesh_ps.clear()
 	_mesh_aabbs.clear()
