@@ -45,7 +45,6 @@ class_name Terrain3D extends Node3D
 		if not is_node_ready():
 			return
 		_mesh_handler.update_vertex_spacing(mesh_vertex_spacing)
-		snap_to_target(true)
 		
 		if not Engine.is_editor_hint():
 			_collision_handler.update_vertex_spacing(mesh_vertex_spacing)
@@ -59,7 +58,6 @@ class_name Terrain3D extends Node3D
 			return
 		
 		_mesh_handler.update_size(mesh_size)
-		snap_to_target(true)
 
 @export_range(1, 10, 1) var mesh_lods: int = 5:
 	set(value):
@@ -70,8 +68,6 @@ class_name Terrain3D extends Node3D
 			return
 		
 		_mesh_handler.update_lods(mesh_lods)
-		snap_to_target(true)
-
 @export var shader_material: ShaderMaterial:
 	set(value):
 		if shader_material == value:
@@ -112,10 +108,7 @@ func _init() -> void:
 func _ready():
 	_mesh_handler.generate(self)
 	
-	snap_to_target(true)
 	_update_target_priority()
-	
-	# TODO: remove updaters in ready
 	
 	if shader_material:
 		shader_material.set_shader_parameter(&"vertex_spacing", mesh_vertex_spacing)
@@ -129,6 +122,14 @@ func _ready():
 	else:
 		_collision_handler.initialize(height_map, collision_mesh_size, mesh_vertex_spacing, get_world_3d().space)
 		_collision_handler.add_bodies(physics_target_bodies)
+
+func get_target_p_2d() -> Vector2:
+	var target_p: Vector3 = global_position
+	if target_node:
+		target_p = target_node.global_position
+		target_p.y = 0.0
+	
+	return Vector2(target_p.x, target_p.z)
 
 func _process(_delta: float) -> void:
 	snap_to_target()
@@ -150,7 +151,7 @@ func _notification(what: int) -> void:
 		NOTIFICATION_VISIBILITY_CHANGED:
 			_mesh_handler.update_visible(is_visible_in_tree())
 
-func snap_to_target(force: bool = false) -> void:
+func snap_to_target() -> void:
 	if not is_inside_tree():
 		return
 	
@@ -168,7 +169,7 @@ func snap_to_target(force: bool = false) -> void:
 		var snap_2d = Vector2(height_map_origin_snap) * mesh_vertex_spacing
 		height_map.set_origin(Vector2(target_p_2d.snapped(snap_2d)))
 		
-	_mesh_handler.snap_to_target(target_p_2d, mesh_vertex_spacing, force)
+	_mesh_handler.snap(target_p_2d)
 
 func _update_shader_params():
 	if not shader_material or not height_map:
