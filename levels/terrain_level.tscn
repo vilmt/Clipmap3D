@@ -26,9 +26,8 @@ frequency = 0.0015
 [sub_resource type="Resource" id="Resource_acxjd"]
 script = ExtResource("4_vn06u")
 noise = SubResource("FastNoiseLite_6mm2f")
-amplitude = 300.0
+amplitude = 0.0
 size = Vector2i(1024, 1024)
-origin = Vector2i(60, 16)
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="BoxMesh" id="BoxMesh_tjx8f"]
@@ -56,13 +55,13 @@ directional_shadow_split_3 = 0.33
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 500.0
 
-[node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("target_node", "physics_target_bodies")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58.56629, 0, 14.068319)
+[node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("physics_target_bodies")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.16085052, 0, -0.14200711)
 script = ExtResource("1_a1u1q")
-target_node = NodePath("../Player")
 height_map = SubResource("Resource_acxjd")
+height_map_origin_snap = Vector2i(64, 64)
 physics_target_bodies = [NodePath("../Player"), NodePath("../Ball")]
-mesh_lods = 4
+mesh_lods = 1
 shader_material = ExtResource("1_tog6l")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=749457015]
@@ -71,7 +70,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58.56629, 232.6409, 14.068319)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 81.734566, 232.6409, 3.908701)
 
 [node name="Ball" type="RigidBody3D" parent="." unique_id=505955257]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)
