@@ -27,29 +27,25 @@ void vertex() {
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	
 	vec2 scale = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[2].xyz));
-	vec2 snapped_p_xz = floor(mesh_origin / scale) * scale;
-	
 	vec2 next_scale = scale * 2.0;
-	vec2 next_p_xz = floor(mesh_origin / next_scale) * next_scale;
-	vec2 edge = round((snapped_p_xz - next_p_xz) / next_scale + EPSILON);
+	
+	vec2 edge = vec2(floor(mesh_origin / scale) - 2.0 * floor(mesh_origin / next_scale));;
 	
 	vec2 lod_position = floor((world_position.xz - mesh_origin) / scale) + edge;
 	
-	vec2 is_edge = step(vec2(mesh_size) * 2.0 + 0.5, abs(lod_position));
-	
-	vec2 interp_target = is_edge.yx * abs(mod(lod_position, 2.0) - 1.0);
-	
-	float lod_f = log2(scale.x / vertex_spacing.x);
-	int s = int(exp2(lod_f));
-	
+	vec2 edge_mask = step(vec2(mesh_size) * 2.0 + 0.5, abs(lod_position));
+	vec2 even_mask = abs(mod(lod_position, 2.0) - 1.0);
+
 	ivec2 texel = to_texel(world_position.xz);
-	ivec2 offset = ivec2(round(interp_target)) * s;
 	
-	float sample_1 = amplitude * texelFetch(height_map, texel - offset, 0).r;
-	float sample_2 = amplitude * texelFetch(height_map, texel + offset, 0).r;
-	VERTEX.y = mix(sample_1, sample_2, 0.5);
+	float texel_size = scale.x / vertex_spacing.x;
+	ivec2 offset = ivec2(edge_mask.yx * even_mask * texel_size);
 	
-	debug_albedo.rg = interp_target.xy;
+	float h_0 = amplitude * texelFetch(height_map, texel - offset, 0).r;
+	float h_1 = amplitude * texelFetch(height_map, texel + offset, 0).r;
+	VERTEX.y = mix(h_0, h_1, 0.5);
+	
+	//debug_albedo.rg = edge;
 }
 
 void fragment() {
@@ -66,5 +62,5 @@ void fragment() {
 	NORMAL_MAP = (normal * 0.5 + 0.5).xzy;
 	
 	ALBEDO = vec3(0.7);
-	ALBEDO = debug_albedo;
+	//ALBEDO = debug_albedo;
 }
