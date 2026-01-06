@@ -1,5 +1,4 @@
 ROADMAP:
-- Fix seams in clipmap
 - Add support for additional collision parameters (collision material)
 - Make simple scatter system for trees and grass
 - Move height image generation to thread

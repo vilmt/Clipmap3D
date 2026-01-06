@@ -29,7 +29,7 @@ void vertex() {
 	vec2 scale = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[2].xyz));
 	vec2 next_scale = scale * 2.0;
 	
-	vec2 edge = vec2(floor(mesh_origin / scale) - 2.0 * floor(mesh_origin / next_scale));;
+	vec2 edge = floor(mesh_origin / scale) - 2.0 * floor(mesh_origin / next_scale);
 	
 	vec2 lod_position = floor((world_position.xz - mesh_origin) / scale) + edge;
 	
@@ -44,8 +44,6 @@ void vertex() {
 	float h_0 = amplitude * texelFetch(height_map, texel - offset, 0).r;
 	float h_1 = amplitude * texelFetch(height_map, texel + offset, 0).r;
 	VERTEX.y = mix(h_0, h_1, 0.5);
-	
-	//debug_albedo.rg = edge;
 }
 
 void fragment() {

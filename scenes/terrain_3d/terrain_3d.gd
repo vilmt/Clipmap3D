@@ -1,7 +1,6 @@
 @tool
 class_name Terrain3D extends Node3D
 
-# BUG: sometimes when opening scene, terrain is invisible until update
 # TODO: allow terrain to move along y axis freely
 # TODO: lower resolution images for further terrain (doesnt work cause normals?)
 

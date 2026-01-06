@@ -119,11 +119,10 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 	
 	for lod: int in _lods:
 		var scale: Vector2 = _vertex_spacing * float(1 << lod)
-		var snapped_p_xz = (p_xz / scale).floor() * scale
-		
 		var next_scale: Vector2 = scale * 2.0
-		var next_p_xz := (p_xz / next_scale).floor() * next_scale
-		var edge := Vector2i(((snapped_p_xz - next_p_xz) / next_scale + EPSILON).round())
+		
+		var snapped_p_xz = (p_xz / scale).floor() * scale
+		var edge := Vector2i((p_xz / scale).floor() - 2.0 * (p_xz / next_scale).floor())
 		
 		var instance_count: Dictionary[MeshType, int] = {}
 		
