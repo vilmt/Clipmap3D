@@ -1,5 +1,7 @@
 class_name Terrain3DMeshHandler
 
+# TODO: use same var names here and in terrain
+
 var _lods: int
 var _size: Vector2i
 var _vertex_spacing: Vector2
@@ -34,6 +36,8 @@ enum MeshType {
 const LOD_0_INSTANCES: int = 19
 const LOD_X_INSTANCES: int = 18
 
+const EPSILON := Vector2(0.00001, 0.00001) 
+
 func update_height_map(height_map: HeightMap):
 	if _height_map:
 		_height_map.changed.disconnect(_on_height_map_changed)
@@ -43,6 +47,10 @@ func update_height_map(height_map: HeightMap):
 
 func _on_height_map_changed():
 	update_amplitude(_height_map.amplitude)
+	if _material and _height_map:
+		_material.set_shader_parameter(&"map_origin", _height_map.origin)
+		_material.set_shader_parameter(&"height_map", _height_map.get_texture())
+		_material.set_shader_parameter(&"amplitude", _height_map.amplitude)
 
 func update_size(size: Vector2i):
 	_size = size
@@ -51,6 +59,9 @@ func update_size(size: Vector2i):
 	_generate_offsets()
 	_generate_instances()
 	snap(_last_p_xz, true)
+	
+	if _material:
+		_material.set_shader_parameter(&"mesh_size", size)
 
 func update_lods(lods: int):
 	_lods = lods
@@ -60,9 +71,17 @@ func update_lods(lods: int):
 
 func update_vertex_spacing(vertex_spacing: Vector2):
 	_vertex_spacing = vertex_spacing
+	snap(_last_p_xz, true)
+	
 	if _material:
 		_material.set_shader_parameter(&"vertex_spacing", vertex_spacing)
-	snap(_last_p_xz, true)
+
+func update_amplitude(amplitude: float):
+	_amplitude = amplitude
+	for type: MeshType in MeshType.values():
+		var aabb := _mesh_aabbs[type]
+		aabb.size.y = _amplitude
+		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
 
 func update_material(material_rid: RID):
 	for mesh_rid: RID in _mesh_rids.values():
@@ -84,21 +103,16 @@ func update_cast_shadows(cast_shadows: RenderingServer.ShadowCastingSetting):
 	for instance_rid: RID in _instance_rids:
 		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, cast_shadows)
 
-func update_amplitude(amplitude: float):
-	_amplitude = amplitude
-	for type: MeshType in MeshType.values():
-		var aabb := _mesh_aabbs[type]
-		aabb.size.y = _amplitude
-		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
-
-func snap(p_xz: Vector2, force: bool = false) -> void:
-	var snapped_p_xz_0 = (p_xz / _vertex_spacing).floor() * _vertex_spacing
-	var must_snap: bool = not _last_p_xz.is_equal_approx(snapped_p_xz_0)
+func snap(p_xz: Vector2, force: bool = false) -> bool:
+	var snapped_this = (p_xz / _vertex_spacing).floor() * _vertex_spacing
+	var snapped_last = (_last_p_xz / _vertex_spacing).floor() * _vertex_spacing
+	if snapped_this.is_equal_approx(snapped_last) and not force:
+		return false
 	
-	if not (must_snap or force):
-		return
+	_last_p_xz = p_xz
 	
-	_last_p_xz = snapped_p_xz_0
+	if _material:
+		_material.set_shader_parameter(&"mesh_origin", p_xz)
 	
 	var starting_i: int = 0
 	var ending_i: int = LOD_0_INSTANCES
@@ -109,7 +123,7 @@ func snap(p_xz: Vector2, force: bool = false) -> void:
 		
 		var next_scale: Vector2 = scale * 2.0
 		var next_p_xz := (p_xz / next_scale).floor() * next_scale
-		var edge := Vector2i(((snapped_p_xz - next_p_xz) / next_scale).round())
+		var edge := Vector2i(((snapped_p_xz - next_p_xz) / next_scale + EPSILON).round())
 		
 		var instance_count: Dictionary[MeshType, int] = {}
 		
@@ -140,6 +154,7 @@ func snap(p_xz: Vector2, force: bool = false) -> void:
 		
 		starting_i = ending_i
 		ending_i += LOD_X_INSTANCES
+	return true
 
 func generate(terrain: Terrain3D) -> void:
 	_size = terrain.mesh_size
@@ -154,6 +169,13 @@ func generate(terrain: Terrain3D) -> void:
 		_height_map = terrain.height_map
 		_amplitude = _height_map.amplitude
 		_height_map.changed.connect(_on_height_map_changed)
+	if _material:
+		_material.set_shader_parameter(&"vertex_spacing", _vertex_spacing)
+		_material.set_shader_parameter(&"mesh_size", _size)
+		if _height_map:
+			_material.set_shader_parameter(&"map_origin", _height_map.origin)
+			_material.set_shader_parameter(&"height_map", _height_map.get_texture())
+			_material.set_shader_parameter(&"amplitude", _height_map.amplitude)
 	
 	_generate_mesh_types()
 	_generate_offsets()

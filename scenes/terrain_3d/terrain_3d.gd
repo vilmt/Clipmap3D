@@ -45,7 +45,6 @@ class_name Terrain3D extends Node3D
 		if not is_node_ready():
 			return
 		_mesh_handler.update_vertex_spacing(mesh_vertex_spacing)
-		
 		if not Engine.is_editor_hint():
 			_collision_handler.update_vertex_spacing(mesh_vertex_spacing)
 		
@@ -56,7 +55,6 @@ class_name Terrain3D extends Node3D
 		mesh_size = value
 		if not is_node_ready():
 			return
-		
 		_mesh_handler.update_size(mesh_size)
 
 @export_range(1, 10, 1) var mesh_lods: int = 5:
@@ -109,13 +107,6 @@ func _ready():
 	_mesh_handler.generate(self)
 	
 	_update_target_priority()
-	
-	if shader_material:
-		shader_material.set_shader_parameter(&"vertex_spacing", mesh_vertex_spacing)
-	
-	if height_map:
-		_update_shader_params()
-		height_map.changed.connect(_update_shader_params)
 	
 	if Engine.is_editor_hint():
 		set_physics_process(false)
@@ -170,13 +161,6 @@ func snap_to_target() -> void:
 		height_map.set_origin(Vector2(target_p_2d.snapped(snap_2d)))
 		
 	_mesh_handler.snap(target_p_2d)
-
-func _update_shader_params():
-	if not shader_material or not height_map:
-		return
-	shader_material.set_shader_parameter(&"map_origin", height_map.origin)
-	shader_material.set_shader_parameter(&"height_map", height_map.get_texture())
-	shader_material.set_shader_parameter(&"amplitude", height_map.amplitude)
 	
 func _update_target_priority():
 	var target_node_exists := is_instance_valid(target_node)
