@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://dm3mdkroo5725"]
+
+[ext_resource type="Material" uid="uid://rpow36mq221x" path="res://scenes/ball/ball.tres" id="1_oqv3d"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_owj7c"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_vn06u"]
+
+[node name="Ball" type="RigidBody3D" unique_id=1142737108]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=959258474]
+material_override = ExtResource("1_oqv3d")
+mesh = SubResource("SphereMesh_owj7c")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1239846677]
+shape = SubResource("SphereShape3D_vn06u")

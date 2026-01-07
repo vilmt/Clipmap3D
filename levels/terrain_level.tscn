@@ -1,9 +1,10 @@
 [gd_scene format=3 uid="uid://cq6vicc6yy7nc"]
 
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://scenes/terrain_3d/terrain_3d.gd" id="1_a1u1q"]
-[ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/terrain_3d/terrain.tres" id="1_tog6l"]
+[ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/terrain_3d/terrain_3d.tres" id="1_tog6l"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="4_owj7c"]
-[ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/terrain_3d/height_map/noise_height_map.gd" id="4_vn06u"]
+[ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/terrain_3d/source/noise_source.gd" id="4_vn06u"]
+[ext_resource type="PackedScene" uid="uid://dm3mdkroo5725" path="res://scenes/ball/ball.tscn" id="5_vn06u"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tjx8f"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -20,25 +21,20 @@ glow_enabled = true
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pvg1d"]
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_6mm2f"]
-frequency = 0.0015
-fractal_octaves = 6
-fractal_lacunarity = 1.69
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_owj7c"]
+frequency = 0.0028
+fractal_lacunarity = 1.805
+fractal_gain = 0.45
 
-[sub_resource type="Resource" id="Resource_acxjd"]
+[sub_resource type="Resource" id="Resource_vn06u"]
 script = ExtResource("4_vn06u")
-noise = SubResource("FastNoiseLite_6mm2f")
-amplitude = 300.0
+noise = SubResource("FastNoiseLite_owj7c")
 size = Vector2i(1024, 1024)
-origin = Vector2i(-64, 36)
+origin = Vector2i(8, -4)
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="BoxMesh" id="BoxMesh_tjx8f"]
-size = Vector3(10, 10, 10)
-
-[sub_resource type="SphereMesh" id="SphereMesh_owj7c"]
-
-[sub_resource type="SphereShape3D" id="SphereShape3D_vn06u"]
+size = Vector3(100, 100, 100)
 
 [node name="TerrainLevel" type="Node3D" unique_id=932743419]
 
@@ -47,7 +43,7 @@ environment = SubResource("Environment_rm2gq")
 camera_attributes = SubResource("CameraAttributesPractical_pvg1d")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=810570797]
-transform = Transform3D(-0.7072771, 0.33668694, 0.62161165, 0.47987205, -0.4170338, 0.7718847, 0.51911646, 0.8442303, 0.13339187, 0, 90.61831, 0)
+transform = Transform3D(0.038663827, -0.5726235, -0.8189063, 0.15301886, -0.8064603, 0.5711453, -0.98746663, -0.14739078, 0.05644135, 0, 90.61831, 0)
 light_intensity_lux = 32766.99
 light_temperature = 2989.0
 light_energy = 2.0
@@ -58,27 +54,28 @@ directional_shadow_split_3 = 0.33
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 500.0
 
-[node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("target_node", "physics_target_bodies")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -65.10307, 9.1552734e-05, 34.39543)
+[node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.8330536, 9.1552734e-05, -5.5792694)
 script = ExtResource("1_a1u1q")
-target_node = NodePath("../Player")
-height_map = SubResource("Resource_acxjd")
-physics_target_bodies = [NodePath("../Player"), NodePath("../Ball")]
-mesh_lods = 4
-shader_material = ExtResource("1_tog6l")
+follow_target = NodePath("../Player")
+terrain_source = SubResource("Resource_vn06u")
+height_amplitude = 277.175
+mesh_lod_count = 4
+material = ExtResource("1_tog6l")
+collision_targets = [NodePath("../Player"), NodePath("../Ball"), NodePath("../Ball2"), NodePath("../Ball3")]
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=749457015]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 300, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 250.2037, 0)
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -65.10307, 212.97893, 34.39543)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.8330536, 212.97893, -5.5792694)
 
-[node name="Ball" type="RigidBody3D" parent="." unique_id=505955257]
+[node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Ball" unique_id=1210926565]
-mesh = SubResource("SphereMesh_owj7c")
+[node name="Ball2" parent="." unique_id=1026595802 instance=ExtResource("5_vn06u")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.231506, 217.36813, -11.665321)
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Ball" unique_id=1461795616]
-shape = SubResource("SphereShape3D_vn06u")
+[node name="Ball3" parent="." unique_id=1254632068 instance=ExtResource("5_vn06u")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.10078812, 217.36813, 14.803551)

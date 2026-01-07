@@ -2,16 +2,16 @@ class_name Terrain3DMeshHandler
 
 # TODO: use same var names here and in terrain
 
-var _lods: int
-var _size: Vector2i
+var _lod_count: int
+var _tile_size: Vector2i
 var _vertex_spacing: Vector2
 var _material: ShaderMaterial
 var _scenario: RID
 var _visible: bool
 var _cast_shadows: RenderingServer.ShadowCastingSetting
 var _render_layer: int
-var _amplitude: float = 0.1
-var _height_map: HeightMap
+var _height_amplitude: float
+var _terrain_source: Terrain3DSource
 
 var _instance_rids: Array[RID]
 var _instance_mesh_types: Array[MeshType]
@@ -36,25 +36,25 @@ enum MeshType {
 const LOD_0_INSTANCES: int = 19
 const LOD_X_INSTANCES: int = 18
 
-const EPSILON := Vector2(0.00001, 0.00001) 
+func update_terrain_source(source: Terrain3DSource):
+	if _terrain_source:
+		_terrain_source.changed.disconnect(_on_terrain_source_changed)
+	_terrain_source = source
+	_on_terrain_source_changed()
+	if _terrain_source:
+		_terrain_source.changed.connect(_on_terrain_source_changed)
 
-func update_height_map(height_map: HeightMap):
-	if _height_map:
-		_height_map.changed.disconnect(_on_height_map_changed)
-	_height_map = height_map
-	if _height_map:
-		_height_map.changed.connect(_on_height_map_changed)
+func _on_terrain_source_changed():
+	if _material:
+		if _terrain_source:
+			_material.set_shader_parameter(&"map_origin", _terrain_source.origin)
+			_material.set_shader_parameter(&"height_map", _terrain_source.get_texture())
+		else:
+			_material.set_shader_parameter(&"map_origin", Vector2i.ZERO)
+			_material.set_shader_parameter(&"height_map", null)
 
-func _on_height_map_changed():
-	update_amplitude(_height_map.amplitude)
-	if _material and _height_map:
-		_material.set_shader_parameter(&"map_origin", _height_map.origin)
-		_material.set_shader_parameter(&"height_map", _height_map.get_texture())
-		_material.set_shader_parameter(&"normal_map", _height_map.get_normal_texture())
-		_material.set_shader_parameter(&"amplitude", _height_map.amplitude)
-
-func update_size(size: Vector2i):
-	_size = size
+func update_tile_size(tile_size: Vector2i):
+	_tile_size = tile_size
 	
 	_generate_mesh_types()
 	_generate_offsets()
@@ -62,10 +62,10 @@ func update_size(size: Vector2i):
 	snap(_last_p_xz, true)
 	
 	if _material:
-		_material.set_shader_parameter(&"mesh_size", size)
+		_material.set_shader_parameter(&"tile_size", tile_size)
 
-func update_lods(lods: int):
-	_lods = lods
+func update_lod_count(lod_count: int):
+	_lod_count = lod_count
 	
 	_generate_instances()
 	snap(_last_p_xz, true)
@@ -77,12 +77,14 @@ func update_vertex_spacing(vertex_spacing: Vector2):
 	if _material:
 		_material.set_shader_parameter(&"vertex_spacing", vertex_spacing)
 
-func update_amplitude(amplitude: float):
-	_amplitude = amplitude
+func update_height_amplitude(height_amplitude: float):
+	_height_amplitude = height_amplitude
 	for type: MeshType in MeshType.values():
 		var aabb := _mesh_aabbs[type]
-		aabb.size.y = _amplitude
+		aabb.size.y = _height_amplitude
 		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
+	if _material:
+		_material.set_shader_parameter(&"height_amplitude", height_amplitude)
 
 func update_material(material_rid: RID):
 	for mesh_rid: RID in _mesh_rids.values():
@@ -118,7 +120,7 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 	var starting_i: int = 0
 	var ending_i: int = LOD_0_INSTANCES
 	
-	for lod: int in _lods:
+	for lod: int in _lod_count:
 		var scale: Vector2 = _vertex_spacing * float(1 << lod)
 		var next_scale: Vector2 = scale * 2.0
 		
@@ -157,26 +159,23 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 	return true
 
 func generate(terrain: Terrain3D) -> void:
-	_size = terrain.mesh_size
-	_lods = terrain.mesh_lods
+	_tile_size = terrain.mesh_tile_size
+	_lod_count = terrain.mesh_lod_count
 	_vertex_spacing = terrain.mesh_vertex_spacing
 	_scenario = terrain.get_world_3d().scenario
 	_visible = terrain.is_visible_in_tree()
-	_material = terrain.shader_material
+	_material = terrain.material
 	_cast_shadows = terrain.cast_shadows as RenderingServer.ShadowCastingSetting
 	_render_layer = terrain.render_layer
-	if terrain.height_map:
-		_height_map = terrain.height_map
-		_amplitude = _height_map.amplitude
-		_height_map.changed.connect(_on_height_map_changed)
+	_height_amplitude = terrain.height_amplitude
+	if terrain.terrain_source:
+		_terrain_source = terrain.terrain_source
+		_on_terrain_source_changed()
+		_terrain_source.changed.connect(_on_terrain_source_changed)
 	if _material:
 		_material.set_shader_parameter(&"vertex_spacing", _vertex_spacing)
-		_material.set_shader_parameter(&"mesh_size", _size)
-		if _height_map:
-			_material.set_shader_parameter(&"map_origin", _height_map.origin)
-			_material.set_shader_parameter(&"height_map", _height_map.get_texture())
-			_material.set_shader_parameter(&"normal_map", _height_map.get_normal_texture())
-			_material.set_shader_parameter(&"amplitude", _height_map.amplitude)
+		_material.set_shader_parameter(&"tile_size", _tile_size)
+		_material.set_shader_parameter(&"height_amplitude", _height_amplitude)
 	
 	_generate_mesh_types()
 	_generate_offsets()
@@ -200,7 +199,7 @@ func _create_instance(type: MeshType):
 func _generate_instances() -> void:
 	_clear_instances()
 	_create_instance(MeshType.CORE)
-	for lod: int in _lods:
+	for lod: int in _lod_count:
 		for i: int in 12:
 			_create_instance(MeshType.TILE)
 		for i: int in 2:
@@ -212,12 +211,12 @@ func _generate_instances() -> void:
 func _generate_mesh_types():
 	_clear_mesh_types()
 	
-	_generate_mesh(MeshType.CORE, _size * 2 + Vector2i.ONE)
-	_generate_mesh(MeshType.TILE, _size)
-	_generate_mesh(MeshType.FILL_X, Vector2i(1, _size.y))
-	_generate_mesh(MeshType.FILL_Z, Vector2i(_size.x, 1))
-	_generate_mesh(MeshType.EDGE_X, Vector2i(1, _size.y * 4 + 2))
-	_generate_mesh(MeshType.EDGE_Z, Vector2i(_size.x * 4 + 1, 1))
+	_generate_mesh(MeshType.CORE, _tile_size * 2 + Vector2i.ONE)
+	_generate_mesh(MeshType.TILE, _tile_size)
+	_generate_mesh(MeshType.FILL_X, Vector2i(1, _tile_size.y))
+	_generate_mesh(MeshType.FILL_Z, Vector2i(_tile_size.x, 1))
+	_generate_mesh(MeshType.EDGE_X, Vector2i(1, _tile_size.y * 4 + 2))
+	_generate_mesh(MeshType.EDGE_Z, Vector2i(_tile_size.x * 4 + 1, 1))
 	
 func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 	var mesh_arrays: Array = []
@@ -260,7 +259,7 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 	RenderingServer.mesh_add_surface_from_arrays(mesh, RenderingServer.PRIMITIVE_TRIANGLES, mesh_arrays)
 	_mesh_rids[type] = mesh
 	
-	var aabb := AABB(Vector3(-size.x, 0.0, -size.y) / 2.0, Vector3(size.x, _amplitude, size.y))
+	var aabb := AABB(Vector3(-size.x, 0.0, -size.y) / 2.0, Vector3(size.x, _height_amplitude, size.y))
 	RenderingServer.mesh_set_custom_aabb(mesh, aabb)
 	_mesh_aabbs[type] = aabb
 	
@@ -275,42 +274,42 @@ func _generate_offsets():
 	_mesh_xzs[MeshType.CORE] = PackedVector2Array([Vector2(0.5, 0.5)])
 	
 	_mesh_xzs[MeshType.TILE] = PackedVector2Array([
-		Vector2(_size.x * +1.5 + 1.0, _size.y * +1.5 + 1.0),
-		Vector2(_size.x * +0.5 + 1.0, _size.y * +1.5 + 1.0),
-		Vector2(_size.x * -0.5, _size.y * +1.5 + 1.0),
-		Vector2(_size.x * -1.5, _size.y * +1.5 + 1.0),
-		Vector2(_size.x * -1.5, _size.y * +0.5 + 1.0),
-		Vector2(_size.x * -1.5, _size.y * -0.5),
-		Vector2(_size.x * -1.5, _size.y * -1.5),
-		Vector2(_size.x * -0.5, _size.y * -1.5),
-		Vector2(_size.x * +0.5 + 1.0, _size.y * -1.5),
-		Vector2(_size.x * +1.5 + 1.0, _size.y * -1.5),
-		Vector2(_size.x * +1.5 + 1.0, _size.y * -0.5),
-		Vector2(_size.x * +1.5 + 1.0, _size.y * +0.5 + 1.0),
+		Vector2(_tile_size.x * +1.5 + 1.0, _tile_size.y * +1.5 + 1.0),
+		Vector2(_tile_size.x * +0.5 + 1.0, _tile_size.y * +1.5 + 1.0),
+		Vector2(_tile_size.x * -0.5, _tile_size.y * +1.5 + 1.0),
+		Vector2(_tile_size.x * -1.5, _tile_size.y * +1.5 + 1.0),
+		Vector2(_tile_size.x * -1.5, _tile_size.y * +0.5 + 1.0),
+		Vector2(_tile_size.x * -1.5, _tile_size.y * -0.5),
+		Vector2(_tile_size.x * -1.5, _tile_size.y * -1.5),
+		Vector2(_tile_size.x * -0.5, _tile_size.y * -1.5),
+		Vector2(_tile_size.x * +0.5 + 1.0, _tile_size.y * -1.5),
+		Vector2(_tile_size.x * +1.5 + 1.0, _tile_size.y * -1.5),
+		Vector2(_tile_size.x * +1.5 + 1.0, _tile_size.y * -0.5),
+		Vector2(_tile_size.x * +1.5 + 1.0, _tile_size.y * +0.5 + 1.0),
 	])
 	
 	_mesh_xzs[MeshType.FILL_X] = PackedVector2Array([
-		Vector2(0.5, _size.y * 1.5 + 1.0),
-		Vector2(0.5, _size.y * -1.5)
+		Vector2(0.5, _tile_size.y * 1.5 + 1.0),
+		Vector2(0.5, _tile_size.y * -1.5)
 	])
 	
 	_mesh_xzs[MeshType.FILL_Z] = PackedVector2Array([
-		Vector2(_size.x * 1.5 + 1.0, 0.5),
-		Vector2(_size.x * -1.5, 0.5)
+		Vector2(_tile_size.x * 1.5 + 1.0, 0.5),
+		Vector2(_tile_size.x * -1.5, 0.5)
 	])
 	
 	_edge_x_xzs = {
-		Vector2i(0, 0): Vector2(_size.x * 2.0 + 1.5, 1.0),
-		Vector2i(1, 0): Vector2(_size.x * -2.0 - 0.5, 1.0),
-		Vector2i(0, 1): Vector2(_size.x * 2.0 + 1.5, 0.0),
-		Vector2i(1, 1): Vector2(_size.x * -2.0 - 0.5, 0.0)
+		Vector2i(0, 0): Vector2(_tile_size.x * 2.0 + 1.5, 1.0),
+		Vector2i(1, 0): Vector2(_tile_size.x * -2.0 - 0.5, 1.0),
+		Vector2i(0, 1): Vector2(_tile_size.x * 2.0 + 1.5, 0.0),
+		Vector2i(1, 1): Vector2(_tile_size.x * -2.0 - 0.5, 0.0)
 	}
 	
 	_edge_z_xzs = {
-		Vector2i(0, 0): Vector2(0.5, _size.y * 2.0 + 1.5),
-		Vector2i(1, 0): Vector2(0.5, _size.y * 2.0 + 1.5),
-		Vector2i(0, 1): Vector2(0.5, _size.y * -2.0 - 0.5),
-		Vector2i(1, 1): Vector2(0.5, _size.y * -2.0 - 0.5)
+		Vector2i(0, 0): Vector2(0.5, _tile_size.y * 2.0 + 1.5),
+		Vector2i(1, 0): Vector2(0.5, _tile_size.y * 2.0 + 1.5),
+		Vector2i(0, 1): Vector2(0.5, _tile_size.y * -2.0 - 0.5),
+		Vector2i(1, 1): Vector2(0.5, _tile_size.y * -2.0 - 0.5)
 	}
 
 func _clear_instances():

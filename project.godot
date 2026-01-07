@@ -77,4 +77,4 @@ common/physics_interpolation=true
 rendering_device/driver.windows="d3d12"
 lights_and_shadows/use_physical_light_units=true
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
-anti_aliasing/quality/screen_space_aa=2
+anti_aliasing/quality/screen_space_aa=1
