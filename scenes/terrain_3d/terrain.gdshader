@@ -1,9 +1,8 @@
 shader_type spatial;
 
-// TODO: smooth normal option
-
 //render_mode wireframe;
 uniform highp sampler2D height_map: hint_default_black, repeat_disable;
+uniform sampler2D normal_map: hint_normal, repeat_disable;
 
 uniform float amplitude;
 uniform vec2 vertex_spacing;
@@ -20,8 +19,6 @@ ivec2 to_texel(vec2 world) {
 	ivec2 map = ivec2(round(world / vertex_spacing));
 	return map - map_origin + textureSize(height_map, 0) / 2;
 }
-
-const vec2 EPSILON = vec2(0.00001);
 
 void vertex() {
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -58,6 +55,9 @@ void fragment() {
 	
 	vec3 normal = normalize(vec3(-dx, 1.0, -dy));
 	NORMAL_MAP = (normal * 0.5 + 0.5).xzy;
+	
+	vec3 n = texelFetch(normal_map, texel, 0).rgb;
+	NORMAL_MAP = vec3(n.r, 1.0 - n.b, 0.0);
 	
 	ALBEDO = vec3(0.7);
 	//ALBEDO = debug_albedo;

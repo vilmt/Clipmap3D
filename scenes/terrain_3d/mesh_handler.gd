@@ -50,6 +50,7 @@ func _on_height_map_changed():
 	if _material and _height_map:
 		_material.set_shader_parameter(&"map_origin", _height_map.origin)
 		_material.set_shader_parameter(&"height_map", _height_map.get_texture())
+		_material.set_shader_parameter(&"normal_map", _height_map.get_normal_texture())
 		_material.set_shader_parameter(&"amplitude", _height_map.amplitude)
 
 func update_size(size: Vector2i):
@@ -174,6 +175,7 @@ func generate(terrain: Terrain3D) -> void:
 		if _height_map:
 			_material.set_shader_parameter(&"map_origin", _height_map.origin)
 			_material.set_shader_parameter(&"height_map", _height_map.get_texture())
+			_material.set_shader_parameter(&"normal_map", _height_map.get_normal_texture())
 			_material.set_shader_parameter(&"amplitude", _height_map.amplitude)
 	
 	_generate_mesh_types()

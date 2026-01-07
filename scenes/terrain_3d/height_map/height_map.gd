@@ -8,10 +8,6 @@ class_name HeightMap extends Resource
 @export var size := Vector2i(512, 512): set = set_size
 @export var origin := Vector2i.ZERO: set = set_origin
 
-@warning_ignore_start("unused_signal")
-signal image_changed(new_image: Image)
-signal texture_changed(new_texture: Texture)
-
 #func update_sampling_parameters(shader_material: ShaderMaterial):
 	#shader_material.set_shader_parameter(&"amplitude", amplitude)
 
@@ -22,7 +18,13 @@ func get_image() -> Image
 func get_texture() -> ImageTexture
 
 @abstract
+func get_normal_texture() -> ImageTexture
+
+@abstract
 func sample(world_position: Vector2, vertex_spacing: Vector2) -> float
+
+@abstract 
+func sample_normal(world_position: Vector2, vertex_spacing: Vector2) -> Color
 
 func set_amplitude(value: float):
 	if amplitude == value:
