@@ -1,10 +1,3 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
-
-// This is an example particle shader designed to procedurally place
-// particles like grass, small rocks, and other ground effects, on the terrain
-// surface by reading the Terrain3D data maps. It works in tandem with the
-// provided GDScript.
-
 shader_type particles;
 render_mode disable_velocity, disable_force;
 

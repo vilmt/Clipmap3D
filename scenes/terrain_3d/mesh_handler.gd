@@ -1,7 +1,5 @@
 class_name Terrain3DMeshHandler
 
-# TODO: use same var names here and in terrain
-
 var _lod_count: int
 var _tile_size: Vector2i
 var _vertex_spacing: Vector2
@@ -12,6 +10,7 @@ var _cast_shadows: RenderingServer.ShadowCastingSetting
 var _render_layer: int
 var _height_amplitude: float
 var _terrain_source: Terrain3DSource
+var _y_position: float
 
 var _instance_rids: Array[RID]
 var _instance_mesh_types: Array[MeshType]
@@ -38,16 +37,16 @@ const LOD_X_INSTANCES: int = 18
 
 func update_terrain_source(source: Terrain3DSource):
 	if _terrain_source:
-		_terrain_source.changed.disconnect(_on_terrain_source_changed)
+		_terrain_source.refreshed.disconnect(_on_terrain_source_refreshed)
 	_terrain_source = source
-	_on_terrain_source_changed()
+	_on_terrain_source_refreshed()
 	if _terrain_source:
-		_terrain_source.changed.connect(_on_terrain_source_changed)
+		_terrain_source.refreshed.connect(_on_terrain_source_refreshed)
 
-func _on_terrain_source_changed():
+func _on_terrain_source_refreshed():
 	if not _material_rid:
 		return
-	if _terrain_source:
+	if _terrain_source and _terrain_source.get_texture():
 		RenderingServer.material_set_param(_material_rid, &"map_origin", _terrain_source.origin)
 		RenderingServer.material_set_param(_material_rid, &"height_map", _terrain_source.get_texture().get_rid())
 	else:
@@ -57,9 +56,9 @@ func _on_terrain_source_changed():
 func update_tile_size(tile_size: Vector2i):
 	_tile_size = tile_size
 	
-	_generate_mesh_types()
+	_generate_meshes()
 	_generate_offsets()
-	_generate_instances()
+	_create_instances()
 	snap(_last_p_xz, true)
 	
 	if _material_rid:
@@ -68,7 +67,7 @@ func update_tile_size(tile_size: Vector2i):
 func update_lod_count(lod_count: int):
 	_lod_count = lod_count
 	
-	_generate_instances()
+	_create_instances()
 	snap(_last_p_xz, true)
 
 func update_vertex_spacing(vertex_spacing: Vector2):
@@ -86,6 +85,10 @@ func update_height_amplitude(height_amplitude: float):
 		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"height_amplitude", height_amplitude)
+
+func update_y_position(y_position: float):
+	_y_position = y_position
+	snap(_last_p_xz, true)
 
 func update_material_rid(material_rid: RID):
 	_material_rid = material_rid
@@ -148,7 +151,7 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 			
 			var t := Transform3D(Basis(), Vector3(xz.x, 0.0, xz.y))
 			t = t.scaled(Vector3(scale.x, 1.0, scale.y))
-			t.origin += Vector3(snapped_p_xz.x, 0.0, snapped_p_xz.y)
+			t.origin += Vector3(snapped_p_xz.x, _y_position, snapped_p_xz.y)
 			RenderingServer.instance_set_transform(instance_rid, t)
 			RenderingServer.instance_teleport(instance_rid)
 			
@@ -161,36 +164,32 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 		ending_i += LOD_X_INSTANCES
 	return true
 
-func generate(terrain: Terrain3D) -> void:
+func initialize(terrain: Terrain3D) -> void:
 	_tile_size = terrain.mesh_tile_size
 	_lod_count = terrain.mesh_lod_count
 	_vertex_spacing = terrain.mesh_vertex_spacing
 	_scenario_rid = terrain.get_world_3d().scenario
 	_visible = terrain.is_visible_in_tree()
-	_material_rid = terrain.material.get_rid()
 	_cast_shadows = terrain.cast_shadows as RenderingServer.ShadowCastingSetting
 	_render_layer = terrain.render_layer
 	_height_amplitude = terrain.height_amplitude
-		
-	if terrain.terrain_source:
-		_terrain_source = terrain.terrain_source
-		_on_terrain_source_changed()
-		_terrain_source.changed.connect(_on_terrain_source_changed)
-	if _material_rid:
+	_y_position = terrain.global_position.y
+	
+	if terrain.material:
+		_material_rid = terrain.material.get_rid()
 		RenderingServer.material_set_param(_material_rid, &"vertex_spacing", _vertex_spacing)
 		RenderingServer.material_set_param(_material_rid, &"tile_size", _tile_size)
 		RenderingServer.material_set_param(_material_rid, &"height_amplitude", _height_amplitude)
+		
+	update_terrain_source(terrain.terrain_source)
 	
-	_generate_mesh_types()
+	_generate_meshes()
 	_generate_offsets()
-	_generate_instances()
-	
-	_last_p_xz = terrain.get_target_xz()
-	snap(_last_p_xz, true)
+	_create_instances()
 
 func clear():
 	_clear_instances()
-	_clear_mesh_types()
+	_clear_meshes()
 
 func _create_instance(type: MeshType):
 	var rid := RenderingServer.instance_create2(_mesh_rids[type], _scenario_rid)
@@ -200,7 +199,7 @@ func _create_instance(type: MeshType):
 	RenderingServer.instance_set_layer_mask(rid, _render_layer)
 	RenderingServer.instance_geometry_set_cast_shadows_setting(rid, _cast_shadows)
 
-func _generate_instances() -> void:
+func _create_instances() -> void:
 	_clear_instances()
 	_create_instance(MeshType.CORE)
 	for lod: int in _lod_count:
@@ -212,16 +211,6 @@ func _generate_instances() -> void:
 		_create_instance(MeshType.EDGE_X)
 		_create_instance(MeshType.EDGE_Z)
 
-func _generate_mesh_types():
-	_clear_mesh_types()
-	
-	_generate_mesh(MeshType.CORE, _tile_size * 2 + Vector2i.ONE)
-	_generate_mesh(MeshType.TILE, _tile_size)
-	_generate_mesh(MeshType.FILL_X, Vector2i(1, _tile_size.y))
-	_generate_mesh(MeshType.FILL_Z, Vector2i(_tile_size.x, 1))
-	_generate_mesh(MeshType.EDGE_X, Vector2i(1, _tile_size.y * 4 + 2))
-	_generate_mesh(MeshType.EDGE_Z, Vector2i(_tile_size.x * 4 + 1, 1))
-	
 func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 	var mesh_arrays: Array = []
 	mesh_arrays.resize(RenderingServer.ARRAY_MAX)
@@ -270,6 +259,16 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 	if _material_rid:
 		RenderingServer.mesh_surface_set_material(mesh, 0, _material_rid)
 
+func _generate_meshes():
+	_clear_meshes()
+	
+	_generate_mesh(MeshType.CORE, _tile_size * 2 + Vector2i.ONE)
+	_generate_mesh(MeshType.TILE, _tile_size)
+	_generate_mesh(MeshType.FILL_X, Vector2i(1, _tile_size.y))
+	_generate_mesh(MeshType.FILL_Z, Vector2i(_tile_size.x, 1))
+	_generate_mesh(MeshType.EDGE_X, Vector2i(1, _tile_size.y * 4 + 2))
+	_generate_mesh(MeshType.EDGE_Z, Vector2i(_tile_size.x * 4 + 1, 1))
+	
 func _generate_offsets():
 	_mesh_xzs.clear()
 	_edge_x_xzs.clear()
@@ -322,8 +321,8 @@ func _clear_instances():
 	_instance_rids.clear()
 	_instance_mesh_types.clear()
 
-func _clear_mesh_types():
-	for rid: RID in _mesh_rids.values():
-		RenderingServer.free_rid(rid)
+func _clear_meshes():
+	for mesh_rid: RID in _mesh_rids.values():
+		RenderingServer.free_rid(mesh_rid)
 	_mesh_rids.clear()
 	_mesh_aabbs.clear()

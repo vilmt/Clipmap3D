@@ -4,6 +4,7 @@ var _terrain_source: Terrain3DSource
 var _height_amplitude: float
 var _vertex_spacing: Vector2
 var _mesh_size: Vector2i
+var _y_position: float
 
 var _body_rid: RID
 var _shape_rids: Array[RID]
@@ -21,6 +22,7 @@ func initialize(terrain: Terrain3D):
 	_vertex_spacing = terrain.mesh_vertex_spacing
 	_mesh_size = terrain.collision_mesh_size
 	_height_amplitude = terrain.height_amplitude
+	_y_position = terrain.global_position.y
 		
 	_body_rid = PhysicsServer3D.body_create()
 	
@@ -59,10 +61,10 @@ func update():
 	
 func update_terrain_source(terrain_source: Terrain3DSource):
 	if _terrain_source:
-		_terrain_source.changed.disconnect(update)
+		_terrain_source.refreshed.disconnect(update)
 	_terrain_source = terrain_source
 	if _terrain_source:
-		_terrain_source.changed.connect(update)
+		_terrain_source.refreshed.connect(update)
 
 func update_vertex_spacing(vertex_spacing: Vector2):
 	_vertex_spacing = vertex_spacing
@@ -80,6 +82,10 @@ func update_height_amplitude(amplitude: float):
 	_height_amplitude = amplitude
 	
 	update()
+
+func update_y_position(y_position: float):
+	_y_position = y_position
+	update()
 	
 func update_collision_layer(physics_layer: int):
 	PhysicsServer3D.body_set_collision_layer(_body_rid, physics_layer)
@@ -90,7 +96,7 @@ func update_collision_mask(physics_mask: int):
 func _build_mesh(shape_index: int, xz: Vector2):
 	for i: int in _template_faces.size():
 		var v_world := Vector2(_template_faces[i].x, _template_faces[i].z) + xz
-		_template_faces[i].y = _terrain_source.sample(v_world, _height_amplitude, _vertex_spacing)
+		_template_faces[i].y = _terrain_source.sample(v_world, _height_amplitude, _vertex_spacing) + _y_position
 	
 	var shape_rid := _shape_rids[shape_index]
 	PhysicsServer3D.shape_set_data(shape_rid, {"faces": _template_faces, "backface_collision": false})

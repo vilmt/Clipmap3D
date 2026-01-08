@@ -6,3 +6,4 @@
 render_priority = 0
 shader = ExtResource("1_h8vq5")
 shader_parameter/wind_velocity = Vector2(1, 1)
+shader_parameter/camera_position = Vector3(0, 0, 0)

@@ -1,17 +1,7 @@
 @tool
 class_name Terrain3D extends Node3D
 
-# TODO: allow terrain to move along y axis freely
 # TODO: lower resolution images for further terrain (doesnt work cause normals?)
-
-@export var follow_target: Node3D:
-	set(value):
-		if follow_target == value:
-			return
-		follow_target = value
-		if not is_node_ready():
-			return
-		_update_target_priority()
 
 @export var terrain_source: Terrain3DSource:
 	set(value):
@@ -23,6 +13,15 @@ class_name Terrain3D extends Node3D
 		_mesh_handler.update_terrain_source(terrain_source)
 		if not Engine.is_editor_hint():
 			_collision_handler.update_terrain_source(terrain_source)
+
+@export var follow_target: Node3D:
+	set(value):
+		if follow_target == value:
+			return
+		follow_target = value
+		if not is_node_ready():
+			return
+		update_position()
 
 @export var height_amplitude: float = 100.0:
 	set(value):
@@ -67,7 +66,6 @@ class_name Terrain3D extends Node3D
 		mesh_lod_count = value
 		if not is_node_ready():
 			return
-		
 		_mesh_handler.update_lod_count(mesh_lod_count)
 
 @export_group("Rendering")
@@ -81,7 +79,9 @@ class_name Terrain3D extends Node3D
 		if not is_node_ready():
 			return
 		if material:
-			_mesh_handler.update_material(material.get_rid())
+			_mesh_handler.update_material_rid(material.get_rid())
+		else:
+			_mesh_handler.update_material_rid(RID())
 
 @export_flags_3d_render var render_layer: int = 1:
 	set(value):
@@ -139,65 +139,62 @@ class_name Terrain3D extends Node3D
 
 var _mesh_handler: Terrain3DMeshHandler
 var _collision_handler: Terrain3DCollisionHandler
+var _last_p: Vector3
+
+signal position_changed(new_position: Vector3)
 
 func _init() -> void:
 	_mesh_handler = Terrain3DMeshHandler.new()
-	if Engine.is_editor_hint():
-		return
-	_collision_handler = Terrain3DCollisionHandler.new()
+	if not Engine.is_editor_hint():
+		_collision_handler = Terrain3DCollisionHandler.new()
+
+func _enter_tree() -> void:
+	_mesh_handler.initialize(self)
+	if not Engine.is_editor_hint():
+		_collision_handler.initialize(self)
+	
+	_last_p = Vector3(INF, INF, INF)
+	update_position.call_deferred()
 
 func _ready():
-	_mesh_handler.generate(self)
-	
-	_update_target_priority()
-	
-	if Engine.is_editor_hint():
-		set_physics_process(false)
-	else:
-		_collision_handler.initialize(self)
-
-func _process(_delta: float) -> void:
-	snap_to_target()
-
-func _physics_process(_delta: float) -> void:
-	_collision_handler.update()
+	set_physics_process(not Engine.is_editor_hint())
 	
 func _exit_tree() -> void:
 	_mesh_handler.clear()
 	if not Engine.is_editor_hint():
 		_collision_handler.clear()
 
+func _process(_delta: float) -> void:
+	update_position()
+
+func _physics_process(_delta: float) -> void:
+	_collision_handler.update()
+
 func _notification(what: int) -> void:
 	match what:
-		NOTIFICATION_TRANSFORM_CHANGED:
-			snap_to_target()
-		NOTIFICATION_ENTER_WORLD:
-			_mesh_handler.update_scenario_rid(get_world_3d().scenario)
+		NOTIFICATION_EXIT_WORLD:
+			_mesh_handler.update_scenario_rid(RID())
 		NOTIFICATION_VISIBILITY_CHANGED:
 			_mesh_handler.update_visible(is_visible_in_tree())
 
-func get_target_xz() -> Vector2:
-	var target_p: Vector3 = global_position
+func update_position():
 	if follow_target:
-		target_p = follow_target.global_position
-		target_p.y = 0.0
+		global_position.x = follow_target.global_position.x
+		global_position.z = follow_target.global_position.z
 	
-	return Vector2(target_p.x, target_p.z)
-	
-func snap_to_target() -> void:
-	if not is_inside_tree():
+	if global_position == _last_p:
 		return
+	if global_position.y != _last_p.y:
+		_mesh_handler.update_y_position(global_position.y)
+		if not Engine.is_editor_hint():
+			_collision_handler.update_y_position(global_position.y)
+	if global_position.x != _last_p.x or global_position.z != _last_p.z:
+		var target_xz := Vector2(global_position.x, global_position.z)
+		_mesh_handler.snap(target_xz)
+		if terrain_source:
+			# divide by vert spacing?
+			terrain_source.origin = Vector2i(target_xz.snapped(height_origin_snap))
+			terrain_source.refresh()
 	
-	var target_xz := get_target_xz()
-	
-	# height map snapping
-	if terrain_source:
-		# divide by vert spacing?
-		terrain_source.set_origin(Vector2i(target_xz.snapped(height_origin_snap)))
-		
-	_mesh_handler.snap(target_xz)
-	
-func _update_target_priority():
-	var target_node_exists := is_instance_valid(follow_target)
-	set_process(target_node_exists)
-	set_notify_transform(not target_node_exists)
+	_last_p = global_position
+	position_changed.emit(global_position)

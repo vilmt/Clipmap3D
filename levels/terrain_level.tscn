@@ -2,9 +2,12 @@
 
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://scenes/terrain_3d/terrain_3d.gd" id="1_a1u1q"]
 [ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/terrain_3d/terrain_3d.tres" id="1_tog6l"]
+[ext_resource type="Script" uid="uid://bghnyaj4fsaan" path="res://scenes/terrain_3d/instancer/instancer.gd" id="4_6mm2f"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="4_owj7c"]
 [ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/terrain_3d/source/noise_source.gd" id="4_vn06u"]
+[ext_resource type="Material" uid="uid://cor7kynnsfh01" path="res://scenes/grass/grass.tres" id="5_acxjd"]
 [ext_resource type="PackedScene" uid="uid://dm3mdkroo5725" path="res://scenes/ball/ball.tscn" id="5_vn06u"]
+[ext_resource type="Material" uid="uid://bekhxmsm5ef5y" path="res://scenes/terrain_3d/instancer/instancer.tres" id="5_waa5k"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tjx8f"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -29,9 +32,13 @@ fractal_gain = 0.45
 [sub_resource type="Resource" id="Resource_vn06u"]
 script = ExtResource("4_vn06u")
 noise = SubResource("FastNoiseLite_owj7c")
-size = Vector2i(1024, 1024)
-origin = Vector2i(8, -4)
+size = Vector2i(1028, 1028)
+origin = Vector2i(-76, 12)
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
+
+[sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_waa5k"]
+material = ExtResource("5_acxjd")
+shape = 0
 
 [sub_resource type="BoxMesh" id="BoxMesh_tjx8f"]
 size = Vector3(100, 100, 100)
@@ -55,27 +62,30 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 500.0
 
 [node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.8330536, 9.1552734e-05, -5.5792694)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -74.94545, 0, 11.903179)
 script = ExtResource("1_a1u1q")
-follow_target = NodePath("../Player")
 terrain_source = SubResource("Resource_vn06u")
+follow_target = NodePath("../Player")
 height_amplitude = 300.0
 mesh_lod_count = 4
 material = ExtResource("1_tog6l")
-collision_targets = [NodePath("../Player"), NodePath("../Ball"), NodePath("../Ball2"), NodePath("../Ball3")]
+collision_targets = [NodePath("../Player"), NodePath("../Ball")]
+
+[node name="Terrain3DInstancer" type="Node3D" parent="Terrain3D" unique_id=1412272999 node_paths=PackedStringArray("terrain")]
+script = ExtResource("4_6mm2f")
+terrain = NodePath("..")
+rows_and_columns = Vector2i(50, 50)
+fixed_fps = 30
+process_material = ExtResource("5_waa5k")
+mesh = SubResource("RibbonTrailMesh_waa5k")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=749457015]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 250.2037, 0)
+visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.8330536, 212.97893, -5.5792694)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -74.94545, 212.97899, 11.903179)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)
-
-[node name="Ball2" parent="." unique_id=1026595802 instance=ExtResource("5_vn06u")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.231506, 217.36813, -11.665321)
-
-[node name="Ball3" parent="." unique_id=1254632068 instance=ExtResource("5_vn06u")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.10078812, 217.36813, 14.803551)

@@ -2,6 +2,17 @@ extends CharacterBody3D
 
 @export var sensitivity: float = 3.0
 
+@export var first_person: bool = false: 
+	set(value):
+		first_person = value
+		if first_person:
+			var tween: Tween = create_tween()
+			tween.tween_property(spring_arm, "spring_length", 0.0, 0.3)
+			tween.tween_callback(body.set_visible.bind(false))
+		else:
+			body.visible = true
+			create_tween().tween_property(spring_arm, "spring_length", _spring_length, 0.3)
+
 @export_group("Walk", "walk")
 @export var walk_max_speed: float = 10
 @export var walk_acceleration: float = 12
@@ -20,17 +31,6 @@ extends CharacterBody3D
 @export var fly_max_speed: float = 200
 @export var fly_acceleration: float = 200
 @export var fly_friction: float = 200
-
-@export var first_person: bool = false: 
-	set(value):
-		first_person = value
-		if first_person:
-			var tween: Tween = create_tween()
-			tween.tween_property(spring_arm, "spring_length", 0.0, 0.3)
-			tween.tween_callback(body.set_visible.bind(false))
-		else:
-			body.visible = true
-			create_tween().tween_property(spring_arm, "spring_length", _spring_length, 0.3)
 
 const MIN_SPEED: float = 0.1
 

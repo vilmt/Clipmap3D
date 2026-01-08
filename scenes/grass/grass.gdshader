@@ -4,6 +4,8 @@ render_mode cull_disabled, blend_mix;
 
 uniform vec2 wind_velocity = vec2(1.0, 1.0);
 
+uniform vec3 camera_position;
+
 //varying vec4 data;
 
 void vertex() {
@@ -54,4 +56,5 @@ void fragment() {
 	//SPECULAR = clamp(spec_rough * 0.25, 0., .15);
 //
 	//BACKLIGHT = vec3(0.33);
+	ALBEDO = vec3(1.0);
 }

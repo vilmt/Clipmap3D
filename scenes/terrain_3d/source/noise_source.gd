@@ -1,43 +1,14 @@
 @tool
 class_name Terrain3DNoiseSource extends Terrain3DSource
 
-@export var noise: Noise: set = set_noise
+@export_tool_button("Refresh", "RotateRight") var refresh_button: Callable = refresh
+
+@export var noise: Noise
 
 var _height_image: Image
 var _height_texture: ImageTexture
 
 var _last_origin := Vector2i.ZERO
-
-# NOTE: we just set a bunch of shit from the export variables simultaneously, probably slow and dangerous
-
-func set_size(value: Vector2i):
-	if size == value:
-		return
-	size = value
-	_create_maps()
-	emit_changed()
-
-func set_origin(value: Vector2i):
-	if origin == value:
-		return
-	origin = value
-	_shift_maps()
-	emit_changed()
-
-func set_noise(value: Noise):
-	if noise == value:
-		return
-	if noise:
-		noise.changed.disconnect(_fill_maps)
-		
-	noise = value
-	if noise:
-		noise.changed.connect(_fill_maps)
-		_create_maps()
-	else:
-		_dereference_maps()
-	
-	emit_changed()
 
 func get_image() -> Image:
 	return _height_image
@@ -45,6 +16,15 @@ func get_image() -> Image:
 func get_texture() -> ImageTexture:
 	return _height_texture
 
+func refresh():
+	if not _height_image or _height_image.get_size() != size:
+		_last_origin = origin
+		_create_maps()
+		refreshed.emit()
+		return
+	_shift_maps()
+	refreshed.emit()
+	
 @warning_ignore_start("integer_division")
 func sample(world_position: Vector2, amplitude: float, vertex_spacing: Vector2) -> float:
 	if not _height_image:
