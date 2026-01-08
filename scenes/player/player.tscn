@@ -14,12 +14,15 @@ bottom_radius = 0.4
 floor_max_angle = 1.0471976
 script = ExtResource("1_8afob")
 
+[node name="SpringArm3D" type="SpringArm3D" parent="." unique_id=1895840787]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6616194, 0)
+spring_length = 8.0
+
+[node name="Camera3D" type="Camera3D" parent="SpringArm3D" unique_id=880548590]
+
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1994699561]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 shape = SubResource("CylinderShape3D_x7p2l")
-
-[node name="Camera3D" type="Camera3D" parent="." unique_id=880548590]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8664424, 0)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1383782786]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)

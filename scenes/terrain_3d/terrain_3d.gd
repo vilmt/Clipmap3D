@@ -156,14 +156,6 @@ func _ready():
 	else:
 		_collision_handler.initialize(self)
 
-func get_target_p_2d() -> Vector2:
-	var target_p: Vector3 = global_position
-	if follow_target:
-		target_p = follow_target.global_position
-		target_p.y = 0.0
-	
-	return Vector2(target_p.x, target_p.z)
-
 func _process(_delta: float) -> void:
 	snap_to_target()
 
@@ -180,29 +172,30 @@ func _notification(what: int) -> void:
 		NOTIFICATION_TRANSFORM_CHANGED:
 			snap_to_target()
 		NOTIFICATION_ENTER_WORLD:
-			_mesh_handler.update_scenario(get_world_3d().scenario)
+			_mesh_handler.update_scenario_rid(get_world_3d().scenario)
 		NOTIFICATION_VISIBILITY_CHANGED:
 			_mesh_handler.update_visible(is_visible_in_tree())
 
-func snap_to_target() -> void:
-	if not is_inside_tree():
-		return
-	
+func get_target_xz() -> Vector2:
 	var target_p: Vector3 = global_position
 	if follow_target:
 		target_p = follow_target.global_position
 		target_p.y = 0.0
-		global_position.x = target_p.x
-		global_position.z = target_p.z
 	
-	var target_p_2d := Vector2(target_p.x, target_p.z)
+	return Vector2(target_p.x, target_p.z)
+	
+func snap_to_target() -> void:
+	if not is_inside_tree():
+		return
+	
+	var target_xz := get_target_xz()
 	
 	# height map snapping
 	if terrain_source:
-		var snap_2d = Vector2(height_origin_snap) * mesh_vertex_spacing
-		terrain_source.set_origin(Vector2(target_p_2d.snapped(snap_2d)))
+		# divide by vert spacing?
+		terrain_source.set_origin(Vector2i(target_xz.snapped(height_origin_snap)))
 		
-	_mesh_handler.snap(target_p_2d)
+	_mesh_handler.snap(target_xz)
 	
 func _update_target_priority():
 	var target_node_exists := is_instance_valid(follow_target)

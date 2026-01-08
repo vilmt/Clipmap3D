@@ -5,8 +5,8 @@ class_name Terrain3DMeshHandler
 var _lod_count: int
 var _tile_size: Vector2i
 var _vertex_spacing: Vector2
-var _material: ShaderMaterial
-var _scenario: RID
+var _material_rid: RID
+var _scenario_rid: RID
 var _visible: bool
 var _cast_shadows: RenderingServer.ShadowCastingSetting
 var _render_layer: int
@@ -45,13 +45,14 @@ func update_terrain_source(source: Terrain3DSource):
 		_terrain_source.changed.connect(_on_terrain_source_changed)
 
 func _on_terrain_source_changed():
-	if _material:
-		if _terrain_source:
-			_material.set_shader_parameter(&"map_origin", _terrain_source.origin)
-			_material.set_shader_parameter(&"height_map", _terrain_source.get_texture())
-		else:
-			_material.set_shader_parameter(&"map_origin", Vector2i.ZERO)
-			_material.set_shader_parameter(&"height_map", null)
+	if not _material_rid:
+		return
+	if _terrain_source:
+		RenderingServer.material_set_param(_material_rid, &"map_origin", _terrain_source.origin)
+		RenderingServer.material_set_param(_material_rid, &"height_map", _terrain_source.get_texture().get_rid())
+	else:
+		RenderingServer.material_set_param(_material_rid, &"map_origin", Vector2i.ZERO)
+		RenderingServer.material_set_param(_material_rid, &"height_map", RID())
 
 func update_tile_size(tile_size: Vector2i):
 	_tile_size = tile_size
@@ -61,9 +62,9 @@ func update_tile_size(tile_size: Vector2i):
 	_generate_instances()
 	snap(_last_p_xz, true)
 	
-	if _material:
-		_material.set_shader_parameter(&"tile_size", tile_size)
-
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"tile_size", tile_size)
+		
 func update_lod_count(lod_count: int):
 	_lod_count = lod_count
 	
@@ -74,8 +75,8 @@ func update_vertex_spacing(vertex_spacing: Vector2):
 	_vertex_spacing = vertex_spacing
 	snap(_last_p_xz, true)
 	
-	if _material:
-		_material.set_shader_parameter(&"vertex_spacing", vertex_spacing)
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"vertex_spacing", vertex_spacing)
 
 func update_height_amplitude(height_amplitude: float):
 	_height_amplitude = height_amplitude
@@ -83,16 +84,18 @@ func update_height_amplitude(height_amplitude: float):
 		var aabb := _mesh_aabbs[type]
 		aabb.size.y = _height_amplitude
 		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
-	if _material:
-		_material.set_shader_parameter(&"height_amplitude", height_amplitude)
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"height_amplitude", height_amplitude)
 
-func update_material(material_rid: RID):
+func update_material_rid(material_rid: RID):
+	_material_rid = material_rid
 	for mesh_rid: RID in _mesh_rids.values():
-		RenderingServer.mesh_surface_set_material(mesh_rid, 0, material_rid)
+		RenderingServer.mesh_surface_set_material(mesh_rid, 0, _material_rid)
 		
-func update_scenario(scenario: RID):
+func update_scenario_rid(scenario_rid: RID):
+	_scenario_rid = scenario_rid
 	for instance_rid: RID in _instance_rids:
-		RenderingServer.instance_set_scenario(instance_rid, scenario)
+		RenderingServer.instance_set_scenario(instance_rid, _scenario_rid)
 
 func update_visible(visible: bool):
 	for instance_rid: RID in _instance_rids:
@@ -114,8 +117,8 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 	
 	_last_p_xz = p_xz
 	
-	if _material:
-		_material.set_shader_parameter(&"mesh_origin", p_xz)
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"mesh_origin", p_xz)
 	
 	var starting_i: int = 0
 	var ending_i: int = LOD_0_INSTANCES
@@ -162,26 +165,27 @@ func generate(terrain: Terrain3D) -> void:
 	_tile_size = terrain.mesh_tile_size
 	_lod_count = terrain.mesh_lod_count
 	_vertex_spacing = terrain.mesh_vertex_spacing
-	_scenario = terrain.get_world_3d().scenario
+	_scenario_rid = terrain.get_world_3d().scenario
 	_visible = terrain.is_visible_in_tree()
-	_material = terrain.material
+	_material_rid = terrain.material.get_rid()
 	_cast_shadows = terrain.cast_shadows as RenderingServer.ShadowCastingSetting
 	_render_layer = terrain.render_layer
 	_height_amplitude = terrain.height_amplitude
+		
 	if terrain.terrain_source:
 		_terrain_source = terrain.terrain_source
 		_on_terrain_source_changed()
 		_terrain_source.changed.connect(_on_terrain_source_changed)
-	if _material:
-		_material.set_shader_parameter(&"vertex_spacing", _vertex_spacing)
-		_material.set_shader_parameter(&"tile_size", _tile_size)
-		_material.set_shader_parameter(&"height_amplitude", _height_amplitude)
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"vertex_spacing", _vertex_spacing)
+		RenderingServer.material_set_param(_material_rid, &"tile_size", _tile_size)
+		RenderingServer.material_set_param(_material_rid, &"height_amplitude", _height_amplitude)
 	
 	_generate_mesh_types()
 	_generate_offsets()
 	_generate_instances()
 	
-	_last_p_xz = terrain.get_target_p_2d()
+	_last_p_xz = terrain.get_target_xz()
 	snap(_last_p_xz, true)
 
 func clear():
@@ -189,7 +193,7 @@ func clear():
 	_clear_mesh_types()
 
 func _create_instance(type: MeshType):
-	var rid := RenderingServer.instance_create2(_mesh_rids[type], _scenario)
+	var rid := RenderingServer.instance_create2(_mesh_rids[type], _scenario_rid)
 	_instance_rids.append(rid)
 	_instance_mesh_types.append(type)
 	RenderingServer.instance_set_visible(rid, _visible)
@@ -263,8 +267,8 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 	RenderingServer.mesh_set_custom_aabb(mesh, aabb)
 	_mesh_aabbs[type] = aabb
 	
-	if _material:
-		RenderingServer.mesh_surface_set_material(mesh, 0, _material.get_rid())
+	if _material_rid:
+		RenderingServer.mesh_surface_set_material(mesh, 0, _material_rid)
 
 func _generate_offsets():
 	_mesh_xzs.clear()

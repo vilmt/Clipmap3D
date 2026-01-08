@@ -21,9 +21,23 @@ extends CharacterBody3D
 @export var fly_acceleration: float = 200
 @export var fly_friction: float = 200
 
+@export var first_person: bool = false: 
+	set(value):
+		first_person = value
+		if first_person:
+			var tween: Tween = create_tween()
+			tween.tween_property(spring_arm, "spring_length", 0.0, 0.3)
+			tween.tween_callback(body.set_visible.bind(false))
+		else:
+			body.visible = true
+			create_tween().tween_property(spring_arm, "spring_length", _spring_length, 0.3)
+
 const MIN_SPEED: float = 0.1
 
-@onready var camera: Camera3D = $Camera3D
+@onready var spring_arm: SpringArm3D = $SpringArm3D
+@onready var _spring_length: float = spring_arm.spring_length
+@onready var camera: Camera3D = $SpringArm3D/Camera3D
+@onready var body: MeshInstance3D = $MeshInstance3D
 
 var state_machine := CallableStateMachine.new()
 
@@ -31,19 +45,34 @@ var _last_jump_input_ticks: int = -10000000000
 var _last_grounded_ticks: int = 0
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("jump"):
+		_last_jump_input_ticks = Time.get_ticks_msec()
+		if _can_jump():
+			state_machine.queue_state(_jump)
+	elif event.is_action_pressed("fly"):
+		if state_machine.get_current_state() == _fly:
+			state_machine.queue_state(_walk)
+		else:
+			state_machine.queue_state(_fly)
+	elif event.is_action_pressed("toggle_mouse"):
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		else:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	elif event.is_action_pressed("toggle_perspective"):
+		first_person = not first_person
+	elif event.is_action_pressed("cycle_render_mode"):
+		var vp = get_viewport()
+		vp.debug_draw = (vp.debug_draw + 1 ) % 6
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	spring_arm.add_excluded_object(get_rid())
+	
 	state_machine.add_state(_walk)
 	state_machine.add_state(_jump)
 	state_machine.add_state(_air)
 	state_machine.add_state(_fly)
-	
 	state_machine.queue_state(_walk)
 
 func _physics_process(delta: float) -> void:
@@ -52,24 +81,15 @@ func _physics_process(delta: float) -> void:
 	state_machine.update()
 
 func _unhandled_input(event: InputEvent):
-	if event.is_action_pressed("fly"):
-		if state_machine.get_current_state() == _fly:
-			state_machine.queue_state(_walk)
-		else:
-			state_machine.queue_state(_fly)
-	if event.is_action_pressed("jump"):
-		_last_jump_input_ticks = Time.get_ticks_msec()
-		if _can_jump():
-			state_machine.queue_state(_jump)
-	elif event is InputEventMouseMotion:
+	if event is InputEventMouseMotion:
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			return
 		var mouse_event := event as InputEventMouseMotion
 		var look_dir: Vector2 = mouse_event.relative * 0.001
 		
 		rotate_y(-look_dir.x * sensitivity)
-		camera.rotate_x(-look_dir.y * sensitivity)
-		camera.rotation.x = clamp(camera.rotation.x, deg_to_rad(-90), deg_to_rad(90))
+		spring_arm.rotate_x(-look_dir.y * sensitivity)
+		spring_arm.rotation.x = clamp(spring_arm.rotation.x, deg_to_rad(-90), deg_to_rad(90))
 
 #region walk
 func _walk():
