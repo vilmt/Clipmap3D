@@ -78,6 +78,7 @@ func _ready() -> void:
 	
 	var instance_rid := RenderingServer.instance_create2(particles_rid, get_world_3d().scenario)
 	RenderingServer.instance_set_transform(instance_rid, Transform3D.IDENTITY)
+	RenderingServer.instance_set_visible(instance_rid, is_visible_in_tree())
 	
 	print("created")
 	

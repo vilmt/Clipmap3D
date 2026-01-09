@@ -46,12 +46,12 @@ func update_terrain_source(source: Terrain3DSource):
 func _on_terrain_source_refreshed():
 	if not _material_rid:
 		return
-	if _terrain_source and _terrain_source.get_texture():
+	if _terrain_source and _terrain_source.get_textures():
 		RenderingServer.material_set_param(_material_rid, &"map_origin", _terrain_source.origin)
-		RenderingServer.material_set_param(_material_rid, &"height_map", _terrain_source.get_texture().get_rid())
+		RenderingServer.material_set_param(_material_rid, &"height_maps", _terrain_source.get_textures().get_rid())
 	else:
 		RenderingServer.material_set_param(_material_rid, &"map_origin", Vector2i.ZERO)
-		RenderingServer.material_set_param(_material_rid, &"height_map", RID())
+		RenderingServer.material_set_param(_material_rid, &"height_maps", RID())
 
 func update_tile_size(tile_size: Vector2i):
 	_tile_size = tile_size
@@ -119,6 +119,7 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 		return false
 	
 	_last_p_xz = p_xz
+	print("snapped")
 	
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"mesh_origin", p_xz)
@@ -132,6 +133,12 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 		
 		var snapped_p_xz = (p_xz / scale).floor() * scale
 		var edge := Vector2i((p_xz / scale).floor() - 2.0 * (p_xz / next_scale).floor())
+		#
+		## OLD
+		#var next_p_xz := (p_xz / next_scale).floor() * next_scale
+		#var OLD_edge := Vector2i(((snapped_p_xz - next_p_xz) / next_scale + Vector2(0.0001, 0.0001)).round())
+		#
+		#print(edge == OLD_edge)
 		
 		var instance_count: Dictionary[MeshType, int] = {}
 		

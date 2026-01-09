@@ -3,21 +3,24 @@
 class_name Terrain3DSource extends Resource
 
 # TODO: threading
+# TODO: clipmap mip chain
 
-@export var size := Vector2i(512, 512)
 @export var origin := Vector2i.ZERO
 
 @warning_ignore("unused_signal")
 signal refreshed
 
 @abstract
-func get_image() -> Image
+func create_maps(ring_size: Vector2i, lod_count: int)
 
 @abstract
-func get_texture() -> ImageTexture
+func shift_maps()
 
 @abstract
-func refresh() -> void
+func get_images() -> Array[Image]
+
+@abstract
+func get_textures() -> Texture2DArray
 
 @abstract
 func sample(world_position: Vector2, amplitude: float, vertex_spacing: Vector2) -> float
