@@ -34,9 +34,6 @@ class_name Terrain3D extends Node3D
 		if not Engine.is_editor_hint():
 			_collision_handler.update_height_amplitude(height_amplitude)
 
-# TODO: setters
-@export var height_origin_snap := Vector2i(4, 4)
-
 @export_group("Mesh", "mesh")
 
 @export var mesh_vertex_spacing := Vector2.ONE:
@@ -163,29 +160,36 @@ func _ready():
 	set_physics_process(not Engine.is_editor_hint())
 	
 	_last_p = Vector3(INF, INF, INF)
+	
 	update_position(true)
 	
 	# 8x8 skirt
 	terrain_source.create_maps(4 * mesh_tile_size + 2 * Vector2i.ONE + 8 * Vector2i.ONE, mesh_lod_count)
+	
+	
+	if not Engine.is_editor_hint():
+		var images := terrain_source.get_images()
+		terrain_source.refreshed.connect(_update_images)
+		
+		for lod: int in mesh_lod_count:
+			var sprite := Sprite2D.new()
+			node_2d.add_child(sprite)
+			sprite.texture = ImageTexture.create_from_image(images[lod])
+			sprite.centered = false
+			sprite.position = Vector2.ONE * 3.0
+			sprite.position.x += (sprite.texture.get_width() + 3.0) * lod
+			sprites.append(sprite)
+
+func _update_images():
 	var images := terrain_source.get_images()
 	
-	for lod: int in mesh_lod_count:
-		var sprite := Sprite2D.new()
-		node_2d.add_child(sprite)
-		sprite.texture = ImageTexture.create_from_image(images[lod])
-		sprite.centered = false
-		sprite.position = Vector2.ONE * 3.0
-		sprite.position.x += (sprite.texture.get_width() + 3.0) * lod
-		sprites.append(sprite)
-		
+	for lod: int in images.size():
+		sprites[lod].texture = ImageTexture.create_from_image(images[lod])
 	
 func _exit_tree() -> void:
 	_mesh_handler.clear()
 	if not Engine.is_editor_hint():
 		_collision_handler.clear()
-	for sprite in sprites:
-		node_2d.remove_child(sprite)
-		sprite.queue_free()
 
 func _process(_delta: float) -> void:
 	update_position()
@@ -212,10 +216,8 @@ func update_position(first_time: bool = false):
 		var target_xz := Vector2(global_position.x, global_position.z)
 		_mesh_handler.snap(target_xz, first_time)
 		if terrain_source:
-			# TODO: check math
-			pass
-			#terrain_source.origin = Vector2i((target_xz / mesh_vertex_spacing).snapped(height_origin_snap))
-			#terrain_source.shift_maps()
+			terrain_source.origin = target_xz / mesh_vertex_spacing
+			terrain_source.shift_maps()
 	if global_position.y != _last_p.y:
 		_mesh_handler.update_y_position(global_position.y)
 		if not Engine.is_editor_hint():

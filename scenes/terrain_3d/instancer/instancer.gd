@@ -59,7 +59,6 @@ func _ready() -> void:
 	var particles_rid := RenderingServer.particles_create()
 	
 	if process_material:
-		print("set process material")
 		var material_rid := process_material.get_rid()
 		RenderingServer.material_set_param(material_rid, &"rows_and_columns", rows_and_columns)
 		RenderingServer.material_set_param(material_rid, &"instance_spacing", instance_spacing)
@@ -71,6 +70,7 @@ func _ready() -> void:
 	RenderingServer.particles_set_lifetime(particles_rid, 1.0)
 	RenderingServer.particles_set_explosiveness_ratio(particles_rid, 1.0)
 	RenderingServer.particles_set_amount_ratio(particles_rid, 1.0)
+	
 	var size := Vector3(100, 100, 100)
 	RenderingServer.particles_set_custom_aabb(particles_rid, AABB(-size / 2.0, size))
 	RenderingServer.particles_set_fixed_fps(particles_rid, fixed_fps)
@@ -79,8 +79,6 @@ func _ready() -> void:
 	var instance_rid := RenderingServer.instance_create2(particles_rid, get_world_3d().scenario)
 	RenderingServer.instance_set_transform(instance_rid, Transform3D.IDENTITY)
 	RenderingServer.instance_set_visible(instance_rid, is_visible_in_tree())
-	
-	print("created")
 	
 	_particles_rids.append(particles_rid)
 	_instance_rids.append(instance_rid)

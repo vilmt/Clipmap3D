@@ -25,13 +25,16 @@ glow_enabled = true
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pvg1d"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_owj7c"]
-frequency = 0.0019
-fractal_lacunarity = 1.48
+frequency = 0.0009
+fractal_octaves = 7
+fractal_lacunarity = 1.89
 fractal_gain = 0.56
+fractal_weighted_strength = 0.26
 
 [sub_resource type="Resource" id="Resource_vn06u"]
 script = ExtResource("4_vn06u")
 noise = SubResource("FastNoiseLite_owj7c")
+origin = Vector2(-214.9106, -123.074265)
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_waa5k"]
@@ -59,14 +62,16 @@ directional_shadow_split_3 = 0.33
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 500.0
 
-[node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("collision_targets")]
+[node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -214.9106, 0, -123.074265)
 script = ExtResource("1_a1u1q")
 terrain_source = SubResource("Resource_vn06u")
-height_amplitude = 500.0
-height_origin_snap = Vector2i(1, 1)
-mesh_lod_count = 6
+follow_target = NodePath("../Player")
+height_amplitude = 800.0
+mesh_lod_count = 7
 material = ExtResource("1_tog6l")
-collision_targets = [NodePath("../Player"), NodePath("../Ball")]
+collision_mesh_size = Vector2i(16, 16)
+collision_targets = [NodePath("../Player")]
 
 [node name="Terrain3DInstancer" type="Node3D" parent="Terrain3D" unique_id=1412272999 node_paths=PackedStringArray("terrain")]
 visible = false
@@ -85,7 +90,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5737152, 279.88672, -3.0304718)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -214.9106, 339.42197, -123.074265)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

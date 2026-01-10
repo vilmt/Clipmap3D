@@ -50,7 +50,7 @@ func _on_terrain_source_refreshed():
 		RenderingServer.material_set_param(_material_rid, &"map_origin", _terrain_source.origin)
 		RenderingServer.material_set_param(_material_rid, &"height_maps", _terrain_source.get_textures().get_rid())
 	else:
-		RenderingServer.material_set_param(_material_rid, &"map_origin", Vector2i.ZERO)
+		RenderingServer.material_set_param(_material_rid, &"map_origin", Vector2.ZERO)
 		RenderingServer.material_set_param(_material_rid, &"height_maps", RID())
 
 func update_tile_size(tile_size: Vector2i):
@@ -112,6 +112,8 @@ func update_cast_shadows(cast_shadows: RenderingServer.ShadowCastingSetting):
 	for instance_rid: RID in _instance_rids:
 		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, cast_shadows)
 
+const EPSILON := Vector2.ONE * 10e-5
+
 func snap(p_xz: Vector2, force: bool = false) -> bool:
 	var snapped_this = (p_xz / _vertex_spacing).floor() * _vertex_spacing
 	var snapped_last = (_last_p_xz / _vertex_spacing).floor() * _vertex_spacing
@@ -119,7 +121,6 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 		return false
 	
 	_last_p_xz = p_xz
-	print("snapped")
 	
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"mesh_origin", p_xz)
@@ -129,16 +130,9 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 	
 	for lod: int in _lod_count:
 		var scale: Vector2 = _vertex_spacing * float(1 << lod)
-		var next_scale: Vector2 = scale * 2.0
-		
-		var snapped_p_xz = (p_xz / scale).floor() * scale
-		var edge := Vector2i((p_xz / scale).floor() - 2.0 * (p_xz / next_scale).floor())
-		#
-		## OLD
-		#var next_p_xz := (p_xz / next_scale).floor() * next_scale
-		#var OLD_edge := Vector2i(((snapped_p_xz - next_p_xz) / next_scale + Vector2(0.0001, 0.0001)).round())
-		#
-		#print(edge == OLD_edge)
+		var snapped_p_xz = (p_xz / scale + EPSILON).floor()
+		var edge := Vector2i(snapped_p_xz.posmod(2.0))
+		snapped_p_xz *= scale
 		
 		var instance_count: Dictionary[MeshType, int] = {}
 		

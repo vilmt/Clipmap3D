@@ -8,6 +8,6 @@ shader = ExtResource("1_xxpvx")
 shader_parameter/normal_radius = 1.0
 shader_parameter/height_amplitude = 277.175
 shader_parameter/vertex_spacing = Vector2(1, 1)
-shader_parameter/map_origin = Vector2i(0, 0)
+shader_parameter/map_origins = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 shader_parameter/mesh_origin = Vector2(0, 0)
 shader_parameter/tile_size = Vector2i(32, 32)
