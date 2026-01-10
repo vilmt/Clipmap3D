@@ -1,18 +1,19 @@
 @tool
-class_name Terrain3D extends Node3D
+class_name Clipmap3D extends Node3D
 
-# TODO: lower resolution images for further terrain (doesnt work cause normals?)
+# TODO: rename to Clipmap3D
+# TODO: fix vertex spacing origin issue
 
-@export var terrain_source: Terrain3DSource:
+@export var source: Clipmap3DSource:
 	set(value):
-		if terrain_source == value:
+		if source == value:
 			return
-		terrain_source = value
+		source = value
 		if not is_node_ready():
 			return
-		_mesh_handler.update_terrain_source(terrain_source)
+		_mesh_handler.update_source(source)
 		if not Engine.is_editor_hint():
-			_collision_handler.update_terrain_source(terrain_source)
+			_collision_handler.update_source(source)
 
 @export var follow_target: Node3D:
 	set(value):
@@ -55,8 +56,8 @@ class_name Terrain3D extends Node3D
 		if not is_node_ready():
 			return
 		_mesh_handler.update_tile_size(mesh_tile_size)
-		if terrain_source:
-			terrain_source.create_maps(4 * mesh_tile_size + Vector2i.ONE * 2, mesh_lod_count)
+		if source:
+			source.create_maps(4 * mesh_tile_size + Vector2i.ONE * 8, mesh_lod_count)
 
 @export_range(1, 10, 1) var mesh_lod_count: int = 5:
 	set(value):
@@ -136,19 +137,16 @@ class_name Terrain3D extends Node3D
 		if not Engine.is_editor_hint():
 			_collision_handler.update_collision_mask(collision_mask)
 
-var _mesh_handler: Terrain3DMeshHandler
-var _collision_handler: Terrain3DCollisionHandler
+var _mesh_handler: Clipmap3DMeshHandler
+var _collision_handler: Clipmap3DCollisionHandler
 var _last_p: Vector3
 
 signal position_changed(new_position: Vector3)
 
 func _init() -> void:
-	_mesh_handler = Terrain3DMeshHandler.new()
+	_mesh_handler = Clipmap3DMeshHandler.new()
 	if not Engine.is_editor_hint():
-		_collision_handler = Terrain3DCollisionHandler.new()
-
-func _enter_tree() -> void:
-	request_ready()
+		_collision_handler = Clipmap3DCollisionHandler.new()
 	
 @onready var node_2d: Node2D = $Node2D
 var sprites: Array[Sprite2D]
@@ -156,20 +154,22 @@ var sprites: Array[Sprite2D]
 func _ready():
 	_mesh_handler.initialize(self)
 	if not Engine.is_editor_hint():
-		_collision_handler.initialize(self) # HACK
+		_collision_handler.initialize(self)
+	
 	set_physics_process(not Engine.is_editor_hint())
 	
 	_last_p = Vector3(INF, INF, INF)
 	
 	update_position(true)
 	
-	# 8x8 skirt
-	terrain_source.create_maps(4 * mesh_tile_size + 2 * Vector2i.ONE + 8 * Vector2i.ONE, mesh_lod_count)
-	
+	if not source:
+		return
+	# 6x6 skirt
+	source.create_maps(4 * mesh_tile_size + (2 + 6) * Vector2i.ONE, mesh_lod_count)
 	
 	if not Engine.is_editor_hint():
-		var images := terrain_source.get_images()
-		terrain_source.refreshed.connect(_update_images)
+		var images := source.get_images()
+		source.refreshed.connect(_update_images)
 		
 		for lod: int in mesh_lod_count:
 			var sprite := Sprite2D.new()
@@ -181,7 +181,7 @@ func _ready():
 			sprites.append(sprite)
 
 func _update_images():
-	var images := terrain_source.get_images()
+	var images := source.get_images()
 	
 	for lod: int in images.size():
 		sprites[lod].texture = ImageTexture.create_from_image(images[lod])
@@ -190,6 +190,7 @@ func _exit_tree() -> void:
 	_mesh_handler.clear()
 	if not Engine.is_editor_hint():
 		_collision_handler.clear()
+	request_ready()
 
 func _process(_delta: float) -> void:
 	update_position()
@@ -215,9 +216,9 @@ func update_position(first_time: bool = false):
 	if global_position.x != _last_p.x or global_position.z != _last_p.z:
 		var target_xz := Vector2(global_position.x, global_position.z)
 		_mesh_handler.snap(target_xz, first_time)
-		if terrain_source:
-			terrain_source.origin = target_xz / mesh_vertex_spacing
-			terrain_source.shift_maps()
+		if source:
+			source.origin = target_xz / mesh_vertex_spacing
+			source.shift_maps()
 	if global_position.y != _last_p.y:
 		_mesh_handler.update_y_position(global_position.y)
 		if not Engine.is_editor_hint():

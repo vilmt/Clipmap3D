@@ -1,6 +1,6 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://bekhxmsm5ef5y"]
 
-[ext_resource type="Shader" uid="uid://cd2enkf1w8tak" path="res://scenes/terrain_3d/instancer/instancer.gdshader" id="1_f7bmy"]
+[ext_resource type="Shader" uid="uid://cd2enkf1w8tak" path="res://scenes/clipmap_3d/instancer/instancer.gdshader" id="1_f7bmy"]
 
 [resource]
 shader = ExtResource("1_f7bmy")

@@ -1,4 +1,4 @@
-class_name Terrain3DMeshHandler
+class_name Clipmap3DMeshHandler
 
 var _lod_count: int
 var _tile_size: Vector2i
@@ -9,7 +9,7 @@ var _visible: bool
 var _cast_shadows: RenderingServer.ShadowCastingSetting
 var _render_layer: int
 var _height_amplitude: float
-var _terrain_source: Terrain3DSource
+var _source: Clipmap3DSource
 var _y_position: float
 
 var _instance_rids: Array[RID]
@@ -35,20 +35,20 @@ enum MeshType {
 const LOD_0_INSTANCES: int = 19
 const LOD_X_INSTANCES: int = 18
 
-func update_terrain_source(source: Terrain3DSource):
-	if _terrain_source:
-		_terrain_source.refreshed.disconnect(_on_terrain_source_refreshed)
-	_terrain_source = source
-	_on_terrain_source_refreshed()
-	if _terrain_source:
-		_terrain_source.refreshed.connect(_on_terrain_source_refreshed)
+func update_source(source: Clipmap3DSource):
+	if _source:
+		_source.refreshed.disconnect(_on_source_refreshed)
+	_source = source
+	_on_source_refreshed()
+	if _source:
+		_source.refreshed.connect(_on_source_refreshed)
 
-func _on_terrain_source_refreshed():
+func _on_source_refreshed():
 	if not _material_rid:
 		return
-	if _terrain_source and _terrain_source.get_textures():
-		RenderingServer.material_set_param(_material_rid, &"map_origin", _terrain_source.origin)
-		RenderingServer.material_set_param(_material_rid, &"height_maps", _terrain_source.get_textures().get_rid())
+	if _source and _source.get_textures():
+		RenderingServer.material_set_param(_material_rid, &"map_origin", _source.origin)
+		RenderingServer.material_set_param(_material_rid, &"height_maps", _source.get_textures().get_rid())
 	else:
 		RenderingServer.material_set_param(_material_rid, &"map_origin", Vector2.ZERO)
 		RenderingServer.material_set_param(_material_rid, &"height_maps", RID())
@@ -165,24 +165,24 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 		ending_i += LOD_X_INSTANCES
 	return true
 
-func initialize(terrain: Terrain3D) -> void:
-	_tile_size = terrain.mesh_tile_size
-	_lod_count = terrain.mesh_lod_count
-	_vertex_spacing = terrain.mesh_vertex_spacing
-	_scenario_rid = terrain.get_world_3d().scenario
-	_visible = terrain.is_visible_in_tree()
-	_cast_shadows = terrain.cast_shadows as RenderingServer.ShadowCastingSetting
-	_render_layer = terrain.render_layer
-	_height_amplitude = terrain.height_amplitude
-	_y_position = terrain.global_position.y
+func initialize(clipmap: Clipmap3D) -> void:
+	_tile_size = clipmap.mesh_tile_size
+	_lod_count = clipmap.mesh_lod_count
+	_vertex_spacing = clipmap.mesh_vertex_spacing
+	_scenario_rid = clipmap.get_world_3d().scenario
+	_visible = clipmap.is_visible_in_tree()
+	_cast_shadows = clipmap.cast_shadows as RenderingServer.ShadowCastingSetting
+	_render_layer = clipmap.render_layer
+	_height_amplitude = clipmap.height_amplitude
+	_y_position = clipmap.global_position.y
 	
-	if terrain.material:
-		_material_rid = terrain.material.get_rid()
+	if clipmap.material:
+		_material_rid = clipmap.material.get_rid()
 		RenderingServer.material_set_param(_material_rid, &"vertex_spacing", _vertex_spacing)
 		RenderingServer.material_set_param(_material_rid, &"tile_size", _tile_size)
 		RenderingServer.material_set_param(_material_rid, &"height_amplitude", _height_amplitude)
 		
-	update_terrain_source(terrain.terrain_source)
+	update_source(clipmap.source)
 	
 	_generate_meshes()
 	_generate_offsets()

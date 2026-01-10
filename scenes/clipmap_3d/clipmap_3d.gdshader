@@ -4,13 +4,10 @@ shader_type spatial;
 uniform float normal_radius = 1.0;
 uniform highp sampler2DArray height_maps: repeat_disable, filter_linear;
 
-//uniform highp sampler2D height_map: hint_default_black, repeat_disable, filter_linear_mipmap;
 uniform float height_amplitude;
 
 uniform vec2 vertex_spacing;
 uniform vec2 map_origin;
-
-//uniform ivec2[10] map_origins;
 
 uniform vec2 mesh_origin;
 uniform ivec2 tile_size;
@@ -46,8 +43,8 @@ void vertex() {
 	
 	vec2 scale = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[2].xyz));
 	vec2 edge = mod(floor(mesh_origin / scale + EPSILON), 2.0);
-	
 	vertex_lod = int(log2(scale.x / vertex_spacing.x));
+	
 	ivec2 texel = to_texel(world_position.xz, vertex_lod);
 
 	vec2 lod_position = floor((world_position.xz - mesh_origin) / scale - EPSILON) + edge;
@@ -71,12 +68,12 @@ void fragment() {
 	vec2 step_texel = normal_radius / vertex_spacing * texel_size;
 	
 	float lod = float(vertex_lod);
-	float scale = float(1 << vertex_lod);
 	float l = texture(height_maps, vec3(uv - vec2(step_texel.x, 0), lod)).r;
 	float r = texture(height_maps, vec3(uv + vec2(step_texel.x, 0), lod)).r;
 	float d = texture(height_maps, vec3(uv - vec2(0, step_texel.y), lod)).r;
 	float u = texture(height_maps, vec3(uv + vec2(0, step_texel.y), lod)).r;
-
+	
+	float scale = float(1 << vertex_lod);
 	float dx = (l - r) * height_amplitude / (2.0 * normal_radius * scale);
 	float dz = (d - u) * height_amplitude / (2.0 * normal_radius * scale);
  

@@ -1,6 +1,6 @@
-class_name Terrain3DCollisionHandler
+class_name Clipmap3DCollisionHandler
 
-var _terrain_source: Terrain3DSource
+var _source: Clipmap3DSource
 var _height_amplitude: float
 var _vertex_spacing: Vector2
 var _mesh_size: Vector2i
@@ -14,11 +14,11 @@ var _targets: Array[PhysicsBody3D]
 
 var _template_faces: PackedVector3Array
 
-func initialize(terrain: Terrain3D):
-	assert(not _terrain_source) # double initialization not supported yet
-	_terrain_source = terrain.terrain_source
-	if _terrain_source:
-		_terrain_source.changed.connect(update)
+func initialize(terrain: Clipmap3D):
+	assert(not _source) # double initialization not supported yet
+	_source = terrain.source
+	if _source:
+		_source.changed.connect(update)
 	_vertex_spacing = terrain.mesh_vertex_spacing
 	_mesh_size = terrain.collision_mesh_size
 	_height_amplitude = terrain.height_amplitude
@@ -59,12 +59,12 @@ func update():
 		
 		_build_mesh(i, target_xz)
 	
-func update_terrain_source(terrain_source: Terrain3DSource):
-	if _terrain_source:
-		_terrain_source.refreshed.disconnect(update)
-	_terrain_source = terrain_source
-	if _terrain_source:
-		_terrain_source.refreshed.connect(update)
+func update_source(source: Clipmap3DSource):
+	if _source:
+		_source.refreshed.disconnect(update)
+	_source = source
+	if _source:
+		_source.refreshed.connect(update)
 
 func update_vertex_spacing(vertex_spacing: Vector2):
 	_vertex_spacing = vertex_spacing
@@ -96,7 +96,7 @@ func update_collision_mask(physics_mask: int):
 func _build_mesh(shape_index: int, xz: Vector2):
 	for i: int in _template_faces.size():
 		var v_world := Vector2(_template_faces[i].x, _template_faces[i].z) + xz
-		_template_faces[i].y = _terrain_source.sample(v_world, _height_amplitude, _vertex_spacing) + _y_position
+		_template_faces[i].y = _source.sample(v_world, _height_amplitude, _vertex_spacing) + _y_position
 	
 	var shape_rid := _shape_rids[shape_index]
 	PhysicsServer3D.shape_set_data(shape_rid, {"faces": _template_faces, "backface_collision": false})

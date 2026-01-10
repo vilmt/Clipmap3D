@@ -1,5 +1,5 @@
 @tool
-class_name Terrain3DNoiseSource extends Terrain3DSource
+class_name Clipmap3DNoiseSource extends Clipmap3DSource
 
 # TODO: soft refresh signal: textures changed only
 
@@ -15,14 +15,10 @@ func get_images() -> Array[Image]:
 func get_textures() -> Texture2DArray:
 	return _textures
 
-func get_shader_offsets() -> Array[Vector2i]:
-	return _origins
-
 var _image_size: Vector2i
 
 const EPSILON := Vector2.ONE * 10e-5
 
-# this will not need changes, only used for lod 0 (collision)
 @warning_ignore_start("integer_division")
 func sample(world_position: Vector2, amplitude: float, vertex_spacing: Vector2) -> float:
 	if _images.is_empty():
@@ -45,8 +41,7 @@ func create_maps(ring_size: Vector2i, lod_count: int):
 	
 	_textures = Texture2DArray.new()
 	_textures.create_from_images(_images)
-	ResourceSaver.save(_textures, "res://texture_2d_array.res", ResourceSaver.FLAG_COMPRESS)
-
+	
 	refreshed.emit()
 
 func clear_maps():
@@ -57,18 +52,17 @@ func clear_maps():
 func shift_maps():
 	if _images.is_empty():
 		return
-	#print("shift maps")
 	for lod: int in _images.size():
 		var cell_size := 1 << lod
 		var new_origin := Vector2i((origin / cell_size + EPSILON).floor())
 		
-		# POSSIBLE OPTIMIZATION: break loop if no shift
 		if _try_shift_lod(lod, new_origin):
 			_textures.update_layer(_images[lod], lod)
 	
 	refreshed.emit()
 
 # TODO: unify logic with shader transformations
+# TODO: make noise func extensible
 func _generate_region(lod: int, image_rect: Rect2i):
 	var image_center := _image_size / 2
 			

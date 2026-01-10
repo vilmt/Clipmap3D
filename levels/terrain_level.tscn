@@ -1,13 +1,13 @@
 [gd_scene format=3 uid="uid://cq6vicc6yy7nc"]
 
-[ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://scenes/terrain_3d/terrain_3d.gd" id="1_a1u1q"]
-[ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/terrain_3d/terrain_3d.tres" id="1_tog6l"]
-[ext_resource type="Script" uid="uid://bghnyaj4fsaan" path="res://scenes/terrain_3d/instancer/instancer.gd" id="4_6mm2f"]
+[ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://scenes/clipmap_3d/clipmap_3d.gd" id="1_a1u1q"]
+[ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/clipmap_3d/clipmap_3d.tres" id="1_tog6l"]
+[ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/clipmap_3d/source/noise_source.gd" id="2_waa5k"]
+[ext_resource type="Script" uid="uid://bghnyaj4fsaan" path="res://scenes/clipmap_3d/instancer/instancer.gd" id="4_6mm2f"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="4_owj7c"]
-[ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/terrain_3d/source/noise_source.gd" id="4_vn06u"]
 [ext_resource type="Material" uid="uid://cor7kynnsfh01" path="res://scenes/grass/grass.tres" id="5_acxjd"]
 [ext_resource type="PackedScene" uid="uid://dm3mdkroo5725" path="res://scenes/ball/ball.tscn" id="5_vn06u"]
-[ext_resource type="Material" uid="uid://bekhxmsm5ef5y" path="res://scenes/terrain_3d/instancer/instancer.tres" id="5_waa5k"]
+[ext_resource type="Material" uid="uid://bekhxmsm5ef5y" path="res://scenes/clipmap_3d/instancer/instancer.tres" id="5_waa5k"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tjx8f"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -24,17 +24,15 @@ glow_enabled = true
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pvg1d"]
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_owj7c"]
-frequency = 0.0009
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_um6qw"]
+frequency = 0.0011
 fractal_octaves = 7
-fractal_lacunarity = 1.89
-fractal_gain = 0.56
-fractal_weighted_strength = 0.26
+fractal_weighted_strength = 0.3
 
-[sub_resource type="Resource" id="Resource_vn06u"]
-script = ExtResource("4_vn06u")
-noise = SubResource("FastNoiseLite_owj7c")
-origin = Vector2(-214.9106, -123.074265)
+[sub_resource type="Resource" id="Resource_wt30j"]
+script = ExtResource("2_waa5k")
+noise = SubResource("FastNoiseLite_um6qw")
+origin = Vector2(-61.936707, 114.1051)
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_waa5k"]
@@ -51,7 +49,7 @@ environment = SubResource("Environment_rm2gq")
 camera_attributes = SubResource("CameraAttributesPractical_pvg1d")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=810570797]
-transform = Transform3D(0.038663827, -0.5726235, -0.8189063, 0.15301886, -0.8064603, 0.5711453, -0.98746663, -0.14739078, 0.05644135, 0, 90.61831, 0)
+transform = Transform3D(0.038663827, -0.57262355, -0.81890625, 0.15301886, -0.8064604, 0.57114536, -0.98746663, -0.14739077, 0.05644136, 0, 90.61831, 306.4474)
 light_intensity_lux = 32766.99
 light_temperature = 2989.0
 light_energy = 2.0
@@ -60,29 +58,27 @@ directional_shadow_split_1 = 0.04
 directional_shadow_split_2 = 0.11
 directional_shadow_split_3 = 0.33
 directional_shadow_blend_splits = true
-directional_shadow_max_distance = 500.0
+directional_shadow_max_distance = 1000.0
 
-[node name="Terrain3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -214.9106, 0, -123.074265)
+[node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -61.936707, -0.00012207031, 114.1051)
 script = ExtResource("1_a1u1q")
-terrain_source = SubResource("Resource_vn06u")
+source = SubResource("Resource_wt30j")
 follow_target = NodePath("../Player")
 height_amplitude = 800.0
 mesh_lod_count = 7
 material = ExtResource("1_tog6l")
-collision_mesh_size = Vector2i(16, 16)
 collision_targets = [NodePath("../Player")]
 
-[node name="Terrain3DInstancer" type="Node3D" parent="Terrain3D" unique_id=1412272999 node_paths=PackedStringArray("terrain")]
+[node name="Clipmap3DInstancer" type="Node3D" parent="Clipmap3D" unique_id=1412272999]
 visible = false
 script = ExtResource("4_6mm2f")
-terrain = NodePath("..")
 rows_and_columns = Vector2i(50, 50)
 fixed_fps = 30
 process_material = ExtResource("5_waa5k")
 mesh = SubResource("RibbonTrailMesh_waa5k")
 
-[node name="Node2D" type="Node2D" parent="Terrain3D" unique_id=730983112]
+[node name="Node2D" type="Node2D" parent="Clipmap3D" unique_id=730983112]
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=749457015]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 250.2037, 0)
@@ -90,7 +86,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -214.9106, 339.42197, -123.074265)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -61.936707, 339.4221, 114.1051)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

@@ -1,17 +1,17 @@
 @tool
-class_name Terrain3DInstancer extends Node3D
+class_name Clipmap3DInstancer extends Node3D
 
-@export var terrain: Terrain3D:
+@export var clipmap: Clipmap3D:
 	set(value):
-		if terrain == value:
+		if clipmap == value:
 			return
-		if terrain:
-			terrain.position_changed.disconnect(reposition)
-		terrain = value
+		if clipmap:
+			clipmap.position_changed.disconnect(reposition)
+		clipmap = value
 		if not is_node_ready():
 			return
-		if terrain:
-			terrain.position_changed.connect(reposition)
+		if clipmap:
+			clipmap.position_changed.connect(reposition)
 		
 @export var rows_and_columns := Vector2i.ONE:
 	set(value):
@@ -83,8 +83,8 @@ func _ready() -> void:
 	_particles_rids.append(particles_rid)
 	_instance_rids.append(instance_rid)
 	
-	if terrain:
-		terrain.position_changed.connect(reposition)
+	if clipmap:
+		clipmap.position_changed.connect(reposition)
 
 func _exit_tree() -> void:
 	for rid: RID in _instance_rids + _particles_rids:

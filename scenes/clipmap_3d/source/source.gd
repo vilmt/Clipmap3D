@@ -1,9 +1,8 @@
 @tool
 @abstract
-class_name Terrain3DSource extends Resource
+class_name Clipmap3DSource extends Resource
 
 # TODO: threading
-# TODO: clipmap mip chain
 
 @export var origin := Vector2.ZERO
 
@@ -12,9 +11,6 @@ signal refreshed
 
 @abstract
 func create_maps(ring_size: Vector2i, lod_count: int)
-
-@abstract
-func get_shader_offsets() -> Array[Vector2i]
 
 @abstract
 func shift_maps()

@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cpstqsjk2jo0l" path="res://scenes/player/player.gd" id="1_8afob"]
 [ext_resource type="Script" uid="uid://dc378wgjo7yag" path="res://scenes/player/fps_label.gd" id="2_dovo2"]
+[ext_resource type="Material" uid="uid://rpow36mq221x" path="res://scenes/ball/ball.tres" id="2_gmlin"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_dovo2"]
 radius = 0.4
@@ -16,7 +17,6 @@ script = ExtResource("1_8afob")
 [node name="SpringArm3D" type="SpringArm3D" parent="." unique_id=1895840787]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6616194, 0)
 spring_length = 8.0
-margin = 0.1
 
 [node name="Camera3D" type="Camera3D" parent="SpringArm3D" unique_id=880548590]
 far = 6000.0
@@ -27,6 +27,7 @@ shape = SubResource("CapsuleShape3D_dovo2")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1383782786]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+material_override = ExtResource("2_gmlin")
 mesh = SubResource("CapsuleMesh_gmlin")
 
 [node name="FPSLabel" type="Label" parent="." unique_id=351731806]
