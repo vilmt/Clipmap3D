@@ -32,7 +32,7 @@ fractal_weighted_strength = 0.3
 [sub_resource type="Resource" id="Resource_wt30j"]
 script = ExtResource("2_waa5k")
 noise = SubResource("FastNoiseLite_um6qw")
-origin = Vector2(-61.936707, 114.1051)
+origin = Vector2(-379.67548, 266.6546)
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_waa5k"]
@@ -61,11 +61,11 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 1000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -61.936707, -0.00012207031, 114.1051)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -379.67548, -0.00012207031, 266.6546)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_wt30j")
 follow_target = NodePath("../Player")
-height_amplitude = 800.0
+height_amplitude = 500.0
 mesh_lod_count = 7
 material = ExtResource("1_tog6l")
 collision_targets = [NodePath("../Player")]
@@ -86,7 +86,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -61.936707, 339.4221, 114.1051)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -379.67548, 257.08228, 266.6546)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

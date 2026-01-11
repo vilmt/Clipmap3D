@@ -1,13 +1,22 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://sppic5ftnktj"]
 
 [ext_resource type="Shader" uid="uid://co8jxwmiyfqh3" path="res://scenes/clipmap_3d/clipmap_3d.gdshader" id="1_xxpvx"]
+[ext_resource type="Texture2D" uid="uid://ddprscrpsofah" path="res://assets/textures/ground037_alb_ht.png" id="2_3vfjj"]
+[ext_resource type="Texture2D" uid="uid://c1ots7w6i0i1q" path="res://assets/textures/ground037_nrm_rgh.png" id="3_wjmaf"]
+[ext_resource type="Texture2D" uid="uid://c88j3oj0lf6om" path="res://assets/textures/rock023_alb_ht.png" id="4_62wp6"]
+[ext_resource type="Texture2D" uid="uid://c307hdmos4gtm" path="res://assets/textures/rock023_nrm_rgh.png" id="5_0aff4"]
 
 [resource]
 render_priority = 0
 shader = ExtResource("1_xxpvx")
 shader_parameter/normal_radius = 1.0
+shader_parameter/normal_blend_distance = 10.0
+shader_parameter/shallow_albedo_height = ExtResource("2_3vfjj")
+shader_parameter/shallow_normal_roughness = ExtResource("3_wjmaf")
+shader_parameter/steep_albedo_height = ExtResource("4_62wp6")
+shader_parameter/steep_normal_roughness = ExtResource("5_0aff4")
 shader_parameter/height_amplitude = 277.175
 shader_parameter/vertex_spacing = Vector2(1, 1)
-shader_parameter/map_origins = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/map_origin = Vector2(0, 0)
 shader_parameter/mesh_origin = Vector2(0, 0)
 shader_parameter/tile_size = Vector2i(32, 32)

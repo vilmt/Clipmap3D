@@ -2,7 +2,14 @@ shader_type spatial;
 
 //render_mode wireframe;
 uniform float normal_radius = 1.0;
+uniform float normal_blend_distance = 10.0;
 uniform highp sampler2DArray height_maps: repeat_disable, filter_linear;
+
+uniform sampler2D shallow_albedo_height: source_color;
+uniform sampler2D shallow_normal_roughness;
+
+uniform sampler2D steep_albedo_height: source_color;
+uniform sampler2D steep_normal_roughness;
 
 uniform float height_amplitude;
 
@@ -17,6 +24,7 @@ varying vec3 world_position;
 varying vec3 debug_albedo;
 
 varying flat int vertex_lod;
+varying float interp_normal;
 
 const float EPSILON = 10e-5;
 
@@ -49,6 +57,9 @@ void vertex() {
 
 	vec2 lod_position = floor((world_position.xz - mesh_origin) / scale - EPSILON) + edge;
 	
+	vec2 interp = max(abs(lod_position) - (vec2(tile_size) * 2.0 + 1.0) + normal_blend_distance, 0.0);
+	interp_normal = max(interp.x, interp.y) / normal_blend_distance;
+	
 	vec2 edge_mask = step(vec2(tile_size) * 2.0 + 0.5, abs(lod_position));
 	vec2 even_mask = abs(mod(lod_position, 2.0) - 1.0);
 	ivec2 offset = ivec2(edge_mask.yx * even_mask);
@@ -76,9 +87,30 @@ void fragment() {
 	float scale = float(1 << vertex_lod);
 	float dx = (l - r) * height_amplitude / (2.0 * normal_radius * scale);
 	float dz = (d - u) * height_amplitude / (2.0 * normal_radius * scale);
- 
-	NORMAL_MAP = normalize(vec3(-dz, -dx, 1.0)) * 0.5 + 0.5;
+	
+	vec3 normal = normalize(vec3(-dz, -dx, 1.0));
+	
+	if (interp_normal > EPSILON) {
+		vec2 uv1 = to_uv(world_position.xz, vertex_lod + 1);
+		
+		float lod_1 = float(vertex_lod + 1);
+		float l_1 = texture(height_maps, vec3(uv1 - vec2(step_texel.x, 0), lod_1)).r;
+		float r_1 = texture(height_maps, vec3(uv1 + vec2(step_texel.x, 0), lod_1)).r;
+		float d_1 = texture(height_maps, vec3(uv1 - vec2(0, step_texel.y), lod_1)).r;
+		float u_1 = texture(height_maps, vec3(uv1 + vec2(0, step_texel.y), lod_1)).r;
+		
+		float scale_1 = scale * 2.0;
+		float dx_1 = (l_1 - r_1) * height_amplitude / (2.0 * normal_radius * scale_1);
+		float dz_1 = (d_1 - u_1) * height_amplitude / (2.0 * normal_radius * scale_1);
+	
+		normal = mix(normal, normalize(vec3(-dz_1, -dx_1, 1.0)), interp_normal);
+	}
+ 	
+	NORMAL_MAP = normal * 0.5 + 0.5;
+	
+	float steepness = acos(normal.z);
 	//ALBEDO = debug_albedo;
 	//ALBEDO.rg = uv;
-	ALBEDO = vec3(0.7);
+	ALBEDO = texture(steep_albedo_height, uv).rgb;
+	//ALBEDO = vec3(interp_normal);
 }
