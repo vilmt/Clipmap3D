@@ -9,12 +9,17 @@
 [resource]
 render_priority = 0
 shader = ExtResource("1_xxpvx")
+shader_parameter/ao_strength = 1.0
+shader_parameter/projection_threshold = 0.8
 shader_parameter/normal_radius = 1.0
 shader_parameter/normal_blend_distance = 10.0
+shader_parameter/auto_slope = 2.915
+shader_parameter/auto_sharpness = 4.0
+shader_parameter/auto_height_reduction = 0.0
 shader_parameter/shallow_albedo_height = ExtResource("2_3vfjj")
-shader_parameter/shallow_normal_roughness = ExtResource("3_wjmaf")
+shader_parameter/shallow_normal_rough = ExtResource("3_wjmaf")
 shader_parameter/steep_albedo_height = ExtResource("4_62wp6")
-shader_parameter/steep_normal_roughness = ExtResource("5_0aff4")
+shader_parameter/steep_normal_rough = ExtResource("5_0aff4")
 shader_parameter/height_amplitude = 277.175
 shader_parameter/vertex_spacing = Vector2(1, 1)
 shader_parameter/map_origin = Vector2(0, 0)

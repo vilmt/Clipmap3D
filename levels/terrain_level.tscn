@@ -32,7 +32,7 @@ fractal_weighted_strength = 0.3
 [sub_resource type="Resource" id="Resource_wt30j"]
 script = ExtResource("2_waa5k")
 noise = SubResource("FastNoiseLite_um6qw")
-origin = Vector2(-379.67548, 266.6546)
+origin = Vector2(-379.67548, 17.019379)
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_waa5k"]
@@ -49,7 +49,7 @@ environment = SubResource("Environment_rm2gq")
 camera_attributes = SubResource("CameraAttributesPractical_pvg1d")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=810570797]
-transform = Transform3D(0.038663827, -0.57262355, -0.81890625, 0.15301886, -0.8064604, 0.57114536, -0.98746663, -0.14739077, 0.05644136, 0, 90.61831, 306.4474)
+transform = Transform3D(-0.014179364, 0.1455572, 0.9892482, 0.14280765, -0.9789106, 0.14608303, 0.98964924, 0.14334355, -0.0069063483, 0, 90.61831, 306.4474)
 light_intensity_lux = 32766.99
 light_temperature = 2989.0
 light_energy = 2.0
@@ -58,10 +58,10 @@ directional_shadow_split_1 = 0.04
 directional_shadow_split_2 = 0.11
 directional_shadow_split_3 = 0.33
 directional_shadow_blend_splits = true
-directional_shadow_max_distance = 1000.0
+directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -379.67548, -0.00012207031, 266.6546)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -379.67548, -0.00015258789, 17.019379)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_wt30j")
 follow_target = NodePath("../Player")
@@ -86,7 +86,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -379.67548, 257.08228, 266.6546)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -379.67548, 257.08228, 17.019379)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

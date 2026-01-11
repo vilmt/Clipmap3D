@@ -1,15 +1,23 @@
 shader_type spatial;
 
+// TODO: make shader-controlled uniforms private
+
 //render_mode wireframe;
+uniform float ao_strength = 1.0;
+uniform float projection_threshold = 0.8;
 uniform float normal_radius = 1.0;
 uniform float normal_blend_distance = 10.0;
 uniform highp sampler2DArray height_maps: repeat_disable, filter_linear;
 
+uniform float auto_slope = 1.0;
+uniform float auto_sharpness = 4.0;
+uniform float auto_height_reduction = 0.0;
+
 uniform sampler2D shallow_albedo_height: source_color;
-uniform sampler2D shallow_normal_roughness;
+uniform sampler2D shallow_normal_rough;
 
 uniform sampler2D steep_albedo_height: source_color;
-uniform sampler2D steep_normal_roughness;
+uniform sampler2D steep_normal_rough;
 
 uniform float height_amplitude;
 
@@ -27,6 +35,15 @@ varying flat int vertex_lod;
 varying float interp_normal;
 
 const float EPSILON = 10e-5;
+
+struct Material {
+	vec4 albedo_height;
+	vec4 normal_rough;
+	float normal_map_depth;
+	float ao;
+	float ao_affect;
+	float total_weight;
+};
 
 ivec2 to_texel(vec2 world_xz, int lod) {
 	float scale = float(1 << lod);
@@ -47,6 +64,7 @@ vec2 to_uv(vec2 world_xz, int lod) {
 }
 
 void vertex() {
+	// camera_pos = MAIN_CAM_INV_VIEW_MATRIX[3].xyz; could use camera pos instead of passing uniform
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	
 	vec2 scale = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[2].xyz));
@@ -63,54 +81,112 @@ void vertex() {
 	vec2 edge_mask = step(vec2(tile_size) * 2.0 + 0.5, abs(lod_position));
 	vec2 even_mask = abs(mod(lod_position, 2.0) - 1.0);
 	ivec2 offset = ivec2(edge_mask.yx * even_mask);
-	float h_0 = height_amplitude * texelFetch(height_maps, ivec3(texel - offset, vertex_lod), 0).r;
-	float h_1 = height_amplitude * texelFetch(height_maps, ivec3(texel + offset, vertex_lod), 0).r;
-	VERTEX.y = mix(h_0, h_1, 0.5);
+	float h_0 = texelFetch(height_maps, ivec3(texel - offset, vertex_lod), 0).r;
+	float h_1 = texelFetch(height_maps, ivec3(texel + offset, vertex_lod), 0).r;
+	world_position.y = mix(h_0, h_1, 0.5) * height_amplitude;
+	VERTEX.y = world_position.y;
 	
 	//debug_albedo.rg = lod_position;
 	//debug_albedo.rg = edge_mask.yx * even_mask;
 	//debug_albedo.rg = even_mask;
 }
 
+void accumulate(vec3 p, vec3 ddx, vec3 ddy, vec3 normal, bool projected, float weight,
+				sampler2D albedo_tex, sampler2D normal_tex, inout Material material) {
+	vec4 dd = vec4(ddx.xz, ddy.xz);
+	mat2 p_align = mat2(1.);
+	vec2 p_uv = p.xz;
+	vec4 p_dd = dd;
+	//vec2 p_pos = i_pos;
+	
+	if (projected && normal.y <= projection_threshold) {
+		// Projected normal map alignment matrix
+		p_align = mat2(vec2(normal.z, -normal.x), vec2(normal.x, normal.z));
+		// Fast 45 degree snapping https://iquilezles.org/articles/noatan/
+		vec2 xz = round(normalize(-normal.xz) * 1.3065629648763765); // sqrt(1.0 + sqrt(0.5))
+		xz *= abs(xz.x) + abs(xz.y) > 1.5 ? 0.7071067811865475 : 1.0; // sqrt(0.5)
+		xz = vec2(-xz.y, xz.x);
+		//p_pos = floor(vec2(dot(i_pos, xz), -h));
+		p_uv = vec2(dot(p.xz, xz), -p.y);
+		p_dd.xy = vec2(dot(ddx.xz, xz), -ddx.y);
+		p_dd.zw = vec2(dot(ddy.xz, xz), -ddy.y);
+	}
+	
+	vec4 alb = textureGrad(albedo_tex, p_uv, p_dd.xy, p_dd.zw);
+	vec4 nrm = textureGrad(normal_tex, p_uv, p_dd.xy, p_dd.zw);
+	
+	nrm.xyz = nrm.xzy * 2.0 - 1.0;
+	float ao = length(nrm.xyz) * 2.0 - 1.0;
+	ao = mix(ao * ao * ao_strength + 1.0 - ao_strength, 1.0, alb.a * alb.a);
+	nrm.xyz = normalize(nrm.xyz);
+	// this does not look right
+
+	if (projected && normal.y <= projection_threshold) {
+		nrm.xz = p_align * nrm.xz;
+	}
+
+	material.albedo_height += alb * weight;
+	material.normal_rough += nrm * weight;
+	material.ao += ao * weight;
+	material.total_weight += weight;
+}
+
 void fragment() {
 	// central difference
 	vec2 uv = to_uv(world_position.xz, vertex_lod);
-	vec2 texel_size = 1.0 / vec2(textureSize(height_maps, 0).xy);
-	vec2 step_texel = normal_radius / vertex_spacing * texel_size;
+	vec2 step_texel = 1.0 / vec2(textureSize(height_maps, 0).xy);
 	
 	float lod = float(vertex_lod);
-	float l = texture(height_maps, vec3(uv - vec2(step_texel.x, 0), lod)).r;
-	float r = texture(height_maps, vec3(uv + vec2(step_texel.x, 0), lod)).r;
-	float d = texture(height_maps, vec3(uv - vec2(0, step_texel.y), lod)).r;
-	float u = texture(height_maps, vec3(uv + vec2(0, step_texel.y), lod)).r;
+	float h = texture(height_maps, vec3(uv, lod)).r * height_amplitude;
+	float r = texture(height_maps, vec3(uv + vec2(step_texel.x, 0), lod)).r * height_amplitude;
+	float u = texture(height_maps, vec3(uv + vec2(0, step_texel.y), lod)).r * height_amplitude;
 	
-	float scale = float(1 << vertex_lod);
-	float dx = (l - r) * height_amplitude / (2.0 * normal_radius * scale);
-	float dz = (d - u) * height_amplitude / (2.0 * normal_radius * scale);
+	vec2 scale = float(1 << vertex_lod) * vertex_spacing;
+	vec3 normal = normalize(vec3((h - r) / scale.x, 1.0, (h - u) / scale.y));
 	
-	vec3 normal = normalize(vec3(-dz, -dx, 1.0));
-	
+	// WIP: LOD BLENDING
 	if (interp_normal > EPSILON) {
 		vec2 uv1 = to_uv(world_position.xz, vertex_lod + 1);
 		
 		float lod_1 = float(vertex_lod + 1);
-		float l_1 = texture(height_maps, vec3(uv1 - vec2(step_texel.x, 0), lod_1)).r;
-		float r_1 = texture(height_maps, vec3(uv1 + vec2(step_texel.x, 0), lod_1)).r;
-		float d_1 = texture(height_maps, vec3(uv1 - vec2(0, step_texel.y), lod_1)).r;
-		float u_1 = texture(height_maps, vec3(uv1 + vec2(0, step_texel.y), lod_1)).r;
+		float h_1 = texture(height_maps, vec3(uv1, lod_1)).r * height_amplitude;
+		float r_1 = texture(height_maps, vec3(uv1 + vec2(step_texel.x, 0), lod_1)).r * height_amplitude;
+		float u_1 = texture(height_maps, vec3(uv1 + vec2(0, step_texel.y), lod_1)).r * height_amplitude;
 		
-		float scale_1 = scale * 2.0;
-		float dx_1 = (l_1 - r_1) * height_amplitude / (2.0 * normal_radius * scale_1);
-		float dz_1 = (d_1 - u_1) * height_amplitude / (2.0 * normal_radius * scale_1);
+		vec2 scale_1 = float(1 << (vertex_lod + 1)) * vertex_spacing;
+		vec3 normal_1 = normalize(vec3((h_1 - r_1) / scale_1.x, 1.0, (h_1 - u_1) / scale_1.y));
 	
-		normal = mix(normal, normalize(vec3(-dz_1, -dx_1, 1.0)), interp_normal);
+		normal = mix(normal, normal_1, interp_normal);
 	}
- 	
-	NORMAL_MAP = normal * 0.5 + 0.5;
 	
-	float steepness = acos(normal.z);
-	//ALBEDO = debug_albedo;
-	//ALBEDO.rg = uv;
-	ALBEDO = texture(steep_albedo_height, uv).rgb;
-	//ALBEDO = vec3(interp_normal);
+	Material material = Material(vec4(0.0), vec4(0.0), 0.0, 0.0, 0.0, 0.0);
+	
+	float slope = clamp(auto_slope * (1.0 - normal.y) - auto_height_reduction * world_position.y / height_amplitude, 0.0, 1.0);
+	// sharpen transition
+	float steep_weight = smoothstep(0.3, 0.7, slope);
+	float shallow_weight = 1.0 - steep_weight;
+	
+	vec3 base_p = world_position * 0.02;
+	
+	vec3 base_ddx = dFdxCoarse(base_p);
+	vec3 base_ddy = dFdyCoarse(base_p);
+	
+	accumulate(base_p, base_ddx, base_ddy, normal, true, steep_weight, steep_albedo_height, steep_normal_rough, material);
+	accumulate(base_p, base_ddx, base_ddy, normal, false, shallow_weight, shallow_albedo_height, shallow_normal_rough, material);
+	
+	float inv_w = 1.0 / max(material.total_weight, 1e-6);
+	material.albedo_height *= inv_w;
+	material.normal_rough *= inv_w;
+	
+	vec3 tangent = normalize(cross(normal, vec3(0.0, 0.0, 1.0)));
+	vec3 binormal = normalize(cross(normal, tangent));
+	
+	NORMAL = mat3(VIEW_MATRIX) * normal;
+	TANGENT = mat3(VIEW_MATRIX) * tangent;
+	BINORMAL = mat3(VIEW_MATRIX) * binormal;
+	
+	ALBEDO = material.albedo_height.rgb;
+	ROUGHNESS = material.normal_rough.a;
+	AO = material.ao;
+	NORMAL_MAP = material.normal_rough.xzy * 0.5 + 0.5;
 }
