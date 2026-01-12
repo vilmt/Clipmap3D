@@ -21,6 +21,7 @@ uniform sampler2D steep_normal_rough;
 
 uniform float height_amplitude;
 
+// TODO: mesh origin and map origin represent the same transformation in diff spaces
 uniform vec2 vertex_spacing;
 uniform vec2 map_origin;
 
@@ -32,7 +33,7 @@ varying vec3 world_position;
 varying vec3 debug_albedo;
 
 varying flat int vertex_lod;
-varying float interp_normal;
+varying float lod_blend_mask;
 
 const float EPSILON = 10e-5;
 
@@ -54,6 +55,7 @@ ivec2 to_texel(vec2 world_xz, int lod) {
 }
 
 // TODO: simplify
+// BUG: textures shift in same direction on lod shift
 vec2 to_uv(vec2 world_xz, int lod) {
 	float scale = float(1 << lod);
 	vec2 lod_spacing = vertex_spacing * scale;
@@ -69,25 +71,37 @@ void vertex() {
 	
 	vec2 scale = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[2].xyz));
 	vec2 edge = mod(floor(mesh_origin / scale + EPSILON), 2.0);
-	vertex_lod = int(log2(scale.x / vertex_spacing.x));
+	//vec2 edge_continuous = mod(mesh_origin / scale + EPSILON, 2.0);
 	
-	ivec2 texel = to_texel(world_position.xz, vertex_lod);
-
+	//vec2 fraction = mod(mesh_origin / scale, 2.0) / 2.0;
+	vec2 fraction = fract(mesh_origin / scale * 0.5);
 	vec2 lod_position = floor((world_position.xz - mesh_origin) / scale - EPSILON) + edge;
 	
-	vec2 interp = max(abs(lod_position) - (vec2(tile_size) * 2.0 + 1.0) + normal_blend_distance, 0.0);
-	interp_normal = max(interp.x, interp.y) / normal_blend_distance;
+	vec2 lod_size = vec2(tile_size) * 2.0 + 1.0;
 	
-	vec2 edge_mask = step(vec2(tile_size) * 2.0 + 0.5, abs(lod_position));
+	// should probably be in vertices, however would have to be a vec2 (does not make sense)
+	float blend_distance = 0.2;
+	
+	// TODO: 1 vertex of blend to fix jumps
+	float lod_distance = length((lod_position + fraction) / lod_size);
+	lod_blend_mask = smoothstep(1.0 - blend_distance, 1.0, lod_distance);
+	
 	vec2 even_mask = abs(mod(lod_position, 2.0) - 1.0);
-	ivec2 offset = ivec2(edge_mask.yx * even_mask);
-	float h_0 = texelFetch(height_maps, ivec3(texel - offset, vertex_lod), 0).r;
-	float h_1 = texelFetch(height_maps, ivec3(texel + offset, vertex_lod), 0).r;
-	world_position.y = mix(h_0, h_1, 0.5) * height_amplitude;
+	vec2 offset = even_mask * lod_blend_mask;
+	
+	VERTEX.xz += vertex_spacing * offset;
+	world_position.xz += vertex_spacing * offset * scale;
+	
+	vertex_lod = int(log2(scale.x / vertex_spacing.x));
+	
+	vec2 uv = to_uv(world_position.xz, vertex_lod);
+	
+	world_position.y = texture(height_maps, vec3(uv, float(vertex_lod))).r * height_amplitude;
 	VERTEX.y = world_position.y;
 	
 	//debug_albedo.rg = lod_position;
-	//debug_albedo.rg = edge_mask.yx * even_mask;
+	debug_albedo.rg = offset;
+	debug_albedo = vec3(0.7);
 	//debug_albedo.rg = even_mask;
 }
 
@@ -144,8 +158,7 @@ void fragment() {
 	vec2 scale = float(1 << vertex_lod) * vertex_spacing;
 	vec3 normal = normalize(vec3((h - r) / scale.x, 1.0, (h - u) / scale.y));
 	
-	// WIP: LOD BLENDING
-	if (interp_normal > EPSILON) {
+	if (lod_blend_mask > EPSILON) {
 		vec2 uv1 = to_uv(world_position.xz, vertex_lod + 1);
 		
 		float lod_1 = float(vertex_lod + 1);
@@ -156,7 +169,7 @@ void fragment() {
 		vec2 scale_1 = float(1 << (vertex_lod + 1)) * vertex_spacing;
 		vec3 normal_1 = normalize(vec3((h_1 - r_1) / scale_1.x, 1.0, (h_1 - u_1) / scale_1.y));
 	
-		normal = mix(normal, normal_1, interp_normal);
+		normal = mix(normal, normal_1, lod_blend_mask);
 	}
 	
 	Material material = Material(vec4(0.0), vec4(0.0), 0.0, 0.0, 0.0, 0.0);
@@ -185,8 +198,11 @@ void fragment() {
 	TANGENT = mat3(VIEW_MATRIX) * tangent;
 	BINORMAL = mat3(VIEW_MATRIX) * binormal;
 	
-	ALBEDO = material.albedo_height.rgb;
-	ROUGHNESS = material.normal_rough.a;
-	AO = material.ao;
-	NORMAL_MAP = material.normal_rough.xzy * 0.5 + 0.5;
+	ALBEDO = debug_albedo;
+	//ALBEDO = vec3(0.7);
+	
+	//ALBEDO = material.albedo_height.rgb;
+	//ROUGHNESS = material.normal_rough.a;
+	//AO = material.ao;
+	//NORMAL_MAP = material.normal_rough.xzy * 0.5 + 0.5;
 }

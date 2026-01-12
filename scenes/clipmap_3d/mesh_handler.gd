@@ -114,16 +114,17 @@ func update_cast_shadows(cast_shadows: RenderingServer.ShadowCastingSetting):
 
 const EPSILON := Vector2.ONE * 10e-5
 
+# BUG: a strip disappears sometimes...
 func snap(p_xz: Vector2, force: bool = false) -> bool:
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"mesh_origin", p_xz)
+	
 	var snapped_this = (p_xz / _vertex_spacing).floor() * _vertex_spacing
 	var snapped_last = (_last_p_xz / _vertex_spacing).floor() * _vertex_spacing
 	if snapped_this.is_equal_approx(snapped_last) and not force:
 		return false
 	
 	_last_p_xz = p_xz
-	
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"mesh_origin", p_xz)
 	
 	var starting_i: int = 0
 	var ending_i: int = LOD_0_INSTANCES
@@ -230,6 +231,7 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 			var t_l: int = (z + 1) * (size.x + 1) + x
 			var t_r: int = t_l + 1
 			
+			#if (x + z) % 2 == 0:
 			indices.append(b_l)
 			indices.append(t_r)
 			indices.append(t_l)
@@ -237,6 +239,14 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 			indices.append(b_l)
 			indices.append(b_r)
 			indices.append(t_r)
+			#else:
+				#indices.append(b_l)
+				#indices.append(b_r)
+				#indices.append(t_l)
+				#
+				#indices.append(t_l)
+				#indices.append(b_r)
+				#indices.append(t_r)
 	mesh_arrays[RenderingServer.ARRAY_INDEX] = indices
 	
 	var normals := PackedVector3Array()
