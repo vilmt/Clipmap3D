@@ -45,6 +45,7 @@ class_name Clipmap3D extends Node3D
 		if not is_node_ready():
 			return
 		_mesh_handler.update_vertex_spacing(mesh_vertex_spacing)
+		update_position(true)
 		if not Engine.is_editor_hint():
 			_collision_handler.update_vertex_spacing(mesh_vertex_spacing)
 		
@@ -205,17 +206,20 @@ func _notification(what: int) -> void:
 		NOTIFICATION_VISIBILITY_CHANGED:
 			_mesh_handler.update_visible(is_visible_in_tree())
 
-func update_position(first_time: bool = false):
+func update_position(force: bool = false):
 	if follow_target:
 		global_position.x = follow_target.global_position.x
 		global_position.z = follow_target.global_position.z
+	
+	if force:
+		_last_p = Vector3(INF, INF, INF)
 	
 	if global_position == _last_p:
 		return
 	
 	if global_position.x != _last_p.x or global_position.z != _last_p.z:
 		var target_xz := Vector2(global_position.x, global_position.z)
-		_mesh_handler.snap(target_xz, first_time)
+		_mesh_handler.snap(target_xz, force)
 		if source:
 			source.origin = target_xz / mesh_vertex_spacing
 			source.shift_maps()

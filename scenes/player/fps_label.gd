@@ -1,5 +1,6 @@
 extends Label
 
+@export var p_target: Node3D
 @onready var vp := get_viewport().get_viewport_rid()
 
 func _ready() -> void:
@@ -13,3 +14,5 @@ func _physics_process(_delta: float) -> void:
 	var gpu_time: float = RenderingServer.viewport_get_measured_render_time_gpu(vp)
 	text += "\nGPU Time: " + '%.2f' % gpu_time
 	text += "\nFPS: " + str(int(Engine.get_frames_per_second()))
+	if p_target:
+		text += "\nPosition: " + str(p_target.global_position)

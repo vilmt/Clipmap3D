@@ -30,9 +30,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 material_override = ExtResource("2_gmlin")
 mesh = SubResource("CapsuleMesh_gmlin")
 
-[node name="FPSLabel" type="Label" parent="." unique_id=351731806]
+[node name="FPSLabel" type="Label" parent="." unique_id=351731806 node_paths=PackedStringArray("p_target")]
 offset_right = 40.0
 offset_bottom = 23.0
 theme_override_constants/outline_size = 4
 text = "FPS"
 script = ExtResource("2_dovo2")
+p_target = NodePath("..")

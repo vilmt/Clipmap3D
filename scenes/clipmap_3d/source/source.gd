@@ -3,8 +3,8 @@
 class_name Clipmap3DSource extends Resource
 
 # TODO: threading
-
 @export var origin := Vector2.ZERO
+@export var biomes: Array[Biome]
 
 @warning_ignore("unused_signal")
 signal refreshed

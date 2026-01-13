@@ -6,13 +6,29 @@
 [ext_resource type="Texture2D" uid="uid://c88j3oj0lf6om" path="res://assets/textures/rock023_alb_ht.png" id="4_62wp6"]
 [ext_resource type="Texture2D" uid="uid://c307hdmos4gtm" path="res://assets/textures/rock023_nrm_rgh.png" id="5_0aff4"]
 
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_3vfjj"]
+noise_type = 2
+seed = 3
+frequency = 0.0081
+offset = Vector3(-192.45, 1000, 0)
+fractal_type = 0
+fractal_octaves = 1
+cellular_distance_function = 2
+cellular_jitter = 1.2
+cellular_return_type = 0
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_wjmaf"]
+width = 1024
+height = 1024
+noise = SubResource("FastNoiseLite_3vfjj")
+
 [resource]
 render_priority = 0
 shader = ExtResource("1_xxpvx")
+shader_parameter/biome_map = SubResource("NoiseTexture2D_wjmaf")
+shader_parameter/lod_blend_ratio = 0.2
 shader_parameter/ao_strength = 1.0
 shader_parameter/projection_threshold = 0.8
-shader_parameter/normal_radius = 1.0
-shader_parameter/normal_blend_distance = 10.0
 shader_parameter/auto_slope = 2.915
 shader_parameter/auto_sharpness = 4.0
 shader_parameter/auto_height_reduction = 0.0
@@ -20,8 +36,8 @@ shader_parameter/shallow_albedo_height = ExtResource("2_3vfjj")
 shader_parameter/shallow_normal_rough = ExtResource("3_wjmaf")
 shader_parameter/steep_albedo_height = ExtResource("4_62wp6")
 shader_parameter/steep_normal_rough = ExtResource("5_0aff4")
-shader_parameter/height_amplitude = 277.175
-shader_parameter/vertex_spacing = Vector2(1, 1)
-shader_parameter/map_origin = Vector2(0, 0)
-shader_parameter/mesh_origin = Vector2(0, 0)
-shader_parameter/tile_size = Vector2i(32, 32)
+shader_parameter/_height_amplitude = 0.0
+shader_parameter/_vertex_spacing = Vector2(0, 0)
+shader_parameter/_map_origin = Vector2(0, 0)
+shader_parameter/_mesh_origin = Vector2(0, 0)
+shader_parameter/_tile_size = Vector2i(0, 0)

@@ -47,11 +47,11 @@ func _on_source_refreshed():
 	if not _material_rid:
 		return
 	if _source and _source.get_textures():
-		RenderingServer.material_set_param(_material_rid, &"map_origin", _source.origin)
-		RenderingServer.material_set_param(_material_rid, &"height_maps", _source.get_textures().get_rid())
+		RenderingServer.material_set_param(_material_rid, &"_map_origin", _source.origin)
+		RenderingServer.material_set_param(_material_rid, &"_height_maps", _source.get_textures().get_rid())
 	else:
-		RenderingServer.material_set_param(_material_rid, &"map_origin", Vector2.ZERO)
-		RenderingServer.material_set_param(_material_rid, &"height_maps", RID())
+		RenderingServer.material_set_param(_material_rid, &"_map_origin", Vector2.ZERO)
+		RenderingServer.material_set_param(_material_rid, &"_height_maps", RID())
 
 func update_tile_size(tile_size: Vector2i):
 	_tile_size = tile_size
@@ -62,7 +62,7 @@ func update_tile_size(tile_size: Vector2i):
 	snap(_last_p_xz, true)
 	
 	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"tile_size", tile_size)
+		RenderingServer.material_set_param(_material_rid, &"_tile_size", tile_size)
 		
 func update_lod_count(lod_count: int):
 	_lod_count = lod_count
@@ -72,10 +72,9 @@ func update_lod_count(lod_count: int):
 
 func update_vertex_spacing(vertex_spacing: Vector2):
 	_vertex_spacing = vertex_spacing
-	snap(_last_p_xz, true)
-	
 	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"vertex_spacing", vertex_spacing)
+		RenderingServer.material_set_param(_material_rid, &"_vertex_spacing", vertex_spacing)
+	snap(_last_p_xz, true)
 
 func update_height_amplitude(height_amplitude: float):
 	_height_amplitude = height_amplitude
@@ -84,7 +83,7 @@ func update_height_amplitude(height_amplitude: float):
 		aabb.size.y = _height_amplitude
 		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
 	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"height_amplitude", height_amplitude)
+		RenderingServer.material_set_param(_material_rid, &"_height_amplitude", height_amplitude)
 
 func update_y_position(y_position: float):
 	_y_position = y_position
@@ -112,12 +111,10 @@ func update_cast_shadows(cast_shadows: RenderingServer.ShadowCastingSetting):
 	for instance_rid: RID in _instance_rids:
 		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, cast_shadows)
 
-const EPSILON := Vector2.ONE * 10e-5
-
-# BUG: a strip disappears sometimes...
+# BUG: numerical precision problems with snapping
 func snap(p_xz: Vector2, force: bool = false) -> bool:
 	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"mesh_origin", p_xz)
+		RenderingServer.material_set_param(_material_rid, &"_mesh_origin", p_xz)
 	
 	var snapped_this = (p_xz / _vertex_spacing).floor() * _vertex_spacing
 	var snapped_last = (_last_p_xz / _vertex_spacing).floor() * _vertex_spacing
@@ -131,7 +128,7 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 	
 	for lod: int in _lod_count:
 		var scale: Vector2 = _vertex_spacing * float(1 << lod)
-		var snapped_p_xz = (p_xz / scale + EPSILON).floor()
+		var snapped_p_xz = (p_xz / scale).floor() # epsilon causes issues here
 		var edge := Vector2i(snapped_p_xz.posmod(2.0))
 		snapped_p_xz *= scale
 		
@@ -141,7 +138,6 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 			var instance_rid := _instance_rids[i]
 			var type := _instance_mesh_types[i]
 			var count: int = instance_count.get(type, 0)
-			
 			var xz: Vector2
 			match type:
 				MeshType.EDGE_X:
@@ -179,9 +175,9 @@ func initialize(clipmap: Clipmap3D) -> void:
 	
 	if clipmap.material:
 		_material_rid = clipmap.material.get_rid()
-		RenderingServer.material_set_param(_material_rid, &"vertex_spacing", _vertex_spacing)
-		RenderingServer.material_set_param(_material_rid, &"tile_size", _tile_size)
-		RenderingServer.material_set_param(_material_rid, &"height_amplitude", _height_amplitude)
+		RenderingServer.material_set_param(_material_rid, &"_vertex_spacing", _vertex_spacing)
+		RenderingServer.material_set_param(_material_rid, &"_tile_size", _tile_size)
+		RenderingServer.material_set_param(_material_rid, &"_height_amplitude", _height_amplitude)
 		
 	update_source(clipmap.source)
 	

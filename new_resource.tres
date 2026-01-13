@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="Clipmap3DNoiseSource" format=3 uid="uid://dm4hyr81vhy6k"]
+
+[ext_resource type="Script" uid="uid://c37oie6md7flj" path="res://scenes/clipmap_3d/source/biome/biome.gd" id="1_1ivwu"]
+[ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/clipmap_3d/source/noise_source.gd" id="1_g5ko2"]
+
+[resource]
+script = ExtResource("1_g5ko2")
+metadata/_custom_type_script = "uid://d1d0g7aqimxsa"

@@ -5,6 +5,8 @@ class_name Clipmap3DNoiseSource extends Clipmap3DSource
 
 @export var noise: Noise
 
+@export var biome_noise: Noise
+
 var _images: Array[Image]
 var _textures: Texture2DArray
 var _origins: Array[Vector2i]

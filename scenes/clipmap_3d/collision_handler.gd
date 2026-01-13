@@ -1,5 +1,7 @@
 class_name Clipmap3DCollisionHandler
 
+# TODO: cache values for rebuilding close meshes
+
 var _source: Clipmap3DSource
 var _height_amplitude: float
 var _vertex_spacing: Vector2
