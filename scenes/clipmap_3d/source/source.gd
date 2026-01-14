@@ -10,16 +10,22 @@ class_name Clipmap3DSource extends Resource
 signal refreshed
 
 @abstract
-func create_maps(ring_size: Vector2i, lod_count: int)
+func create_maps(ring_size: Vector2i, lod_count: int) -> void
 
 @abstract
-func shift_maps()
+func shift_maps() -> void
 
 @abstract
-func get_images() -> Array[Image]
+func has_maps() -> bool
 
 @abstract
-func get_textures() -> Texture2DArray
+func get_height_images() -> Array[Image]
+
+@abstract
+func get_height_texture_array() -> Texture2DArray
+
+@abstract
+func get_control_texture_array() -> Texture2DArray
 
 @abstract
 func sample(world_position: Vector2, amplitude: float, vertex_spacing: Vector2) -> float

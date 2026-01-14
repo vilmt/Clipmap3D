@@ -25,6 +25,12 @@ glow_enabled = true
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pvg1d"]
 
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_wt30j"]
+noise_type = 2
+frequency = 0.0049
+fractal_type = 0
+cellular_return_type = 0
+
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_um6qw"]
 frequency = 0.0011
 fractal_octaves = 7
@@ -33,7 +39,8 @@ fractal_weighted_strength = 0.3
 [sub_resource type="Resource" id="Resource_wt30j"]
 script = ExtResource("2_waa5k")
 noise = SubResource("FastNoiseLite_um6qw")
-origin = Vector2(-237.63947, 2719.2966)
+biome_noise = SubResource("FastNoiseLite_wt30j")
+origin = Vector2(-276.81537, 2999.2551)
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_waa5k"]
@@ -62,7 +69,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -237.63947, 0, 2719.2966)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -276.81537, 0.00012207031, 2999.2551)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_wt30j")
 follow_target = NodePath("../Player")
@@ -88,7 +95,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -237.63947, 262.01843, 2719.2966)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -276.81537, 262.01837, 2999.2551)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

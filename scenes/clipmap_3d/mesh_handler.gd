@@ -46,12 +46,14 @@ func update_source(source: Clipmap3DSource):
 func _on_source_refreshed():
 	if not _material_rid:
 		return
-	if _source and _source.get_textures():
+	if _source and _source.has_maps():
 		RenderingServer.material_set_param(_material_rid, &"_map_origin", _source.origin)
-		RenderingServer.material_set_param(_material_rid, &"_height_maps", _source.get_textures().get_rid())
+		RenderingServer.material_set_param(_material_rid, &"_height_maps", _source.get_height_texture_array().get_rid())
+		RenderingServer.material_set_param(_material_rid, &"_control_maps", _source.get_control_texture_array().get_rid())
 	else:
 		RenderingServer.material_set_param(_material_rid, &"_map_origin", Vector2.ZERO)
 		RenderingServer.material_set_param(_material_rid, &"_height_maps", RID())
+		RenderingServer.material_set_param(_material_rid, &"_control_maps", RID())
 
 func update_tile_size(tile_size: Vector2i):
 	_tile_size = tile_size
@@ -116,16 +118,17 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"_mesh_origin", p_xz)
 	
-	var snapped_this = (p_xz / _vertex_spacing).floor() * _vertex_spacing
-	var snapped_last = (_last_p_xz / _vertex_spacing).floor() * _vertex_spacing
-	if snapped_this.is_equal_approx(snapped_last) and not force:
+	#if _last_p_xz == p_xz and not force:
+		#return false
+	if (absf(p_xz.x - _last_p_xz.x) < _vertex_spacing.x and absf(p_xz.y - _last_p_xz.y) < _vertex_spacing.y) and not force:
 		return false
 	
 	_last_p_xz = p_xz
 	
 	var starting_i: int = 0
 	var ending_i: int = LOD_0_INSTANCES
-	
+	#print("")
+	#print("SNAP")
 	for lod: int in _lod_count:
 		var scale: Vector2 = _vertex_spacing * float(1 << lod)
 		var snapped_p_xz = (p_xz / scale).floor() # epsilon causes issues here
@@ -227,22 +230,13 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 			var t_l: int = (z + 1) * (size.x + 1) + x
 			var t_r: int = t_l + 1
 			
-			#if (x + z) % 2 == 0:
 			indices.append(b_l)
 			indices.append(t_r)
 			indices.append(t_l)
-				
+			
 			indices.append(b_l)
 			indices.append(b_r)
 			indices.append(t_r)
-			#else:
-				#indices.append(b_l)
-				#indices.append(b_r)
-				#indices.append(t_l)
-				#
-				#indices.append(t_l)
-				#indices.append(b_r)
-				#indices.append(t_r)
 	mesh_arrays[RenderingServer.ARRAY_INDEX] = indices
 	
 	var normals := PackedVector3Array()

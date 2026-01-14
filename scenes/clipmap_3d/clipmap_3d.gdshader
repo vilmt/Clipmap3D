@@ -2,9 +2,6 @@ shader_type spatial;
 
 // TODO: make shader-controlled uniforms private
 
-//render_mode wireframe;
-uniform sampler2D biome_map: hint_default_black, filter_nearest;
-
 uniform float lod_blend_ratio = 0.2;
 uniform float ao_strength = 1.0;
 uniform float projection_threshold = 0.8;
@@ -22,6 +19,7 @@ uniform sampler2D steep_normal_rough;
 
 group_uniforms private;
 uniform highp sampler2DArray _height_maps: repeat_disable, filter_linear;
+uniform highp sampler2DArray _control_maps: repeat_disable, filter_nearest;
 uniform float _height_amplitude;
 uniform vec2 _vertex_spacing;
 // TODO: mesh origin and map origin represent the same transformation in diff spaces, refactor
@@ -86,8 +84,8 @@ void vertex() {
 	world_position.y += texture(_height_maps, vec3(UV, float(vertex_lod))).r * _height_amplitude;
 	VERTEX.y = world_position.y;
 	
-	debug_albedo.rg = UV;
-	//debug_albedo.b = float(vertex_lod == 3);
+	debug_albedo.rg = even_mask;
+	//debug_albedo.b = float(vertex_lod == 4);
 }
 
 void accumulate(vec3 p, vec3 ddx, vec3 ddy, vec3 normal, bool projected, float weight,
@@ -182,9 +180,10 @@ void fragment() {
 	NORMAL_MAP = material.normal_rough.xzy * 0.5 + 0.5;
 	
 	//vec2 biome_uv = world_position.xz * 0.0001;
-	//int biome_count = 5;
-	//int biome = int(floor(texture(biome_map, biome_uv).r * float(biome_count) - EPSILON));
-	//ALBEDO = vec3(float(biome == 3 || biome == 4));
+	int biome_count = 5;
+	int biome = int(floor(texture(_control_maps, vec3(UV, lod)).r * float(biome_count) - EPSILON));
+	ALBEDO = vec3(float(biome == 3 || biome == 4));
 	
 	//ALBEDO = debug_albedo;
+	//ALBEDO = vec3(0.7);
 }

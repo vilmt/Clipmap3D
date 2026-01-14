@@ -169,7 +169,7 @@ func _ready():
 	source.create_maps(4 * mesh_tile_size + (2 + 6) * Vector2i.ONE, mesh_lod_count)
 	
 	if not Engine.is_editor_hint():
-		var images := source.get_images()
+		var images := source.get_height_images()
 		source.refreshed.connect(_update_images)
 		
 		for lod: int in mesh_lod_count:
@@ -182,7 +182,7 @@ func _ready():
 			sprites.append(sprite)
 
 func _update_images():
-	var images := source.get_images()
+	var images := source.get_height_images()
 	
 	for lod: int in images.size():
 		sprites[lod].texture = ImageTexture.create_from_image(images[lod])
@@ -222,7 +222,8 @@ func update_position(force: bool = false):
 		_mesh_handler.snap(target_xz, force)
 		if source:
 			source.origin = target_xz / mesh_vertex_spacing
-			source.shift_maps()
+			if source.has_maps():
+				source.shift_maps()
 	if global_position.y != _last_p.y:
 		_mesh_handler.update_y_position(global_position.y)
 		if not Engine.is_editor_hint():
