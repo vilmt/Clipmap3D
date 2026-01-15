@@ -16,7 +16,7 @@ class_name Clipmap3DSource extends Resource
 signal parameters_changed
 signal origin_changed(new_origin: Vector2)
 signal amplitude_changed(new_amplitude: float)
-signal maps_created(new_height_rid: RID, new_control_rid: RID)
+signal maps_created
 signal maps_redrawn
 
 @abstract

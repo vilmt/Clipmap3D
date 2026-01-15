@@ -120,7 +120,7 @@ class_name Clipmap3D extends Node3D
 
 var _mesh_handler: Clipmap3DMeshHandler
 var _collision_handler: Clipmap3DCollisionHandler
-var _last_p: Vector3
+var _last_p := Vector3(INF, INF, INF)
 
 signal source_changed(new_value: Clipmap3DSource)
 signal mesh_vertex_spacing_changed(new_value: Vector2)
@@ -134,23 +134,18 @@ signal collision_mesh_size_changed(new_value: Vector2i)
 signal collision_layer_changed(new_value: int)
 signal collision_mask_changed(new_value: int)
 
-signal position_changed(new_value: Vector3)
-signal position_xz_changed(new_value: Vector2)
-signal position_y_changed(new_value: float)
+signal target_position_changed(new_value: Vector3)
 
 var _source_dirty: bool = true
 
 func _mark_source_dirty():
 	_source_dirty = true
 	_rebuild_source.call_deferred()
-	
+
 func _rebuild_source():
 	if _source_dirty:
 		source.create_maps(4 * mesh_tile_size + Vector2i.ONE * 8, mesh_lod_count)
 	_source_dirty = false
-	
-#@onready var node_2d: Node2D = $Node2D
-#var sprites: Array[Sprite2D]
 
 func _enter_tree() -> void:
 	request_ready()
@@ -164,7 +159,6 @@ func _ready():
 	if material:
 		_mesh_handler.update_material_rid(material.get_rid())
 	if source:
-		_mesh_handler.update_map_origin(source.origin)
 		_mesh_handler.update_height_amplitude(source.get_height_amplitude())
 	_mesh_handler.generate()
 	if not _collision_handler and not Engine.is_editor_hint():
@@ -176,7 +170,6 @@ func _ready():
 	_update_position()
 	
 	if source:
-		# 6x6 skirt
 		_recalculate_source_origin()
 		_connect_source()
 	
@@ -196,16 +189,9 @@ func _update_position():
 	if global_position == _last_p:
 		return
 	
-	if global_position.x != _last_p.x or global_position.z != _last_p.z:
-		_last_p.x = global_position.x
-		_last_p.z = global_position.z
-		_recalculate_source_origin()
-		position_xz_changed.emit(Vector2(global_position.x, global_position.z))
-	if global_position.y != _last_p.y:
-		_last_p.y = global_position.y
-		position_y_changed.emit(global_position.y)
-	
-	position_changed.emit(global_position)
+	_last_p = global_position
+	_recalculate_source_origin()
+	target_position_changed.emit(global_position)
 
 func _physics_process(_delta: float) -> void:
 	_collision_handler.update()
@@ -221,7 +207,6 @@ func _connect_source():
 	if not source or source.parameters_changed.is_connected(_mark_source_dirty):
 		return
 	source.maps_created.connect(_on_source_maps_created)
-	source.origin_changed.connect(_mesh_handler.update_map_origin)
 	source.amplitude_changed.connect(_on_source_amplitude_changed)
 	source.parameters_changed.connect(_mark_source_dirty)
 	mesh_tile_size_changed.connect(_mark_source_dirty)
@@ -231,7 +216,6 @@ func _disconnect_source():
 	if not source or not source.parameters_changed.is_connected(_mark_source_dirty):
 		return
 	source.maps_created.disconnect(_on_source_maps_created)
-	source.origin_changed.disconnect(_mesh_handler.update_map_origin)
 	source.amplitude_changed.disconnect(_on_source_amplitude_changed)
 	source.parameters_changed.disconnect(_mark_source_dirty)
 	mesh_tile_size_changed.disconnect(_mark_source_dirty)
@@ -248,5 +232,3 @@ func _on_source_amplitude_changed(amplitude: float):
 
 func _on_source_maps_created():
 	_mesh_handler.update_map_rids(source.get_height_texture_array().get_rid(), source.get_control_texture_array().get_rid())
-	if not Engine.is_editor_hint():
-		_collision_handler.update()

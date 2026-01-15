@@ -10,7 +10,6 @@ var _visible: bool
 var _cast_shadows: RenderingServer.ShadowCastingSetting
 var _render_layer: int
 var _height_amplitude: float = 0.1
-var _y_position: float
 var _height_maps_rid: RID
 var _control_maps_rid: RID
 var _map_origin: Vector2 # TODO: this is the same as p_xz
@@ -24,7 +23,7 @@ var _mesh_xzs: Dictionary[MeshType, PackedVector2Array]
 var _edge_x_xzs: Dictionary[Vector2i, Vector2]
 var _edge_z_xzs: Dictionary[Vector2i, Vector2]
 
-var _last_p_xz := Vector2.ZERO
+var _last_p := Vector3.ZERO
 
 var _meshes_dirty: bool = false
 var _instances_dirty: bool = false
@@ -48,7 +47,7 @@ func _rebuild():
 		_instances_dirty = true
 	if _instances_dirty:
 		_create_instances()
-		snap(_last_p_xz, true)
+		snap(_last_p, true)
 	_meshes_dirty = false
 	_instances_dirty = false
 
@@ -67,11 +66,6 @@ func update_map_rids(height_maps_rid: RID, control_maps_rid: RID):
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"_height_maps", _height_maps_rid)
 		RenderingServer.material_set_param(_material_rid, &"_control_maps", _control_maps_rid)
-
-func update_map_origin(map_origin: Vector2):
-	_map_origin = map_origin
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_map_origin", _map_origin)
 
 func update_height_amplitude(height_amplitude: float):
 	_height_amplitude = maxf(height_amplitude, 0.1)
@@ -96,24 +90,18 @@ func _on_vertex_spacing_changed(vertex_spacing: Vector2):
 	_vertex_spacing = vertex_spacing
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"_vertex_spacing", vertex_spacing)
-	snap(_last_p_xz, true)
-
-func _on_y_position_changed(y_position: float):
-	_y_position = y_position
-	snap(_last_p_xz, true)
+	snap(_last_p, true)
 
 func update_material_rid(material_rid: RID):
 	_material_rid = material_rid
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"_height_maps", _height_maps_rid)
 		RenderingServer.material_set_param(_material_rid, &"_control_maps", _control_maps_rid)
-		RenderingServer.material_set_param(_material_rid, &"_map_origin", _map_origin)
 		RenderingServer.material_set_param(_material_rid, &"_tile_size", _tile_size)
 		RenderingServer.material_set_param(_material_rid, &"_vertex_spacing", _vertex_spacing)
-		RenderingServer.material_set_param(_material_rid, &"_mesh_origin", _last_p_xz)
+		RenderingServer.material_set_param(_material_rid, &"_target_position", _last_p)
 	for mesh_rid: RID in _mesh_rids.values():
 		RenderingServer.mesh_surface_set_material(mesh_rid, 0, _material_rid)
-	
 		
 func update_scenario_rid(scenario_rid: RID):
 	_scenario_rid = scenario_rid
@@ -135,29 +123,24 @@ func _on_cast_shadows_changed(cast_shadows: RenderingServer.ShadowCastingSetting
 	for instance_rid: RID in _instance_rids:
 		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, _cast_shadows)
 
-# BUG: numerical precision problems with snapping
-func snap(p_xz: Vector2, force: bool = false) -> bool:
-	
+func snap(p: Vector3, force: bool = false) -> bool:
 	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_mesh_origin", p_xz)
+		RenderingServer.material_set_param(_material_rid, &"_target_position", p)
 	
-	#if _last_p_xz == p_xz and not force:
-		#return false
-	if (absf(p_xz.x - _last_p_xz.x) < _vertex_spacing.x and absf(p_xz.y - _last_p_xz.y) < _vertex_spacing.y) and not force:
+	if p.y == _last_p.y and (absf(p.x - _last_p.x) < _vertex_spacing.x and absf(p.z - _last_p.z) < _vertex_spacing.y) and not force:
 		return false
 	
-	_last_p_xz = p_xz
+	_last_p = p # setting this but not updating is bad
 	
-	if _instance_rids.is_empty():
+	if _instance_rids.is_empty(): # bad
 		return false
 	
 	var starting_i: int = 0
 	var ending_i: int = LOD_0_INSTANCES
-	#print("")
-	#print("SNAP")
+	
 	for lod: int in _lod_count:
 		var scale: Vector2 = _vertex_spacing * float(1 << lod)
-		var snapped_p_xz = (p_xz / scale).floor() # epsilon causes issues here
+		var snapped_p_xz = (Vector2(p.x, p.z) / scale).floor()
 		var edge := Vector2i(snapped_p_xz.posmod(2.0))
 		snapped_p_xz *= scale
 		
@@ -178,7 +161,7 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 			
 			var t := Transform3D(Basis(), Vector3(xz.x, 0.0, xz.y))
 			t = t.scaled(Vector3(scale.x, 1.0, scale.y))
-			t.origin += Vector3(snapped_p_xz.x, _y_position, snapped_p_xz.y)
+			t.origin += Vector3(snapped_p_xz.x, p.y, snapped_p_xz.y)
 			RenderingServer.instance_set_transform(instance_rid, t)
 			RenderingServer.instance_teleport(instance_rid)
 			
@@ -197,15 +180,14 @@ func initialize(clipmap: Clipmap3D) -> void:
 	_vertex_spacing = clipmap.mesh_vertex_spacing
 	_cast_shadows = clipmap.cast_shadows as RenderingServer.ShadowCastingSetting
 	_render_layer = clipmap.render_layer
-	_y_position = clipmap.global_position.y
+	_last_p = clipmap.global_position
 	
 	clipmap.mesh_tile_size_changed.connect(_on_tile_size_changed)
 	clipmap.mesh_lod_count_changed.connect(_on_lod_count_changed)
 	clipmap.mesh_vertex_spacing_changed.connect(_on_vertex_spacing_changed)
 	clipmap.cast_shadows_changed.connect(_on_cast_shadows_changed)
 	clipmap.render_layer_changed.connect(_on_render_layer_changed)
-	clipmap.position_y_changed.connect(_on_y_position_changed)
-	clipmap.position_xz_changed.connect(snap)
+	clipmap.target_position_changed.connect(snap)
 
 func generate():
 	_mark_meshes_dirty()

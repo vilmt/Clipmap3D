@@ -17,18 +17,15 @@ uniform sampler2D steep_normal_rough;
 group_uniforms private;
 uniform highp sampler2DArray _height_maps: repeat_disable, filter_linear;
 uniform highp sampler2DArray _control_maps: repeat_disable, filter_nearest;
+uniform vec3 _target_position;
 uniform vec2 _vertex_spacing;
-// TODO: mesh origin and map origin represent the same transformation in diff spaces, refactor
-uniform vec2 _map_origin;
-uniform vec2 _mesh_origin;
 uniform ivec2 _tile_size;
 
 varying vec3 world_position;
-
-varying vec3 debug_albedo;
-
 varying flat int vertex_lod;
 varying float lod_blend_mask;
+
+varying vec3 debug_albedo;
 
 const float EPSILON = 10e-6;
 
@@ -45,7 +42,7 @@ struct Material {
 vec2 to_uv(vec2 world_xz, int lod) {
 	float scale = float(1 << lod);
 	vec2 lod_cell = world_xz / _vertex_spacing / scale;
-	vec2 origin = floor(_map_origin / scale + EPSILON);
+	vec2 origin = floor(_target_position.xz / _vertex_spacing / scale + EPSILON);
 	vec2 texel = lod_cell - origin + 0.5; // sample vertex center
 	return texel / vec2(textureSize(_height_maps, 0).xy) + 0.5; // center texture
 }
@@ -58,9 +55,9 @@ void vertex() {
 	// this scale includes vert spacing
 	vec2 scale = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[2].xyz));
 	vertex_lod = int(log2(scale.x / _vertex_spacing.x) + EPSILON);
-	vec2 edge = mod(floor(_mesh_origin / scale + EPSILON), 2.0);
+	vec2 edge = mod(floor(_target_position.xz / scale + EPSILON), 2.0);
 	
-	vec2 lod_position = (world_position.xz - _mesh_origin) / scale;
+	vec2 lod_position = (world_position.xz - _target_position.xz) / scale;
 	vec2 lod_position_snapped = floor(lod_position - EPSILON) + edge;
 	
 	// geo-morph blend vertices on lod boundaries
@@ -81,7 +78,7 @@ void vertex() {
 	VERTEX.y = world_position.y;
 	
 	
-	
+	//debug_albedo.r = length(_map_origin - _mesh_origin);
 	//debug_albedo.r = float(VERTEX.y > 1.1);
 	//debug_albedo.b = float(vertex_lod == 4);
 }

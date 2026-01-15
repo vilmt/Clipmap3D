@@ -88,7 +88,8 @@ func get_height_world(world_xz: Vector2i) -> float:
 func sample(world_position: Vector2, vertex_spacing: Vector2) -> float:
 	if _height_images.is_empty():
 		return 0.0
-	var map_position := Vector2i((world_position / vertex_spacing).floor())
+	var scale := Vector2.ONE
+	var map_position := Vector2i((world_position / vertex_spacing / scale).floor())
 	var texel := map_position - _origins[0] + _image_size / 2;
 	if not Rect2i(Vector2i.ZERO, _image_size).has_point(texel):
 		return 0.0
