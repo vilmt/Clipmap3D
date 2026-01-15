@@ -3,10 +3,9 @@ class_name Clipmap3DCollisionHandler
 # TODO: cache values for rebuilding close meshes
 
 var _source: Clipmap3DSource
-var _height_amplitude: float
 var _vertex_spacing: Vector2
 var _mesh_size: Vector2i
-var _y_position: float
+var _position_y: float
 
 var _body_rid: RID
 var _shape_rids: Array[RID]
@@ -16,27 +15,34 @@ var _targets: Array[PhysicsBody3D]
 
 var _template_faces: PackedVector3Array
 
-func initialize(terrain: Clipmap3D):
-	assert(not _source) # double initialization not supported yet
-	_source = terrain.source
+func initialize(clipmap: Clipmap3D):
+	_source = clipmap.source
 	if _source:
-		_source.changed.connect(update)
-	_vertex_spacing = terrain.mesh_vertex_spacing
-	_mesh_size = terrain.collision_mesh_size
-	_height_amplitude = terrain.height_amplitude
-	_y_position = terrain.global_position.y
-		
+		_source.maps_created.connect(update)
+		_source.maps_redrawn.connect(update)
+	
+	_vertex_spacing = clipmap.mesh_vertex_spacing
+	_mesh_size = clipmap.collision_mesh_size
+	_position_y = clipmap.global_position.y
+	
 	_body_rid = PhysicsServer3D.body_create()
 	
-	PhysicsServer3D.body_set_space(_body_rid, terrain.get_world_3d().space)
+	PhysicsServer3D.body_set_space(_body_rid, clipmap.get_world_3d().space)
 	PhysicsServer3D.body_set_mode(_body_rid, PhysicsServer3D.BODY_MODE_STATIC)
 	PhysicsServer3D.body_set_state(_body_rid, PhysicsServer3D.BODY_STATE_TRANSFORM, Transform3D.IDENTITY)
-	PhysicsServer3D.body_set_collision_layer(_body_rid, terrain.collision_layer)
-	PhysicsServer3D.body_set_collision_mask(_body_rid, terrain.collision_mask)
+	PhysicsServer3D.body_set_collision_layer(_body_rid, clipmap.collision_layer)
+	PhysicsServer3D.body_set_collision_mask(_body_rid, clipmap.collision_mask)
 	
 	_generate_template_faces()
 	
-	terrain.collision_targets.map(add_target)
+	clipmap.collision_targets.map(add_target)
+	
+	clipmap.source_changed.connect(_on_source_changed)
+	clipmap.mesh_vertex_spacing_changed.connect(_on_vertex_spacing_changed)
+	clipmap.collision_mesh_size_changed.connect(_on_mesh_size_changed)
+	clipmap.position_y_changed.connect(_on_position_y_changed)
+	clipmap.collision_layer_changed.connect(_on_collision_layer_changed)
+	clipmap.collision_mask_changed.connect(_on_collision_layer_changed)
 	
 func _generate_template_faces():
 	var template_plane := PlaneMesh.new()
@@ -61,44 +67,41 @@ func update():
 		
 		_build_mesh(i, target_xz)
 	
-func update_source(source: Clipmap3DSource):
+func _on_source_changed(source: Clipmap3DSource):
 	if _source:
-		_source.refreshed.disconnect(update)
+		_source.maps_created.disconnect(update)
+		_source.maps_redrawn.disconnect(update)
 	_source = source
 	if _source:
-		_source.refreshed.connect(update)
+		_source.maps_created.connect(update)
+		_source.maps_redrawn.connect(update)
 
-func update_vertex_spacing(vertex_spacing: Vector2):
+func _on_vertex_spacing_changed(vertex_spacing: Vector2):
 	_vertex_spacing = vertex_spacing
 	
 	_generate_template_faces()
 	update()
 
-func update_mesh_size(mesh_size: Vector2i):
+func _on_mesh_size_changed(mesh_size: Vector2i):
 	_mesh_size = mesh_size
 	
 	_generate_template_faces()
 	update()
 
-func update_height_amplitude(amplitude: float):
-	_height_amplitude = amplitude
-	
-	update()
-
-func update_y_position(y_position: float):
-	_y_position = y_position
+func _on_position_y_changed(y_position: float):
+	_position_y = y_position
 	update()
 	
-func update_collision_layer(physics_layer: int):
+func _on_collision_layer_changed(physics_layer: int):
 	PhysicsServer3D.body_set_collision_layer(_body_rid, physics_layer)
 	
-func update_collision_mask(physics_mask: int):
+func _on_collision_mask_changed(physics_mask: int):
 	PhysicsServer3D.body_set_collision_mask(_body_rid, physics_mask)
 	
 func _build_mesh(shape_index: int, xz: Vector2):
 	for i: int in _template_faces.size():
 		var v_world := Vector2(_template_faces[i].x, _template_faces[i].z) + xz
-		_template_faces[i].y = _source.sample(v_world, _height_amplitude, _vertex_spacing) + _y_position
+		_template_faces[i].y = _source.sample(v_world, _vertex_spacing) + _position_y
 	
 	var shape_rid := _shape_rids[shape_index]
 	PhysicsServer3D.shape_set_data(shape_rid, {"faces": _template_faces, "backface_collision": false})

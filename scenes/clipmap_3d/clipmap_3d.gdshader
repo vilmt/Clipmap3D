@@ -1,11 +1,8 @@
 shader_type spatial;
 
-// TODO: make shader-controlled uniforms private
-
 uniform float lod_blend_ratio = 0.2;
 uniform float ao_strength = 1.0;
 uniform float projection_threshold = 0.8;
-
 
 uniform float auto_slope = 1.0;
 uniform float auto_sharpness = 4.0;
@@ -20,7 +17,6 @@ uniform sampler2D steep_normal_rough;
 group_uniforms private;
 uniform highp sampler2DArray _height_maps: repeat_disable, filter_linear;
 uniform highp sampler2DArray _control_maps: repeat_disable, filter_nearest;
-uniform float _height_amplitude;
 uniform vec2 _vertex_spacing;
 // TODO: mesh origin and map origin represent the same transformation in diff spaces, refactor
 uniform vec2 _map_origin;
@@ -81,13 +77,16 @@ void vertex() {
 	UV = to_uv(world_position.xz, vertex_lod);
 	UV2 = to_uv(world_position.xz, vertex_lod + 1);
 	
-	world_position.y += texture(_height_maps, vec3(UV, float(vertex_lod))).r * _height_amplitude;
+	world_position.y += texture(_height_maps, vec3(UV, float(vertex_lod))).r;
 	VERTEX.y = world_position.y;
 	
-	debug_albedo.rg = even_mask;
+	
+	
+	//debug_albedo.r = float(VERTEX.y > 1.1);
 	//debug_albedo.b = float(vertex_lod == 4);
 }
 
+// TODO: pass 2 ids, calculate world normal in first, apply to second
 void accumulate(vec3 p, vec3 ddx, vec3 ddy, vec3 normal, bool projected, float weight,
 				sampler2D albedo_tex, sampler2D normal_tex, inout Material material) {
 	vec4 dd = vec4(ddx.xz, ddy.xz);
@@ -133,7 +132,7 @@ void fragment() {
 	float r = texture(_height_maps, vec3(UV + vec2(texel.x, 0.0), lod)).r;
 	float u = texture(_height_maps, vec3(UV + vec2(0.0, texel.y), lod)).r;
 	
-	vec2 scale = _height_amplitude / float(1 << vertex_lod) / _vertex_spacing;
+	vec2 scale = 1.0 / float(1 << vertex_lod) / _vertex_spacing;
 	vec3 normal = normalize(vec3((h - r) * scale.x, 1.0, (h - u) * scale.y));
 	
 	if (lod_blend_mask > EPSILON) {
@@ -157,7 +156,7 @@ void fragment() {
 	
 	Material material = Material(vec4(0.0), vec4(0.0), 0.0, 0.0, 0.0, 0.0);
 	
-	float slope = clamp(auto_slope * (1.0 - normal.y) - auto_height_reduction * world_position.y / _height_amplitude, 0.0, 1.0);
+	float slope = clamp(auto_slope * (1.0 - normal.y) - auto_height_reduction * world_position.y * 0.001, 0.0, 1.0);
 	// sharpen transition
 	float steep_weight = smoothstep(0.4, 0.5, slope);
 	float shallow_weight = 1.0 - steep_weight;
@@ -180,9 +179,9 @@ void fragment() {
 	NORMAL_MAP = material.normal_rough.xzy * 0.5 + 0.5;
 	
 	//vec2 biome_uv = world_position.xz * 0.0001;
-	int biome_count = 5;
-	int biome = int(floor(texture(_control_maps, vec3(UV, lod)).r * float(biome_count) - EPSILON));
-	ALBEDO = vec3(float(biome == 3 || biome == 4));
+	//int biome_count = 5;
+	//int biome = int(floor(texture(_control_maps, vec3(UV, lod)).r * float(biome_count) - EPSILON));
+	//ALBEDO = vec3(float(biome == 3 || biome == 4));
 	
 	//ALBEDO = debug_albedo;
 	//ALBEDO = vec3(0.7);

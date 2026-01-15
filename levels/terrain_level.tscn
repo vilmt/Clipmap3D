@@ -4,6 +4,7 @@
 [ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/clipmap_3d/clipmap_3d.tres" id="1_tog6l"]
 [ext_resource type="Script" uid="uid://c37oie6md7flj" path="res://scenes/clipmap_3d/source/biome/biome.gd" id="2_um6qw"]
 [ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/clipmap_3d/source/noise_source.gd" id="2_waa5k"]
+[ext_resource type="Resource" uid="uid://c4k04h6wroc74" path="res://levels/biomes/forest.tres" id="3_wt30j"]
 [ext_resource type="Script" uid="uid://bghnyaj4fsaan" path="res://scenes/clipmap_3d/instancer/instancer.gd" id="4_6mm2f"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="4_owj7c"]
 [ext_resource type="Material" uid="uid://cor7kynnsfh01" path="res://scenes/grass/grass.tres" id="5_acxjd"]
@@ -25,22 +26,15 @@ glow_enabled = true
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pvg1d"]
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_wt30j"]
-noise_type = 2
-frequency = 0.0049
-fractal_type = 0
-cellular_return_type = 0
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_waa5k"]
+frequency = 0.0021
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_um6qw"]
-frequency = 0.0011
-fractal_octaves = 7
-fractal_weighted_strength = 0.3
-
-[sub_resource type="Resource" id="Resource_wt30j"]
+[sub_resource type="Resource" id="Resource_um6qw"]
 script = ExtResource("2_waa5k")
-noise = SubResource("FastNoiseLite_um6qw")
-biome_noise = SubResource("FastNoiseLite_wt30j")
-origin = Vector2(-276.81537, 2999.2551)
+continental_noise = SubResource("FastNoiseLite_waa5k")
+continental_amplitude = 159.95
+origin = Vector2(76.778076, -494.79736)
+biomes = Array[ExtResource("2_um6qw")]([ExtResource("3_wt30j")])
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_waa5k"]
@@ -69,11 +63,10 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -276.81537, 0.00012207031, 2999.2551)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 76.778076, 0.00012207031, -494.79736)
 script = ExtResource("1_a1u1q")
-source = SubResource("Resource_wt30j")
+source = SubResource("Resource_um6qw")
 follow_target = NodePath("../Player")
-height_amplitude = 500.0
 mesh_tile_size = Vector2i(48, 48)
 mesh_lod_count = 7
 material = ExtResource("1_tog6l")
@@ -95,7 +88,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -276.81537, 262.01837, 2999.2551)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 76.778076, 262.01837, -494.79736)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

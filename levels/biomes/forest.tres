@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="NoiseBiome" format=3 uid="uid://c4k04h6wroc74"]
+
+[ext_resource type="Script" uid="uid://cj4pn30w8473q" path="res://scenes/clipmap_3d/source/biome/noise_biome.gd" id="1_d1l4p"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_8buik"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_gfu0r"]
+frequency = 0.002
+fractal_type = 0
+
+[resource]
+script = ExtResource("1_d1l4p")
+height_noise = SubResource("FastNoiseLite_8buik")
+weight_noise = SubResource("FastNoiseLite_gfu0r")
+metadata/_custom_type_script = "uid://cj4pn30w8473q"

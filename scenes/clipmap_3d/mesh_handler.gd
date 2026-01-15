@@ -1,3 +1,4 @@
+@tool
 class_name Clipmap3DMeshHandler
 
 var _lod_count: int
@@ -8,9 +9,11 @@ var _scenario_rid: RID
 var _visible: bool
 var _cast_shadows: RenderingServer.ShadowCastingSetting
 var _render_layer: int
-var _height_amplitude: float
-var _source: Clipmap3DSource
+var _height_amplitude: float = 0.1
 var _y_position: float
+var _height_maps_rid: RID
+var _control_maps_rid: RID
+var _map_origin: Vector2 # TODO: this is the same as p_xz
 
 var _instance_rids: Array[RID]
 var _instance_mesh_types: Array[MeshType]
@@ -22,6 +25,9 @@ var _edge_x_xzs: Dictionary[Vector2i, Vector2]
 var _edge_z_xzs: Dictionary[Vector2i, Vector2]
 
 var _last_p_xz := Vector2.ZERO
+
+var _meshes_dirty: bool = false
+var _instances_dirty: bool = false
 
 enum MeshType {
 	CORE,
@@ -35,66 +41,79 @@ enum MeshType {
 const LOD_0_INSTANCES: int = 19
 const LOD_X_INSTANCES: int = 18
 
-func update_source(source: Clipmap3DSource):
-	if _source:
-		_source.refreshed.disconnect(_on_source_refreshed)
-	_source = source
-	_on_source_refreshed()
-	if _source:
-		_source.refreshed.connect(_on_source_refreshed)
+func _rebuild():
+	if _meshes_dirty:
+		_generate_meshes()
+		_generate_offsets()
+		_instances_dirty = true
+	if _instances_dirty:
+		_create_instances()
+		snap(_last_p_xz, true)
+	_meshes_dirty = false
+	_instances_dirty = false
 
-func _on_source_refreshed():
-	if not _material_rid:
-		return
-	if _source and _source.has_maps():
-		RenderingServer.material_set_param(_material_rid, &"_map_origin", _source.origin)
-		RenderingServer.material_set_param(_material_rid, &"_height_maps", _source.get_height_texture_array().get_rid())
-		RenderingServer.material_set_param(_material_rid, &"_control_maps", _source.get_control_texture_array().get_rid())
-	else:
-		RenderingServer.material_set_param(_material_rid, &"_map_origin", Vector2.ZERO)
-		RenderingServer.material_set_param(_material_rid, &"_height_maps", RID())
-		RenderingServer.material_set_param(_material_rid, &"_control_maps", RID())
+func _mark_instances_dirty():
+	_instances_dirty = true
+	_rebuild.call_deferred()
 
-func update_tile_size(tile_size: Vector2i):
+func _mark_meshes_dirty():
+	_instances_dirty = true
+	_meshes_dirty = true
+	_rebuild.call_deferred()
+
+func update_map_rids(height_maps_rid: RID, control_maps_rid: RID):
+	_height_maps_rid = height_maps_rid
+	_control_maps_rid = control_maps_rid
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"_height_maps", _height_maps_rid)
+		RenderingServer.material_set_param(_material_rid, &"_control_maps", _control_maps_rid)
+
+func update_map_origin(map_origin: Vector2):
+	_map_origin = map_origin
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"_map_origin", _map_origin)
+
+func update_height_amplitude(height_amplitude: float):
+	_height_amplitude = maxf(height_amplitude, 0.1)
+	for type: MeshType in _mesh_rids.keys():
+		var aabb := _mesh_aabbs[type]
+		aabb.size.y = _height_amplitude
+		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
+		
+func _on_tile_size_changed(tile_size: Vector2i):
 	_tile_size = tile_size
-	
-	_generate_meshes()
-	_generate_offsets()
-	_create_instances()
-	snap(_last_p_xz, true)
+	_mark_meshes_dirty()
 	
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"_tile_size", tile_size)
 		
-func update_lod_count(lod_count: int):
+func _on_lod_count_changed(lod_count: int):
 	_lod_count = lod_count
 	
-	_create_instances()
-	snap(_last_p_xz, true)
+	_mark_instances_dirty()
 
-func update_vertex_spacing(vertex_spacing: Vector2):
+func _on_vertex_spacing_changed(vertex_spacing: Vector2):
 	_vertex_spacing = vertex_spacing
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"_vertex_spacing", vertex_spacing)
 	snap(_last_p_xz, true)
 
-func update_height_amplitude(height_amplitude: float):
-	_height_amplitude = height_amplitude
-	for type: MeshType in MeshType.values():
-		var aabb := _mesh_aabbs[type]
-		aabb.size.y = _height_amplitude
-		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_height_amplitude", height_amplitude)
-
-func update_y_position(y_position: float):
+func _on_y_position_changed(y_position: float):
 	_y_position = y_position
 	snap(_last_p_xz, true)
 
 func update_material_rid(material_rid: RID):
 	_material_rid = material_rid
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"_height_maps", _height_maps_rid)
+		RenderingServer.material_set_param(_material_rid, &"_control_maps", _control_maps_rid)
+		RenderingServer.material_set_param(_material_rid, &"_map_origin", _map_origin)
+		RenderingServer.material_set_param(_material_rid, &"_tile_size", _tile_size)
+		RenderingServer.material_set_param(_material_rid, &"_vertex_spacing", _vertex_spacing)
+		RenderingServer.material_set_param(_material_rid, &"_mesh_origin", _last_p_xz)
 	for mesh_rid: RID in _mesh_rids.values():
 		RenderingServer.mesh_surface_set_material(mesh_rid, 0, _material_rid)
+	
 		
 func update_scenario_rid(scenario_rid: RID):
 	_scenario_rid = scenario_rid
@@ -102,19 +121,23 @@ func update_scenario_rid(scenario_rid: RID):
 		RenderingServer.instance_set_scenario(instance_rid, _scenario_rid)
 
 func update_visible(visible: bool):
+	_visible = visible
 	for instance_rid: RID in _instance_rids:
-		RenderingServer.instance_set_visible(instance_rid, visible)
+		RenderingServer.instance_set_visible(instance_rid, _visible)
 
-func update_render_layer(render_layer: int):
+func _on_render_layer_changed(render_layer: int):
+	_render_layer = render_layer
 	for instance_rid: RID in _instance_rids:
-		RenderingServer.instance_set_layer_mask(instance_rid, render_layer)
+		RenderingServer.instance_set_layer_mask(instance_rid, _render_layer)
 
-func update_cast_shadows(cast_shadows: RenderingServer.ShadowCastingSetting):
+func _on_cast_shadows_changed(cast_shadows: RenderingServer.ShadowCastingSetting):
+	_cast_shadows = cast_shadows
 	for instance_rid: RID in _instance_rids:
-		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, cast_shadows)
+		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, _cast_shadows)
 
 # BUG: numerical precision problems with snapping
 func snap(p_xz: Vector2, force: bool = false) -> bool:
+	
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"_mesh_origin", p_xz)
 	
@@ -124,6 +147,9 @@ func snap(p_xz: Vector2, force: bool = false) -> bool:
 		return false
 	
 	_last_p_xz = p_xz
+	
+	if _instance_rids.is_empty():
+		return false
 	
 	var starting_i: int = 0
 	var ending_i: int = LOD_0_INSTANCES
@@ -169,24 +195,20 @@ func initialize(clipmap: Clipmap3D) -> void:
 	_tile_size = clipmap.mesh_tile_size
 	_lod_count = clipmap.mesh_lod_count
 	_vertex_spacing = clipmap.mesh_vertex_spacing
-	_scenario_rid = clipmap.get_world_3d().scenario
-	_visible = clipmap.is_visible_in_tree()
 	_cast_shadows = clipmap.cast_shadows as RenderingServer.ShadowCastingSetting
 	_render_layer = clipmap.render_layer
-	_height_amplitude = clipmap.height_amplitude
 	_y_position = clipmap.global_position.y
 	
-	if clipmap.material:
-		_material_rid = clipmap.material.get_rid()
-		RenderingServer.material_set_param(_material_rid, &"_vertex_spacing", _vertex_spacing)
-		RenderingServer.material_set_param(_material_rid, &"_tile_size", _tile_size)
-		RenderingServer.material_set_param(_material_rid, &"_height_amplitude", _height_amplitude)
-		
-	update_source(clipmap.source)
-	
-	_generate_meshes()
-	_generate_offsets()
-	_create_instances()
+	clipmap.mesh_tile_size_changed.connect(_on_tile_size_changed)
+	clipmap.mesh_lod_count_changed.connect(_on_lod_count_changed)
+	clipmap.mesh_vertex_spacing_changed.connect(_on_vertex_spacing_changed)
+	clipmap.cast_shadows_changed.connect(_on_cast_shadows_changed)
+	clipmap.render_layer_changed.connect(_on_render_layer_changed)
+	clipmap.position_y_changed.connect(_on_y_position_changed)
+	clipmap.position_xz_changed.connect(snap)
+
+func generate():
+	_mark_meshes_dirty()
 
 func clear():
 	_clear_instances()
@@ -261,6 +283,7 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 		RenderingServer.mesh_surface_set_material(mesh, 0, _material_rid)
 
 func _generate_meshes():
+	_clear_instances()
 	_clear_meshes()
 	
 	_generate_mesh(MeshType.CORE, _tile_size * 2 + Vector2i.ONE)
