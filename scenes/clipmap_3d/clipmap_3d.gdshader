@@ -25,7 +25,7 @@ varying vec3 world_position;
 varying flat int vertex_lod;
 varying float lod_blend_mask;
 
-varying vec3 debug_albedo;
+varying flat vec3 debug_albedo;
 
 const float EPSILON = 10e-6;
 
@@ -38,11 +38,27 @@ struct Material {
 	float total_weight;
 };
 
-// TODO: simplify
-vec2 to_uv(vec2 world_xz, int lod) {
-	float scale = float(1 << lod);
-	vec2 lod_cell = world_xz / _vertex_spacing / scale;
-	vec2 origin = floor(_target_position.xz / _vertex_spacing / scale + EPSILON);
+ivec2 to_texel(vec2 world_xz, vec2 inv_scale) {
+	ivec2 origin = ivec2(floor((world_xz - _target_position.xz) * inv_scale + EPSILON));
+	return origin + textureSize(_height_maps, 0).xy / 2;
+	//ivec2 texel = lod_cell - origin + 0.5; // sample vertex center
+	//return texel / vec2(textureSize(_height_maps, 0).xy) + 0.5; // center texture
+}
+
+float textureHeightMap(sampler2DArray sampler, vec2 uv, float lod) {
+	vec2 res = vec2(textureSize(sampler, 0).xy);
+	
+	vec2 st = uv * res - 0.5;
+	vec2 i = floor(st);
+	vec2 w = fract(st);
+	
+	vec4 g = textureGather(sampler, vec3((i + 0.5) / res, lod));
+	return mix(mix(g.w, g.z, w.x), mix(g.x, g.y, w.x), w.y);
+}
+
+vec2 to_uv(vec2 world_xz, vec2 inv_scale) {
+	vec2 lod_cell = world_xz * inv_scale;
+	vec2 origin = floor(_target_position.xz * inv_scale + EPSILON);
 	vec2 texel = lod_cell - origin + 0.5; // sample vertex center
 	return texel / vec2(textureSize(_height_maps, 0).xy) + 0.5; // center texture
 }
@@ -52,18 +68,17 @@ void vertex() {
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	
 	// scale and lod from transform
-	// this scale includes vert spacing
 	vec2 scale = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[2].xyz));
+	vec2 inv_scale = 1.0 / scale;
 	vertex_lod = int(log2(scale.x / _vertex_spacing.x) + EPSILON);
-	vec2 edge = mod(floor(_target_position.xz / scale + EPSILON), 2.0);
 	
-	vec2 lod_position = (world_position.xz - _target_position.xz) / scale;
+	vec2 edge = mod(floor(_target_position.xz * inv_scale + EPSILON), 2.0);
+	vec2 lod_position = (world_position.xz - _target_position.xz) * inv_scale;
 	vec2 lod_position_snapped = floor(lod_position - EPSILON) + edge;
 	
 	// geo-morph blend vertices on lod boundaries
-	vec2 lod_size = vec2(_tile_size) * 2.0 + 1.0;
-	float lod_distance = length((lod_position) / lod_size);
-	lod_blend_mask = smoothstep(1.0 - lod_blend_ratio, 1.0, lod_distance);
+	vec2 lod_size = fma(vec2(_tile_size), vec2(2.0), vec2(1.0));
+	lod_blend_mask = smoothstep(1.0 - lod_blend_ratio, 1.0, length(lod_position / lod_size));
 	lod_blend_mask *= float((vertex_lod + 1) < textureSize(_height_maps, 0).z);
 	vec2 even_mask = abs(mod(lod_position_snapped, 2.0) - 1.0);
 	vec2 offset = even_mask * lod_blend_mask;
@@ -71,13 +86,13 @@ void vertex() {
 	world_position.xz += offset * scale;
 	VERTEX.xz += offset;
 	
-	UV = to_uv(world_position.xz, vertex_lod);
-	UV2 = to_uv(world_position.xz, vertex_lod + 1);
+	UV = to_uv(world_position.xz, inv_scale);
+	UV2 = to_uv(world_position.xz, inv_scale * 0.5);
 	
-	world_position.y += texture(_height_maps, vec3(UV, float(vertex_lod))).r;
+	world_position.y = textureHeightMap(_height_maps, UV, float(vertex_lod));
 	VERTEX.y = world_position.y;
 	
-	
+	//debug_albedo.r = abs(a - b);
 	//debug_albedo.r = length(_map_origin - _mesh_origin);
 	//debug_albedo.r = float(VERTEX.y > 1.1);
 	//debug_albedo.b = float(vertex_lod == 4);
