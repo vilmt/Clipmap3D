@@ -35,8 +35,9 @@ class_name Clipmap3D extends Node3D
 		if not is_node_ready():
 			return
 		mesh_tile_size_changed.emit(mesh_tile_size)
-		
-@export_range(1, 10, 1) var mesh_lod_count: int = 5:
+
+# NOTE: arbitrary lower limit of 2 because of https://github.com/godotengine/godot/issues/115103
+@export_range(2, 10, 1) var mesh_lod_count: int = 5:
 	set(value):
 		if mesh_lod_count == value:
 			return
@@ -44,6 +45,7 @@ class_name Clipmap3D extends Node3D
 		if not is_node_ready():
 			return
 		mesh_lod_count_changed.emit(mesh_lod_count)
+		_mark_source_dirty()
 
 @export_group("Rendering")
 
@@ -144,7 +146,9 @@ func _mark_source_dirty():
 
 func _rebuild_source():
 	if _source_dirty:
-		source.create_maps(4 * mesh_tile_size + Vector2i.ONE * 8, mesh_lod_count, mesh_vertex_spacing)
+		var target := Vector2(global_position.x, global_position.z)
+		var size := 4 * mesh_tile_size + Vector2i.ONE * 8
+		source.create_maps(target, size, mesh_lod_count, mesh_vertex_spacing)
 	_source_dirty = false
 
 func _enter_tree() -> void:
@@ -170,7 +174,6 @@ func _ready():
 	_update_position()
 	
 	if source:
-		_recalculate_source_origin()
 		_connect_source()
 	
 func _exit_tree() -> void:
@@ -178,7 +181,7 @@ func _exit_tree() -> void:
 	if not Engine.is_editor_hint():
 		_collision_handler.clear()
 
-func _process(_delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	_update_position()
 
 func _update_position():
@@ -193,8 +196,8 @@ func _update_position():
 	_recalculate_source_origin()
 	target_position_changed.emit(global_position)
 
-func _physics_process(_delta: float) -> void:
-	_collision_handler.update()
+#func _physics_process(_delta: float) -> void:
+	#_collision_handler.update()
 
 func _notification(what: int) -> void:
 	match what:
@@ -221,16 +224,15 @@ func _disconnect_source():
 	mesh_tile_size_changed.disconnect(_mark_source_dirty)
 
 func _recalculate_source_origin():
-	if not source:
+	if not source or not source.has_maps():
 		return
 	# TODO: remake maps on vert spacing change
-	source.origin = Vector2(global_position.x, global_position.z)
-	if source.has_maps():
-		source.shift_maps()
+	source.shift_maps(Vector2(global_position.x, global_position.z))
 
 func _on_source_amplitude_changed(amplitude: float):
 	_mesh_handler.update_height_amplitude(amplitude)
 	_mark_source_dirty()
 
 func _on_source_maps_created():
-	_mesh_handler.update_map_rids(source.get_height_maps().get_rid(), source.get_control_maps().get_rid())
+	#pass
+	_mesh_handler.update_map_rids(source.get_map_rids())

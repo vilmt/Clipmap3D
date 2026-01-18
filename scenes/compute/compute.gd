@@ -124,6 +124,8 @@ func _create_uniform(data_format: RenderingDevice.DataFormat) -> RDUniform:
 		_rd.TEXTURE_USAGE_CAN_UPDATE_BIT #| \
 		#_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT # TODO: needed to get CPU image for collision
 	
+	#print("created uniforms with array layers: ", lod_count)
+	
 	var index: int = _texture_rd_rids.size()
 	var texture_rid := _rd.texture_create(format, RDTextureView.new())
 	_texture_rd_rids.append(texture_rid)

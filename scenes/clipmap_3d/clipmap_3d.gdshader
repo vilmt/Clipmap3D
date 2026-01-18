@@ -15,10 +15,12 @@ uniform sampler2D steep_albedo_height: source_color;
 uniform sampler2D steep_normal_rough;
 
 group_uniforms private;
-uniform highp sampler2DArray _height_maps: repeat_disable, filter_linear; // TODO: no linear filter
-uniform highp sampler2DArray _control_maps: repeat_disable, filter_nearest;
-uniform sampler2DArray _albedo_textures: source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2DArray _normal_textures: hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform highp sampler2DArray _height_maps: repeat_disable, hint_default_black, filter_nearest;
+uniform sampler2DArray _normal_maps: repeat_disable, hint_normal, filter_linear;
+uniform highp sampler2DArray _control_maps: repeat_disable, hint_default_black, filter_nearest;
+
+//uniform sampler2DArray _albedo_textures: source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+//uniform sampler2DArray _normal_textures: hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform vec3 _target_position;
 uniform vec2 _vertex_spacing;
 uniform ivec2 _tile_size;
@@ -152,26 +154,21 @@ void fragment() {
 	
 	float lod = float(vertex_lod);
 	
-	// NOTE: texture uses 8 bit lerp internally, this is not accurate
-	// TODO: use textureGather or texelFetch
-	float h = texture(_height_maps, vec3(UV, lod)).r;
-	float r = texture(_height_maps, vec3(UV + vec2(texel.x, 0.0), lod)).r;
-	float u = texture(_height_maps, vec3(UV + vec2(0.0, texel.y), lod)).r;
-	
+	vec2 grad = texture(_normal_maps, vec3(UV, lod)).rg;
 	vec2 scale = 1.0 / float(1 << vertex_lod) / _vertex_spacing;
-	vec3 normal = normalize(vec3((h - r) * scale.x, 1.0, (h - u) * scale.y));
+	vec3 normal = normalize(vec3(grad.x * scale.x, 1.0, grad.y * scale.y));
 	
-	if (lod_blend_mask > EPSILON) {
-		float lod_1 = lod + 1.0;
-		float h_1 = texture(_height_maps, vec3(UV2, lod_1)).r;
-		float r_1 = texture(_height_maps, vec3(UV2 + vec2(texel.x, 0.0), lod_1)).r;
-		float u_1 = texture(_height_maps, vec3(UV2 + vec2(0.0, texel.y), lod_1)).r;
-		
-		vec2 scale_1 = scale * 0.5;
-		vec3 normal_1 = normalize(vec3((h_1 - r_1) * scale_1.x, 1.0, (h_1 - u_1) * scale_1.y));
-	
-		normal = mix(normal, normal_1, lod_blend_mask);
-	}
+	//if (lod_blend_mask > EPSILON) {
+		//float lod_1 = lod + 1.0;
+		//float h_1 = texture(_height_maps, vec3(UV2, lod_1)).r;
+		//float r_1 = texture(_height_maps, vec3(UV2 + vec2(texel.x, 0.0), lod_1)).r;
+		//float u_1 = texture(_height_maps, vec3(UV2 + vec2(0.0, texel.y), lod_1)).r;
+		//
+		//vec2 scale_1 = scale * 0.5;
+		//vec3 normal_1 = normalize(vec3((h_1 - r_1) * scale_1.x, 1.0, (h_1 - u_1) * scale_1.y));
+	//
+		//normal = mix(normal, normal_1, lod_blend_mask);
+	//}
 	
 	vec3 tangent = normalize(cross(normal, vec3(0.0, 0.0, 1.0)));
 	vec3 binormal = normalize(cross(normal, tangent));

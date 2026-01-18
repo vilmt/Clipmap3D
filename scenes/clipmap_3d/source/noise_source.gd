@@ -1,17 +1,6 @@
 @tool
 class_name Clipmap3DNoiseSource extends Clipmap3DSource
 
-@export var continental_noise: Noise:
-	set(value):
-		if continental_noise == value:
-			return
-		if continental_noise:
-			continental_noise.changed.disconnect(parameters_changed.emit)
-		continental_noise = value
-		if continental_noise:
-			continental_noise.changed.connect(parameters_changed.emit)
-		parameters_changed.emit()
-
 @export var continental_amplitude: float:
 	set(value):
 		if continental_amplitude == value:
@@ -19,167 +8,150 @@ class_name Clipmap3DNoiseSource extends Clipmap3DSource
 		continental_amplitude = value
 		amplitude_changed.emit(get_height_amplitude())
 
+const SHADER_FILE: RDShaderFile = preload("res://scenes/compute/compute.glsl")
+
 #@export var mountain_noise: Noise
 #@export var ridge_noise: Noise
 
-var _image_size: Vector2i
+
+
+const HEIGHT_FORMAT := RenderingDevice.DATA_FORMAT_R32_SFLOAT
+const NORMAL_FORMAT := RenderingDevice.DATA_FORMAT_R16G16_SFLOAT
+const CONTROL_FORMAT := RenderingDevice.DATA_FORMAT_R32_SFLOAT
+
+static var _rd: RenderingDevice
+static var _shader_rid: RID # TODO: research if this is bad
+
+var _uniform_set_rid: RID
+var _pipeline_rid: RID
+var _texture_rd_rids: Array[RID]
+var _map_rids: Array[RID]
+
+var _size: Vector2i
+var _lod_count: int
 var _vertex_spacing: Vector2
-var _height_images: Array[Image] = []
-var _control_images: Array[Image] = []
-var _height_textures: Texture2DArray
-var _control_textures: Texture2DArray
-var _origins: Array[Vector2i]
-var _inv_scales: Array[Vector2]
+var _world_origin: Vector2
 
 func has_maps() -> bool:
-	return _height_textures and _control_textures
+	return not _map_rids.is_empty()
 
-func get_height_maps() -> Texture2DArray:
-	return _height_textures
-
-func get_control_maps() -> Texture2DArray:
-	return _control_textures
+func get_map_rids() -> Array[RID]:
+	return _map_rids
 
 func get_height_amplitude():
 	return continental_amplitude
 
-@warning_ignore_start("integer_division")
-func get_height_world(world_xz: Vector2) -> float:
-	if _height_images.is_empty():
-		return 0.0
-	var lod_cell := Vector2i((world_xz * _inv_scales[0]).floor())
-	var texel := lod_cell - _origins[0] + _image_size / 2;
-	if not Rect2i(Vector2i.ZERO, _image_size).has_point(texel):
-		return 0.0
-	return _height_images[0].get_pixelv(texel).r
+func _init() -> void:
+	if not _rd:
+		_rd = RenderingServer.get_rendering_device()
+	
+	if not _shader_rid:
+		var spirv := SHADER_FILE.get_spirv()
+		_shader_rid = _rd.shader_create_from_spirv(spirv)
 
-# TODO: biome modifiers
-func get_height_local(local_xz: Vector2i):
-	if not continental_noise:
-		return 0.0
-	var c := continental_noise.get_noise_2dv(local_xz) * 0.5 + 0.5
-	c = c * c * continental_amplitude
-	return c
-
-func create_maps(image_size: Vector2i, lod_count: int, vertex_spacing: Vector2):
-	clear_maps()
-	_image_size = image_size
-	_vertex_spacing = _vertex_spacing
+func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_spacing: Vector2) -> void:
+	if not SHADER_FILE:
+		push_error("Shader file invalid")
+		return
+	_world_origin = world_origin
+	_size = size
+	_lod_count = lod_count
+	_vertex_spacing = vertex_spacing
 	
-	_origins.resize(lod_count)
-	_inv_scales.resize(lod_count)
-	_height_images.resize(lod_count)
-	_control_images.resize(lod_count)
-	
-	for lod: int in lod_count:
-		_inv_scales[lod] = Vector2.ONE * pow(2.0, -lod) / vertex_spacing
-		_origins[lod] = Vector2i((origin * _inv_scales[lod]).floor())
-		
-		_height_images[lod] = Image.create_empty(_image_size.x, _image_size.y, false, Image.FORMAT_RF)
-		_control_images[lod] = Image.create_empty(_image_size.x, _image_size.y, false, Image.FORMAT_RF)
-		_generate_region(lod, Rect2i(Vector2.ZERO, _image_size))
-	
-	_height_textures = Texture2DArray.new()
-	_height_textures.create_from_images(_height_images)
-	_control_textures = Texture2DArray.new()
-	_control_textures.create_from_images(_control_images)
+	RenderingServer.call_on_render_thread(_initialize)
 	
 	maps_created.emit()
 
-func clear_maps():
-	_height_images.clear()
-	_height_textures = null
-	_control_images.clear()
-	_control_textures = null
-	_origins.clear()
-	_inv_scales.clear()
+func shift_maps(world_origin: Vector2) -> void:
+	# TODO: only regen shifted maps
+	_world_origin = world_origin
+	
+	RenderingServer.call_on_render_thread(_compute)
+	
+	maps_redrawn.emit()
 
-func shift_maps():
-	if _height_images.is_empty():
-		push_error("Attempted image shift without creating first.")
+func _initialize():
+	if not _rd:
+		push_error("RenderingDevice not initialized")
+		return
+	if not _shader_rid:
+		push_error("Shader not loaded")
 		return
 	
-	var dirty: bool = false
+	_free_all_rids()
 	
-	for lod: int in _height_images.size():
-		var new_origin := Vector2i((origin * _inv_scales[lod]).floor())
-		
-		if _try_shift_lod(lod, new_origin):
-			_height_textures.update_layer(_height_images[lod], lod)
-			_control_textures.update_layer(_control_images[lod], lod)
-			dirty = true
+	var uniforms: Array[RDUniform] = []
+	for format in [HEIGHT_FORMAT, NORMAL_FORMAT, CONTROL_FORMAT]:
+		uniforms.append(_create_uniform(format))
 	
-	if dirty:
-		maps_redrawn.emit()
+	_uniform_set_rid = _rd.uniform_set_create(uniforms, _shader_rid, 0)
+	_pipeline_rid = _rd.compute_pipeline_create(_shader_rid)
+	
+	_compute()
 
-# TODO: use previous lod samples now that they get more expensive, 25% cheaper
-# TODO: unify logic with shader transformations, could use Vector2 instead
-func _generate_region(lod: int, image_rect: Rect2i):
-	var image_center := _image_size / 2
+func _compute() -> void:
+	var compute_list := _rd.compute_list_begin()
+	_rd.compute_list_bind_compute_pipeline(compute_list, _pipeline_rid)
+	_rd.compute_list_bind_uniform_set(compute_list, _uniform_set_rid, 0)
 	
-	for y: int in image_rect.size.y:
-		for x: int in image_rect.size.x:
-			var image_p := Vector2i(x, y) + image_rect.position
-			var centered_p := image_p - image_center
-			var local_xz := (_origins[lod] + centered_p) * (1 << lod)
-			
-			#_control_images[lod].set_pixelv(image_p, Color(get_control_local(local_xz), 0.0, 0.0))
-			_height_images[lod].set_pixelv(image_p, Color(get_height_local(local_xz), 0.0, 0.0))
-			
+	var push := PackedFloat32Array()
+	push.append(_world_origin.x)
+	push.append(_world_origin.y)
+	push.append(_vertex_spacing.x)
+	push.append(_vertex_spacing.y)
+	push.append(continental_amplitude)
+	push.append(0.0)
+	push.append(0.0)
+	push.append(0.0)
+	
+	_rd.compute_list_set_push_constant(compute_list, push.to_byte_array(), push.size() * 4)
+	
+	var groups_x := ceili(_size.x / 8.0)
+	var groups_y := ceili(_size.y / 8.0)
+	_rd.compute_list_dispatch(compute_list, groups_x, groups_y, _lod_count)
+	_rd.compute_list_end()
 
-func _try_shift_lod(lod: int, new_origin: Vector2i) -> bool:
-	var delta := new_origin - _origins[lod]
-	
-	if delta == Vector2i.ZERO:
-		return false
+func get_height_world(world_xz: Vector2) -> float:
+	return 0.0
 
-	if absi(delta.x) >= _image_size.x or absi(delta.y) >= _image_size.y:
-		_origins[lod] = new_origin
-		_generate_region(lod, Rect2i(Vector2i.ZERO, _image_size))
-		return true
-	
-	if delta.x != 0:
-		_origins[lod].x = new_origin.x
-		_shift_lod_x(lod, delta.x)
-	if delta.y != 0:
-		_origins[lod].y = new_origin.y
-		_shift_lod_y(lod, delta.y)
-	
-	return true
+func _free_all_rids() -> void:
+	if not _rd:
+		return
+	if _pipeline_rid:
+		_rd.free_rid(_pipeline_rid)
+		_pipeline_rid = RID()
+	if _uniform_set_rid:
+		_rd.free_rid(_uniform_set_rid)
+		_uniform_set_rid = RID()
+	for rid in _map_rids:
+		RenderingServer.free_rid(rid)
+	_map_rids.clear()
+	for rid in _texture_rd_rids:
+		_rd.free_rid(rid)
+	_texture_rd_rids.clear()
 
-func _shift_lod_x(lod: int, delta_x: int):
-	var abs_x := absi(delta_x)
+func _create_uniform(data_format: RenderingDevice.DataFormat) -> RDUniform:
+	var format := RDTextureFormat.new()
+	format.format = data_format
+	format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
+	format.width = _size.x
+	format.height = _size.y
+	format.array_layers = _lod_count
+	format.usage_bits = \
+		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
+		_rd.TEXTURE_USAGE_STORAGE_BIT | \
+		_rd.TEXTURE_USAGE_CAN_UPDATE_BIT #| \
+		#_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT # TODO: needed to get CPU image for collision
 	
-	assert(abs_x < _image_size.x)
+	var index: int = _texture_rd_rids.size()
+	var texture_rid := _rd.texture_create(format, RDTextureView.new())
+	_texture_rd_rids.append(texture_rid)
 	
-	var source_rect := Rect2i(Vector2i(maxi(delta_x, 0), 0), Vector2i(_image_size.x - abs_x, _image_size.y))
-	var destination := Vector2i(maxi(-delta_x, 0), 0)
+	_map_rids.append(RenderingServer.texture_rd_create(texture_rid, RenderingServer.TEXTURE_LAYERED_2D_ARRAY))
 	
-	# TODO: try not duplicating
-	_height_images[lod].blit_rect(_height_images[lod].duplicate(), source_rect, destination)
-	_control_images[lod].blit_rect(_control_images[lod].duplicate(), source_rect, destination)
+	var uniform := RDUniform.new()
+	uniform.uniform_type = _rd.UNIFORM_TYPE_IMAGE
+	uniform.binding = index
+	uniform.add_id(texture_rid)
 	
-	var fill_rect := Rect2i(
-		Vector2i(_image_size.x - abs_x if delta_x > 0 else 0, 0),
-		Vector2i(abs_x, _image_size.y)
-	)
-	
-	_generate_region(lod, fill_rect)
-	
-func _shift_lod_y(lod: int, delta_y: int):
-	var abs_y := absi(delta_y)
-	
-	assert(abs_y < _image_size.y)
-	
-	var source_rect := Rect2i(Vector2i(0, maxi(delta_y, 0)), Vector2i(_image_size.x, _image_size.y - abs_y))
-	var destination := Vector2i(0, maxi(-delta_y, 0))
-	
-	_height_images[lod].blit_rect(_height_images[lod].duplicate(), source_rect, destination)
-	_control_images[lod].blit_rect(_control_images[lod].duplicate(), source_rect, destination)
-	
-	var fill_rect := Rect2i(
-		Vector2i(0, _image_size.y - abs_y if delta_y > 0 else 0),
-		Vector2i(_image_size.x, abs_y)
-	)
-	
-	_generate_region(lod, fill_rect)
+	return uniform

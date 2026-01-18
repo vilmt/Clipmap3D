@@ -32,6 +32,7 @@ shader_path = "res://scenes/compute/compute.glsl"
 target_node = NodePath("Player")
 shader_material = ExtResource("2_782nu")
 image_size = Vector2i(200, 200)
+lod_count = 1
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=970085881]
 environment = SubResource("Environment_l1v0t")

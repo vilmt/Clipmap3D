@@ -10,11 +10,12 @@ layout(rg16f, binding = 1) restrict uniform image2DArray normal_maps;
 layout(r32f, binding = 2) restrict uniform image2DArray control_maps;
 
 layout(push_constant, std430) uniform Parameters {
-	vec3 target_position;
-	float amplitude;
+	vec2 world_origin;
 	vec2 vertex_spacing;
+	float amplitude;
 	float pad0;
 	float pad1;
+	float pad2;
 } params;
 
 const float EPSILON = 10e-6;
@@ -34,7 +35,7 @@ void main() {
 	vec2 inv_scale = 1.0 / scale;
 	
 	vec2 world_xz = vec2(texel.xy - size.xy / 2) * scale; // step size increases with lod
-	vec2 origin = floor(params.target_position.xz * inv_scale + EPSILON);
+	vec2 origin = floor(params.world_origin * inv_scale + EPSILON);
 	
 	vec2 noise_texel = world_xz - origin;
 	vec2 noise_step = scale;

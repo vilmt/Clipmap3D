@@ -62,19 +62,21 @@ func _mark_meshes_dirty():
 	_meshes_dirty = true
 	_rebuild.call_deferred()
 
-func update_map_rids(height_maps_rid: RID, control_maps_rid: RID):
-	_height_maps_rid = height_maps_rid
-	_control_maps_rid = control_maps_rid
+func update_map_rids(map_rids: Array[RID]):
 	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_height_maps", _height_maps_rid)
-		RenderingServer.material_set_param(_material_rid, &"_control_maps", _control_maps_rid)
+		if map_rids.is_empty():
+			map_rids.resize(3)
+			map_rids.fill(RID())
+		RenderingServer.material_set_param(_material_rid, &"_height_maps", map_rids[0])
+		RenderingServer.material_set_param(_material_rid, &"_normal_maps", map_rids[1])
+		RenderingServer.material_set_param(_material_rid, &"_control_maps", map_rids[2])
 
-func update_texture_arrays(albedo_textures_rid: RID, normal_textures_rid: RID):
-	_albedo_textures_rid = albedo_textures_rid
-	_normal_textures_rid = normal_textures_rid
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_albedo_textures", _albedo_textures_rid)
-		RenderingServer.material_set_param(_material_rid, &"_normal_textures", _normal_textures_rid)
+#func update_texture_arrays(albedo_textures_rid: RID, normal_textures_rid: RID):
+	#_albedo_textures_rid = albedo_textures_rid
+	#_normal_textures_rid = normal_textures_rid
+	#if _material_rid:
+		#RenderingServer.material_set_param(_material_rid, &"_albedo_textures", _albedo_textures_rid)
+		#RenderingServer.material_set_param(_material_rid, &"_normal_textures", _normal_textures_rid)
 
 func update_height_amplitude(height_amplitude: float):
 	_height_amplitude = maxf(height_amplitude, 0.1)
