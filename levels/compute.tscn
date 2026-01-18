@@ -5,39 +5,48 @@
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="3_l1v0t"]
 [ext_resource type="Texture2D" uid="uid://d0g7plujqpq32" path="res://icon.svg" id="5_l1v0t"]
 
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_k16q1"]
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_782nu"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
 ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
 
-[sub_resource type="Sky" id="Sky_qlox4"]
-sky_material = SubResource("ProceduralSkyMaterial_k16q1")
+[sub_resource type="Sky" id="Sky_cwqvt"]
+sky_material = SubResource("ProceduralSkyMaterial_782nu")
 
-[sub_resource type="Environment" id="Environment_1vgft"]
+[sub_resource type="Environment" id="Environment_l1v0t"]
 background_mode = 2
-sky = SubResource("Sky_qlox4")
+sky = SubResource("Sky_cwqvt")
 tonemap_mode = 2
 glow_enabled = true
 
-[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_26y3x"]
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_uiup7"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_wy6yr"]
 material = ExtResource("2_782nu")
-size = Vector2(128, 128)
-subdivide_width = 127
-subdivide_depth = 127
+size = Vector2(200, 200)
+subdivide_width = 199
+subdivide_depth = 199
 
 [node name="Compute" type="Node3D" unique_id=1282809318]
 script = ExtResource("1_g5oyg")
 shader_path = "res://scenes/compute/compute.glsl"
 shader_material = ExtResource("2_782nu")
+image_size = Vector2i(200, 200)
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=822332901]
-environment = SubResource("Environment_1vgft")
-camera_attributes = SubResource("CameraAttributesPractical_26y3x")
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=970085881]
+environment = SubResource("Environment_l1v0t")
+camera_attributes = SubResource("CameraAttributesPractical_uiup7")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1213514762]
-transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=697317388]
+transform = Transform3D(-0.11073945, 0.79338753, 0.5985592, 0.09127896, -0.5915987, 0.8010488, 0.9896489, 0.14334358, -0.0069062784, 0, 496.4257, 306.4474)
+light_intensity_lux = 32766.99
+light_temperature = 2989.0
+light_energy = 2.0
 shadow_enabled = true
+directional_shadow_split_1 = 0.04
+directional_shadow_split_2 = 0.11
+directional_shadow_split_3 = 0.33
+directional_shadow_blend_splits = true
+directional_shadow_max_distance = 4000.0
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1718651113]
 mesh = SubResource("PlaneMesh_wy6yr")
@@ -50,3 +59,10 @@ visible = false
 position = Vector2(14, 189)
 texture = ExtResource("5_l1v0t")
 centered = false
+
+[node name="Label" type="Label" parent="." unique_id=420751314]
+offset_left = 408.0
+offset_top = -1.0
+offset_right = 503.0
+offset_bottom = 22.0
+text = "Time taken: "
