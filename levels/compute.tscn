@@ -26,9 +26,10 @@ size = Vector2(200, 200)
 subdivide_width = 199
 subdivide_depth = 199
 
-[node name="Compute" type="Node3D" unique_id=1282809318]
+[node name="Compute" type="Node3D" unique_id=1282809318 node_paths=PackedStringArray("target_node")]
 script = ExtResource("1_g5oyg")
 shader_path = "res://scenes/compute/compute.glsl"
+target_node = NodePath("Player")
 shader_material = ExtResource("2_782nu")
 image_size = Vector2i(200, 200)
 

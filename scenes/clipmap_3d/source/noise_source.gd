@@ -85,8 +85,6 @@ func create_maps(image_size: Vector2i, lod_count: int, vertex_spacing: Vector2):
 	_control_textures.create_from_images(_control_images)
 	
 	maps_created.emit()
-	
-	print(_image_size)
 
 func clear_maps():
 	_height_images.clear()
@@ -125,7 +123,6 @@ func _generate_region(lod: int, image_rect: Rect2i):
 			var centered_p := image_p - image_center
 			var local_xz := (_origins[lod] + centered_p) * (1 << lod)
 			
-			#var biome := get_biome_world(world_xz)
 			#_control_images[lod].set_pixelv(image_p, Color(get_control_local(local_xz), 0.0, 0.0))
 			_height_images[lod].set_pixelv(image_p, Color(get_height_local(local_xz), 0.0, 0.0))
 			

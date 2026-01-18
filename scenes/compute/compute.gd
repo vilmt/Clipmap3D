@@ -1,27 +1,31 @@
 extends Node3D
 
 @export_file_path("*.glsl") var shader_path: String
+@export var target_node: Node3D
 @export var shader_material: ShaderMaterial
 @export var image_size := Vector2i(512, 512)
 @export var lod_count: int = 5
+@export var vertex_spacing := Vector2.ONE
 
 const HEIGHT_FORMAT := RenderingDevice.DATA_FORMAT_R32_SFLOAT
 const NORMAL_FORMAT := RenderingDevice.DATA_FORMAT_R16G16_SFLOAT
 const CONTROL_FORMAT := RenderingDevice.DATA_FORMAT_R32_SFLOAT
 
 var _rd: RenderingDevice
-var _shader_rid: RID
-var _pipeline_rid: RID
 
+var _shader_rid: RID
+var _uniform_set_rid: RID
+var _pipeline_rid: RID
 var _texture_rd_rids: Array[RID]
 var _map_rids: Array[RID]
-
-var _uniform_set_rid: RID
 
 var _start_time: int
 @onready var label: Label = $Label
 
+var _target_position := Vector3.ZERO
+
 func _ready() -> void:
+	_retarget()
 	RenderingServer.call_on_render_thread(_initialize)
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -31,21 +35,28 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _exit_tree():
 	RenderingServer.call_on_render_thread(_free_all_rids)
 
+func _physics_process(_delta: float) -> void:
+	_retarget()
+
 func _initialize() -> void:
 	_rd = RenderingServer.get_rendering_device()
 	
 	_shader_rid = _load_shader(shader_path)
 	
 	var uniforms: Array[RDUniform] = []
-	
 	for format in [HEIGHT_FORMAT, NORMAL_FORMAT, CONTROL_FORMAT]:
 		uniforms.append(_create_uniform(format))
 	
 	_uniform_set_rid = _rd.uniform_set_create(uniforms, _shader_rid, 0)
-	
 	_pipeline_rid = _rd.compute_pipeline_create(_shader_rid)
 	
 	_compute()
+	
+	if shader_material:
+		var material_rid := shader_material.get_rid()
+		RenderingServer.material_set_param(material_rid, &"_height_maps", _map_rids[0])
+		RenderingServer.material_set_param(material_rid, &"_normal_maps", _map_rids[1])
+		RenderingServer.material_set_param(material_rid, &"_control_maps", _map_rids[2])
 
 func _compute() -> void:
 	_start_time = Time.get_ticks_usec()
@@ -55,8 +66,12 @@ func _compute() -> void:
 	_rd.compute_list_bind_uniform_set(compute_list, _uniform_set_rid, 0)
 	
 	var push := PackedFloat32Array()
+	push.append(_target_position.x)
+	push.append(_target_position.y)
+	push.append(_target_position.z)
 	push.append((sin(_start_time) * 0.5 + 0.6) * 50.0)
-	push.append(0.0)
+	push.append(vertex_spacing.x)
+	push.append(vertex_spacing.y)
 	push.append(0.0)
 	push.append(0.0)
 	
@@ -67,33 +82,19 @@ func _compute() -> void:
 	_rd.compute_list_dispatch(compute_list, groups_x, groups_y, lod_count)
 	_rd.compute_list_end()
 	
-	_free_runtime_rids()
-		
-	for texture_rd_rid in _texture_rd_rids:
-		_map_rids.append(RenderingServer.texture_rd_create(texture_rd_rid, RenderingServer.TEXTURE_LAYERED_2D_ARRAY))
-	
-	#print("computed again")
-	
-	if shader_material:
-		var material_rid := shader_material.get_rid()
-		RenderingServer.material_set_param(material_rid, &"_height_maps", _map_rids[0])
-		RenderingServer.material_set_param(material_rid, &"_normal_maps", _map_rids[1])
-		RenderingServer.material_set_param(material_rid, &"_control_maps", _map_rids[2])
-	
 	var elapsed: int = Time.get_ticks_usec() - _start_time
 	label.text = "%s ms" % str(elapsed * 0.001).pad_decimals(1)
 
-func _free_runtime_rids() -> void:
-	for rid in _map_rids:
-		RenderingServer.free_rid(rid)
-	_map_rids.clear()
+func _retarget():
+	if target_node:
+		_target_position = target_node.global_position
 
 func _free_all_rids() -> void:
-	_free_runtime_rids()
-	
 	_rd.free_rid(_pipeline_rid)
 	_rd.free_rid(_uniform_set_rid)
 	_rd.free_rid(_shader_rid)
+	for rid in _map_rids:
+		RenderingServer.free_rid(rid)
 	for rid in _texture_rd_rids:
 		_rd.free_rid(rid)
 	_rd.free()
@@ -101,6 +102,7 @@ func _free_all_rids() -> void:
 	_pipeline_rid = RID()
 	_uniform_set_rid = RID()
 	_shader_rid = RID()
+	_map_rids.clear()
 	_texture_rd_rids.clear()
 	_rd = null
 
@@ -120,11 +122,13 @@ func _create_uniform(data_format: RenderingDevice.DataFormat) -> RDUniform:
 		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
 		_rd.TEXTURE_USAGE_STORAGE_BIT | \
 		_rd.TEXTURE_USAGE_CAN_UPDATE_BIT #| \
-		#_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT
+		#_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT # TODO: needed to get CPU image for collision
 	
 	var index: int = _texture_rd_rids.size()
 	var texture_rid := _rd.texture_create(format, RDTextureView.new())
 	_texture_rd_rids.append(texture_rid)
+	
+	_map_rids.append(RenderingServer.texture_rd_create(texture_rid, RenderingServer.TEXTURE_LAYERED_2D_ARRAY))
 	
 	var uniform := RDUniform.new()
 	uniform.uniform_type = _rd.UNIFORM_TYPE_IMAGE

@@ -51,7 +51,7 @@ frequency = 0.005
 script = ExtResource("3_wt30j")
 continental_noise = SubResource("FastNoiseLite_um6qw")
 continental_amplitude = 200.0
-origin = Vector2(396.47736, 924.3358)
+origin = Vector2(234.9, 924.3358)
 biomes = Array[ExtResource("2_um6qw")]([SubResource("Resource_klpgc")])
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
@@ -81,7 +81,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 396.47736, 0.00012207031, 924.3358)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 234.9, 0.00012207031, 924.3358)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_um6qw")
 follow_target = NodePath("../Player")
@@ -106,7 +106,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 396.47736, 473.7893, 924.3358)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 234.9, 473.7893, 924.3358)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

@@ -87,7 +87,7 @@ void vertex() {
 	vec2 edge = mod(floor(_target_position.xz * inv_scale + EPSILON), 2.0);
 	vec2 lod_position = (world_position.xz - _target_position.xz) * inv_scale;
 	vec2 lod_position_snapped = floor(lod_position - EPSILON) + edge;
-	
+		
 	// geo-morph blend vertices on lod boundaries
 	vec2 lod_size = fma(vec2(_tile_size), vec2(2.0), vec2(1.0));
 	lod_blend_mask = smoothstep(1.0 - lod_blend_ratio, 1.0, length(lod_position / lod_size));
