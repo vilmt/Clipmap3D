@@ -102,7 +102,7 @@ func _on_collision_mask_changed(physics_mask: int):
 func _build_mesh(shape_index: int, xz: Vector2):
 	for i: int in _template_faces.size():
 		var v_world := Vector2(_template_faces[i].x, _template_faces[i].z) + xz
-		_template_faces[i].y = _source.sample(v_world, _vertex_spacing)
+		_template_faces[i].y = _source.get_height_world(v_world)
 	
 	var shape_rid := _shape_rids[shape_index]
 	PhysicsServer3D.shape_set_data(shape_rid, {"faces": _template_faces, "backface_collision": false})

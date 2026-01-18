@@ -15,8 +15,10 @@ uniform sampler2D steep_albedo_height: source_color;
 uniform sampler2D steep_normal_rough;
 
 group_uniforms private;
-uniform highp sampler2DArray _height_maps: repeat_disable, filter_linear;
+uniform highp sampler2DArray _height_maps: repeat_disable, filter_linear; // TODO: no linear filter
 uniform highp sampler2DArray _control_maps: repeat_disable, filter_nearest;
+uniform sampler2DArray _albedo_textures: source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2DArray _normal_textures: hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform vec3 _target_position;
 uniform vec2 _vertex_spacing;
 uniform ivec2 _tile_size;
@@ -45,7 +47,7 @@ ivec2 to_texel(vec2 world_xz, vec2 inv_scale) {
 	//return texel / vec2(textureSize(_height_maps, 0).xy) + 0.5; // center texture
 }
 
-float textureHeightMap(sampler2DArray sampler, vec2 uv, float lod) {
+float gather_bilerp(sampler2DArray sampler, vec2 uv, float lod) {
 	vec2 res = vec2(textureSize(sampler, 0).xy);
 	
 	vec2 st = uv * res - 0.5;
@@ -54,6 +56,16 @@ float textureHeightMap(sampler2DArray sampler, vec2 uv, float lod) {
 	
 	vec4 g = textureGather(sampler, vec3((i + 0.5) / res, lod));
 	return mix(mix(g.w, g.z, w.x), mix(g.x, g.y, w.x), w.y);
+}
+
+vec4 gather(sampler2DArray sampler, vec2 uv, float lod) {
+	vec2 res = vec2(textureSize(sampler, 0).xy);
+	
+	vec2 st = uv * res - 0.5;
+	vec2 i = floor(st);
+	vec2 w = fract(st);
+	
+	return textureGather(sampler, vec3((i + 0.5) / res, lod)).wzxy;
 }
 
 vec2 to_uv(vec2 world_xz, vec2 inv_scale) {
@@ -89,7 +101,7 @@ void vertex() {
 	UV = to_uv(world_position.xz, inv_scale);
 	UV2 = to_uv(world_position.xz, inv_scale * 0.5);
 	
-	world_position.y = textureHeightMap(_height_maps, UV, float(vertex_lod));
+	world_position.y = gather_bilerp(_height_maps, UV, float(vertex_lod));
 	VERTEX.y = world_position.y;
 	
 	//debug_albedo.r = abs(a - b);
@@ -136,10 +148,12 @@ void accumulate(vec3 p, vec3 ddx, vec3 ddy, vec3 normal, bool projected, float w
 
 void fragment() {
 	// central difference
-	// could calculate UV in vertex and pass?
 	vec2 texel = 1.0 / vec2(textureSize(_height_maps, 0).xy);
 	
 	float lod = float(vertex_lod);
+	
+	// NOTE: texture uses 8 bit lerp internally, this is not accurate
+	// TODO: use textureGather or texelFetch
 	float h = texture(_height_maps, vec3(UV, lod)).r;
 	float r = texture(_height_maps, vec3(UV + vec2(texel.x, 0.0), lod)).r;
 	float u = texture(_height_maps, vec3(UV + vec2(0.0, texel.y), lod)).r;
@@ -168,6 +182,36 @@ void fragment() {
 	
 	Material material = Material(vec4(0.0), vec4(0.0), 0.0, 0.0, 0.0, 0.0);
 	
+	uvec4 control = floatBitsToUint(gather(_control_maps, UV, float(vertex_lod)));
+	
+	ivec4 t_id[2] = {ivec4(control >> uvec4(27u) & uvec4(0x1Fu)), 
+		ivec4(control >> uvec4(22u) & uvec4(0x1Fu))};
+		
+	ivec2 texture_ids[4] = ivec2[4](
+		ivec2(t_id[0].x, t_id[1].x),
+		ivec2(t_id[0].y, t_id[1].y),
+		ivec2(t_id[0].z, t_id[1].z),
+		ivec2(t_id[0].w, t_id[1].w));
+	
+	uint this = control.x;
+	float blend = float((this >> 14u) & 0xFFu) / 255.0;
+	
+	debug_albedo.r = blend;
+	//ivec2 this = texture_ids[0];
+	//debug_albedo.r = float(this.x == 0);
+	
+	// Auto blend calculation
+	float auto_blend = clamp(fma(auto_slope * 2.0, (normal.y - 1.0), 1.0)
+		- auto_height_reduction * 0.01 * world_position.y, 0.0, 1.0);
+	
+	uvec4 is_auto = control & uvec4(0x1u);
+	uint u_auto =
+		((uint(0) & 0x1Fu) << 27u) |
+		((uint(1) & 0x1Fu) << 22u) |
+		((uint(fma(auto_blend, 255.0 , 0.5)) & 0xFFu) << 14u);
+	control = control * (1u - is_auto) + u_auto * is_auto;
+
+	
 	float slope = clamp(auto_slope * (1.0 - normal.y) - auto_height_reduction * world_position.y * 0.001, 0.0, 1.0);
 	// sharpen transition
 	float steep_weight = smoothstep(0.4, 0.5, slope);
@@ -195,6 +239,6 @@ void fragment() {
 	//int biome = int(floor(texture(_control_maps, vec3(UV, lod)).r * float(biome_count) - EPSILON));
 	//ALBEDO = vec3(float(biome == 3 || biome == 4));
 	
-	//ALBEDO = debug_albedo;
+	ALBEDO = debug_albedo;
 	//ALBEDO = vec3(0.7);
 }

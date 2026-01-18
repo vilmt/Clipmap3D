@@ -3,13 +3,17 @@
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://scenes/clipmap_3d/clipmap_3d.gd" id="1_a1u1q"]
 [ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/clipmap_3d/clipmap_3d.tres" id="1_tog6l"]
 [ext_resource type="Script" uid="uid://c37oie6md7flj" path="res://scenes/clipmap_3d/source/biome/biome.gd" id="2_um6qw"]
-[ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/clipmap_3d/source/noise_source.gd" id="2_waa5k"]
-[ext_resource type="Resource" uid="uid://c4k04h6wroc74" path="res://levels/biomes/forest.tres" id="3_wt30j"]
+[ext_resource type="Texture2D" uid="uid://c88j3oj0lf6om" path="res://assets/textures/rock023_alb_ht.png" id="3_cflic"]
+[ext_resource type="Texture2D" uid="uid://ddprscrpsofah" path="res://assets/textures/ground037_alb_ht.png" id="3_l0w4n"]
+[ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/clipmap_3d/source/noise_source.gd" id="3_wt30j"]
 [ext_resource type="Script" uid="uid://bghnyaj4fsaan" path="res://scenes/clipmap_3d/instancer/instancer.gd" id="4_6mm2f"]
+[ext_resource type="Texture2D" uid="uid://c307hdmos4gtm" path="res://assets/textures/rock023_nrm_rgh.png" id="4_ce33q"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="4_owj7c"]
+[ext_resource type="Script" uid="uid://cj4pn30w8473q" path="res://scenes/clipmap_3d/source/biome/noise_biome.gd" id="4_prn7l"]
 [ext_resource type="Material" uid="uid://cor7kynnsfh01" path="res://scenes/grass/grass.tres" id="5_acxjd"]
 [ext_resource type="PackedScene" uid="uid://dm3mdkroo5725" path="res://scenes/ball/ball.tscn" id="5_vn06u"]
 [ext_resource type="Material" uid="uid://bekhxmsm5ef5y" path="res://scenes/clipmap_3d/instancer/instancer.tres" id="5_waa5k"]
+[ext_resource type="Texture2D" uid="uid://c1ots7w6i0i1q" path="res://assets/textures/ground037_nrm_rgh.png" id="6_a25cu"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tjx8f"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -26,17 +30,29 @@ glow_enabled = true
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pvg1d"]
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_waa5k"]
-frequency = 0.0003
-fractal_gain = 0.385
-fractal_weighted_strength = 0.1
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_oq7cu"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_mjw01"]
+
+[sub_resource type="Resource" id="Resource_klpgc"]
+script = ExtResource("4_prn7l")
+height_noise = SubResource("FastNoiseLite_oq7cu")
+weight_noise = SubResource("FastNoiseLite_mjw01")
+base_albedo_texture = ExtResource("3_cflic")
+base_normal_texture = ExtResource("4_ce33q")
+overlay_albedo_texture = ExtResource("3_l0w4n")
+overlay_normal_texture = ExtResource("6_a25cu")
+metadata/_custom_type_script = "uid://cj4pn30w8473q"
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_um6qw"]
+frequency = 0.005
 
 [sub_resource type="Resource" id="Resource_um6qw"]
-script = ExtResource("2_waa5k")
-continental_noise = SubResource("FastNoiseLite_waa5k")
-continental_amplitude = 3000.0
-origin = Vector2(792.3989, 531.1156)
-biomes = Array[ExtResource("2_um6qw")]([ExtResource("3_wt30j")])
+script = ExtResource("3_wt30j")
+continental_noise = SubResource("FastNoiseLite_um6qw")
+continental_amplitude = 200.0
+origin = Vector2(396.47736, 924.3358)
+biomes = Array[ExtResource("2_um6qw")]([SubResource("Resource_klpgc")])
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_waa5k"]
@@ -65,7 +81,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 792.3989, 0.00012207031, 531.1156)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 396.47736, 0.00012207031, 924.3358)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_um6qw")
 follow_target = NodePath("../Player")
@@ -90,7 +106,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 792.3989, 1823.5288, 531.1156)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 396.47736, 473.7893, 924.3358)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

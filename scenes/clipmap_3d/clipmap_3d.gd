@@ -144,7 +144,7 @@ func _mark_source_dirty():
 
 func _rebuild_source():
 	if _source_dirty:
-		source.create_maps(4 * mesh_tile_size + Vector2i.ONE * 8, mesh_lod_count)
+		source.create_maps(4 * mesh_tile_size + Vector2i.ONE * 8, mesh_lod_count, mesh_vertex_spacing)
 	_source_dirty = false
 
 func _enter_tree() -> void:
@@ -221,8 +221,10 @@ func _disconnect_source():
 	mesh_tile_size_changed.disconnect(_mark_source_dirty)
 
 func _recalculate_source_origin():
-	var target_xz := Vector2(global_position.x, global_position.z)
-	source.origin = target_xz / mesh_vertex_spacing
+	if not source:
+		return
+	# TODO: remake maps on vert spacing change
+	source.origin = Vector2(global_position.x, global_position.z)
 	if source.has_maps():
 		source.shift_maps()
 
@@ -231,4 +233,4 @@ func _on_source_amplitude_changed(amplitude: float):
 	_mark_source_dirty()
 
 func _on_source_maps_created():
-	_mesh_handler.update_map_rids(source.get_height_texture_array().get_rid(), source.get_control_texture_array().get_rid())
+	_mesh_handler.update_map_rids(source.get_height_maps().get_rid(), source.get_control_maps().get_rid())

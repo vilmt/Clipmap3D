@@ -1,8 +1,6 @@
 @tool
 class_name Clipmap3DNoiseSource extends Clipmap3DSource
 
-# TODO: soft refresh signal: textures changed only
-
 @export var continental_noise: Noise:
 	set(value):
 		if continental_noise == value:
@@ -24,87 +22,62 @@ class_name Clipmap3DNoiseSource extends Clipmap3DSource
 #@export var mountain_noise: Noise
 #@export var ridge_noise: Noise
 
+var _image_size: Vector2i
+var _vertex_spacing: Vector2
 var _height_images: Array[Image] = []
 var _control_images: Array[Image] = []
 var _height_textures: Texture2DArray
 var _control_textures: Texture2DArray
 var _origins: Array[Vector2i]
+var _inv_scales: Array[Vector2]
 
 func has_maps() -> bool:
 	return _height_textures and _control_textures
 
-func get_height_images() -> Array[Image]:
-	return _height_images
-
-func get_height_texture_array() -> Texture2DArray:
+func get_height_maps() -> Texture2DArray:
 	return _height_textures
 
-func get_control_texture_array() -> Texture2DArray:
+func get_control_maps() -> Texture2DArray:
 	return _control_textures
-	
-var _image_size: Vector2i
-
-#const EPSILON := Vector2.ONE * 10e-5
-
-func get_height_local():
-	pass
 
 func get_height_amplitude():
 	return continental_amplitude
 
-func get_height_world(world_xz: Vector2i) -> float:
-	var c := continental_noise.get_noise_2dv(world_xz) * 0.5 + 0.5
-	c = c * c * continental_amplitude
-	return c
-	#var m := mountain_noise.get_noise_2dv(world_xz) * 0.5 + 0.5
-	#var r := absf(ridge_noise.get_noise_2dv(world_xz))
-	
-	#var h := c# + m + r
-	#
-	#if biome == -1 or biome >= biomes.size():
-		#return 0.0
-	#return biomes[biome].get_height(world_xz)
-
-#func get_control_world(world_xz: Vector2i, biome: int = -1) -> float:
-	#if not biome_noise:
-		#return 0.0
-	#return biome_noise.get_noise_2dv(world_xz)
-
-#func get_biome_weights_world(world_xz: Vector2i) -> PackedFloat32Array:
-	#var weights: PackedFloat32Array
-	#for biome: Biome in biomes:
-		#weights.append(biome.get_weight(world_xz))
-	#var max_biome_i: int = -1
-	#var max_value: float = -1.0
-	#for i: int in biomes.size():
-		#var value := biomes[i].get_weight(world_xz)
-		#if value > max_value:
-			#max_biome_i = i
-	#
-	#return max_biome_i
-
-# DEPRECATED
 @warning_ignore_start("integer_division")
-func sample(world_position: Vector2, vertex_spacing: Vector2) -> float:
+func get_height_world(world_xz: Vector2) -> float:
 	if _height_images.is_empty():
 		return 0.0
-	var inv_scale := Vector2.ONE / vertex_spacing
-	var map_position := Vector2i((world_position * inv_scale).floor())
-	var texel := map_position - _origins[0] + _image_size / 2;
+	var lod_cell := Vector2i((world_xz * _inv_scales[0]).floor())
+	var texel := lod_cell - _origins[0] + _image_size / 2;
 	if not Rect2i(Vector2i.ZERO, _image_size).has_point(texel):
 		return 0.0
 	return _height_images[0].get_pixelv(texel).r
 
-func create_maps(ring_size: Vector2i, lod_count: int):
-	_image_size = ring_size
+# TODO: biome modifiers
+func get_height_local(local_xz: Vector2i):
+	if not continental_noise:
+		return 0.0
+	var c := continental_noise.get_noise_2dv(local_xz) * 0.5 + 0.5
+	c = c * c * continental_amplitude
+	return c
+
+func create_maps(image_size: Vector2i, lod_count: int, vertex_spacing: Vector2):
 	clear_maps()
+	_image_size = image_size
+	_vertex_spacing = _vertex_spacing
+	
+	_origins.resize(lod_count)
+	_inv_scales.resize(lod_count)
+	_height_images.resize(lod_count)
+	_control_images.resize(lod_count)
 	
 	for lod: int in lod_count:
-		var cell_size := 1 << lod
-		_origins.append(Vector2i((origin / cell_size).floor()))
-		_height_images.append(Image.create_empty(_image_size.x, _image_size.y, false, Image.FORMAT_RF))
-		_control_images.append(Image.create_empty(_image_size.x, _image_size.y, false, Image.FORMAT_RF))
-		_generate_region(lod, Rect2i(Vector2.ZERO, ring_size))
+		_inv_scales[lod] = Vector2.ONE * pow(2.0, -lod) / vertex_spacing
+		_origins[lod] = Vector2i((origin * _inv_scales[lod]).floor())
+		
+		_height_images[lod] = Image.create_empty(_image_size.x, _image_size.y, false, Image.FORMAT_RF)
+		_control_images[lod] = Image.create_empty(_image_size.x, _image_size.y, false, Image.FORMAT_RF)
+		_generate_region(lod, Rect2i(Vector2.ZERO, _image_size))
 	
 	_height_textures = Texture2DArray.new()
 	_height_textures.create_from_images(_height_images)
@@ -112,6 +85,8 @@ func create_maps(ring_size: Vector2i, lod_count: int):
 	_control_textures.create_from_images(_control_images)
 	
 	maps_created.emit()
+	
+	print(_image_size)
 
 func clear_maps():
 	_height_images.clear()
@@ -119,6 +94,7 @@ func clear_maps():
 	_control_images.clear()
 	_control_textures = null
 	_origins.clear()
+	_inv_scales.clear()
 
 func shift_maps():
 	if _height_images.is_empty():
@@ -128,8 +104,7 @@ func shift_maps():
 	var dirty: bool = false
 	
 	for lod: int in _height_images.size():
-		var cell_size := 1 << lod
-		var new_origin := Vector2i((origin / cell_size).floor())
+		var new_origin := Vector2i((origin * _inv_scales[lod]).floor())
 		
 		if _try_shift_lod(lod, new_origin):
 			_height_textures.update_layer(_height_images[lod], lod)
@@ -140,7 +115,7 @@ func shift_maps():
 		maps_redrawn.emit()
 
 # TODO: use previous lod samples now that they get more expensive, 25% cheaper
-# TODO: unify logic with shader transformations
+# TODO: unify logic with shader transformations, could use Vector2 instead
 func _generate_region(lod: int, image_rect: Rect2i):
 	var image_center := _image_size / 2
 	
@@ -148,11 +123,11 @@ func _generate_region(lod: int, image_rect: Rect2i):
 		for x: int in image_rect.size.x:
 			var image_p := Vector2i(x, y) + image_rect.position
 			var centered_p := image_p - image_center
-			var world_xz := (_origins[lod] + centered_p) * (1 << lod)
+			var local_xz := (_origins[lod] + centered_p) * (1 << lod)
 			
 			#var biome := get_biome_world(world_xz)
-			#_control_images[lod].set_pixelv(image_p, Color(get_control_world(world_xz), 0.0, 0.0))
-			_height_images[lod].set_pixelv(image_p, Color(get_height_world(world_xz), 0.0, 0.0))
+			#_control_images[lod].set_pixelv(image_p, Color(get_control_local(local_xz), 0.0, 0.0))
+			_height_images[lod].set_pixelv(image_p, Color(get_height_local(local_xz), 0.0, 0.0))
 			
 
 func _try_shift_lod(lod: int, new_origin: Vector2i) -> bool:

@@ -12,6 +12,8 @@ var _render_layer: int
 var _height_amplitude: float = 0.1
 var _height_maps_rid: RID
 var _control_maps_rid: RID
+var _albedo_textures_rid: RID
+var _normal_textures_rid: RID
 var _map_origin: Vector2 # TODO: this is the same as p_xz
 
 var _instance_rids: Array[RID]
@@ -66,6 +68,13 @@ func update_map_rids(height_maps_rid: RID, control_maps_rid: RID):
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"_height_maps", _height_maps_rid)
 		RenderingServer.material_set_param(_material_rid, &"_control_maps", _control_maps_rid)
+
+func update_texture_arrays(albedo_textures_rid: RID, normal_textures_rid: RID):
+	_albedo_textures_rid = albedo_textures_rid
+	_normal_textures_rid = normal_textures_rid
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"_albedo_textures", _albedo_textures_rid)
+		RenderingServer.material_set_param(_material_rid, &"_normal_textures", _normal_textures_rid)
 
 func update_height_amplitude(height_amplitude: float):
 	_height_amplitude = maxf(height_amplitude, 0.1)
