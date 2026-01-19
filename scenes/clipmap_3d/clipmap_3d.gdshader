@@ -31,7 +31,7 @@ varying float lod_blend_mask;
 
 varying flat vec3 debug_albedo;
 
-const float EPSILON = 10e-6;
+const float EPSILON = 1e-6;
 
 struct Material {
 	vec4 albedo_height;
@@ -233,6 +233,6 @@ void fragment() {
 	//int biome = int(floor(texture(_control_maps, vec3(UV, lod)).r * float(biome_count) - EPSILON));
 	//ALBEDO = vec3(float(biome == 3 || biome == 4));
 	
-	ALBEDO = debug_albedo;
+	//ALBEDO = debug_albedo;
 	//ALBEDO = vec3(0.7);
 }

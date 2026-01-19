@@ -7,7 +7,7 @@ signal about_to_reload
 ## Emitted from the rendering thread whenever the shader is hot reloaded
 signal reloaded
 
-const SHADER_FILE := preload("res://scenes/compute/compute.glsl")
+const SHADER_FILE := preload("res://scenes/clipmap_3d/compute/compute.glsl")
 
 var _shader_rid: RID
 

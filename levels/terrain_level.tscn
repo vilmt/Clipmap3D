@@ -24,7 +24,13 @@ glow_enabled = true
 
 [sub_resource type="Resource" id="Resource_acxjd"]
 script = ExtResource("2_6mm2f")
-amplitude = 150.0
+noise_type = 1
+amplitude = 1200.0
+frequency = 0.05
+fractal_enabled = true
+fractal_octaves = 8
+fractal_lacunarity = 2.085
+fractal_gain = 0.44
 metadata/_custom_type_script = "uid://s5kw1dtk4mvf"
 
 [sub_resource type="Resource" id="Resource_waa5k"]
@@ -54,7 +60,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 182.46222, 0.00012207031, -15.387817)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.622559, 0.00012207031, -369.05444)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_waa5k")
 follow_target = NodePath("../Player")
@@ -69,7 +75,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 182.46222, 141.40024, -15.387817)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.622559, 947.65454, -369.05444)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

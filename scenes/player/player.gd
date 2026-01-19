@@ -75,7 +75,7 @@ func _ready() -> void:
 	state_machine.add_state(_fly)
 	state_machine.queue_state(_walk)
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	if is_on_floor():
 		_last_grounded_ticks = Time.get_ticks_msec()
 	state_machine.update()

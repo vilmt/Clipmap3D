@@ -41,6 +41,9 @@ var _lod_count: int
 var _vertex_spacing: Vector2
 var _world_origin: Vector2
 
+var _origins: Array[Vector2]
+var _dirty: Array[bool]
+
 func has_maps() -> bool:
 	return not _map_rids.is_empty()
 
@@ -72,8 +75,15 @@ func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_s
 func shift_maps(world_origin: Vector2) -> void:
 	if not _rd:
 		return
-	# TODO: only regen shifted maps
 	_world_origin = world_origin
+	
+	for lod: int in _lod_count:
+		var inv_scale := Vector2.ONE / (_vertex_spacing * float(1 << lod))
+		var origin := (_world_origin * inv_scale).floor()
+		if origin.is_equal_approx(_origins[lod]):
+			continue
+		_origins[lod] = origin
+		_dirty[lod] = true
 	
 	RenderingServer.call_on_render_thread(_compute_threaded)
 
@@ -100,31 +110,46 @@ func _initialize_threaded():
 	_uniform_set_rid = _rd.uniform_set_create(uniforms, shader_rid, 0)
 	_pipeline_rid = _rd.compute_pipeline_create(shader_rid)
 	
+	_dirty.resize(_lod_count)
+	_dirty.fill(true)
+	_origins.resize(_lod_count)
+	for lod: int in _lod_count:
+		var inv_scale := Vector2.ONE / (_vertex_spacing * float(1 << lod))
+		_origins[lod] = (_world_origin * inv_scale).floor()
+	
 	_compute_threaded(false)
 	maps_created.emit()
 
 func _compute_threaded(use_signal: bool = true) -> void:
 	var noise_data := _encode_noise_array([continental_noise])
-	_rd.buffer_update(_noise_buffer_rid, 0, MAX_NOISES * Clipmap3DNoiseParams.ENCODED_SIZE, noise_data)
+	_rd.buffer_update(_noise_buffer_rid, 0, noise_data.size(), noise_data)
 	
-	var compute_list := _rd.compute_list_begin()
-	_rd.compute_list_bind_compute_pipeline(compute_list, _pipeline_rid)
-	_rd.compute_list_bind_uniform_set(compute_list, _uniform_set_rid, 0)
-	
-	var push := PackedByteArray()
-	push.resize(16)
-	
-	push.encode_float(0, _world_origin.x)
-	push.encode_float(4, _world_origin.y)
-	push.encode_float(8, _vertex_spacing.x)
-	push.encode_float(12, _vertex_spacing.y)
-	
-	_rd.compute_list_set_push_constant(compute_list, push, push.size())
-	
+	# TODO: try adding strips back... there is no escape
 	var groups_x := ceili(_size.x / 8.0)
 	var groups_y := ceili(_size.y / 8.0)
-	_rd.compute_list_dispatch(compute_list, groups_x, groups_y, _lod_count)
-	_rd.compute_list_end()
+	for lod: int in _lod_count:
+		if not _dirty[lod]:
+			continue
+		var compute_list := _rd.compute_list_begin()
+		_rd.compute_list_bind_compute_pipeline(compute_list, _pipeline_rid)
+		_rd.compute_list_bind_uniform_set(compute_list, _uniform_set_rid, 0)
+		
+		var push := PackedByteArray()
+		push.resize(32)
+		
+		push.encode_float(0, _world_origin.x)
+		push.encode_float(4, _world_origin.y)
+		push.encode_float(8, _vertex_spacing.x)
+		push.encode_float(12, _vertex_spacing.y)
+		push.encode_s32(16, 1) # noise count
+		push.encode_s32(20, lod)
+		
+		_rd.compute_list_set_push_constant(compute_list, push, push.size())
+		
+		_rd.compute_list_dispatch(compute_list, groups_x, groups_y, 1)
+		_rd.compute_list_end()
+		
+		_dirty[lod] = false
 	
 	if use_signal:
 		maps_redrawn.emit()
@@ -196,7 +221,6 @@ func _encode_noise_array(noises: Array[Clipmap3DNoiseParams]) -> PackedByteArray
 	var data := PackedByteArray()
 	for noise in noises:
 		data.append_array(noise.encode())
-	data.resize(MAX_NOISES * Clipmap3DNoiseParams.ENCODED_SIZE)
 	return data
 
 # DEBUG

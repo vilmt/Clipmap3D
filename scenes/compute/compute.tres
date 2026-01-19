@@ -1,7 +1,0 @@
-[gd_resource type="ShaderMaterial" format=3 uid="uid://do0ksg7goijeg"]
-
-[ext_resource type="Shader" uid="uid://dx5solns5ah2d" path="res://scenes/compute/compute.gdshader" id="1_6ifmv"]
-
-[resource]
-render_priority = 0
-shader = ExtResource("1_6ifmv")

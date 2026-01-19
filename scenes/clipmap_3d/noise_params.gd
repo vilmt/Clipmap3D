@@ -6,11 +6,6 @@ class_name Clipmap3DNoiseParams extends Resource
 		noise_type = value
 		emit_changed()
 
-@export var ridged: bool = false:
-	set(value):
-		ridged = value
-		emit_changed()
-
 @warning_ignore("shadowed_global_identifier")
 @export var seed: int = 1337:
 	set(value):
@@ -30,6 +25,11 @@ class_name Clipmap3DNoiseParams extends Resource
 @export var offset := Vector2.ZERO:
 	set(value):
 		offset = value
+		emit_changed()
+
+@export var absolute: bool = false:
+	set(value):
+		absolute = value
 		emit_changed()
 
 @export_group("Fractal", "fractal_")
@@ -73,17 +73,18 @@ const ENCODED_SIZE: int = 64
 func encode() -> PackedByteArray:
 	var result: PackedByteArray
 	result.resize(ENCODED_SIZE)
-	result.encode_u32(0, int(true))
-	result.encode_u32(4, int(ridged))
-	result.encode_s32(8, seed)
-	result.encode_float(12, amplitude)
-	result.encode_float(16, frequency)
-	result.encode_float(20, offset.x)
-	result.encode_float(24, offset.y)
+	result.encode_s32(0, noise_type)
+	result.encode_s32(4, seed)
+	result.encode_float(8, amplitude)
+	result.encode_float(12, frequency)
+	result.encode_float(16, offset.x)
+	result.encode_float(20, offset.y)
+	result.encode_u32(24, int(absolute))
 	result.encode_s32(28, fractal_type if fractal_enabled else 0)
 	result.encode_s32(32, fractal_octaves)
 	result.encode_float(36, fractal_lacunarity)
 	result.encode_float(40, fractal_gain)
 	result.encode_float(44, fractal_weighted_strength)
 	result.encode_float(48, fractal_ping_pong_strength)
+	
 	return result
