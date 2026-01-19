@@ -24,8 +24,9 @@ class_name Clipmap3D extends Node3D
 		if not is_node_ready():
 			return
 		
-		_recalculate_source_origin()
 		mesh_vertex_spacing_changed.emit(mesh_vertex_spacing)
+		_mark_source_dirty()
+		#_recalculate_source_origin()
 		
 @export var mesh_tile_size := Vector2i(32, 32):
 	set(value):
@@ -35,6 +36,7 @@ class_name Clipmap3D extends Node3D
 		if not is_node_ready():
 			return
 		mesh_tile_size_changed.emit(mesh_tile_size)
+		_mark_source_dirty()
 
 # NOTE: arbitrary lower limit of 2 because of https://github.com/godotengine/godot/issues/115103
 @export_range(2, 10, 1) var mesh_lod_count: int = 5:
@@ -181,7 +183,7 @@ func _exit_tree() -> void:
 	if not Engine.is_editor_hint():
 		_collision_handler.clear()
 
-func _physics_process(_delta: float) -> void:
+func _process(_delta: float) -> void:
 	_update_position()
 
 func _update_position():
@@ -196,43 +198,39 @@ func _update_position():
 	_recalculate_source_origin()
 	target_position_changed.emit(global_position)
 
-#func _physics_process(_delta: float) -> void:
-	#_collision_handler.update()
+func _physics_process(_delta: float) -> void:
+	_collision_handler.update()
 
 func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_EXIT_WORLD:
+			_disconnect_source()
 			_mesh_handler.update_scenario_rid(RID())
 		NOTIFICATION_VISIBILITY_CHANGED:
 			_mesh_handler.update_visible(is_visible_in_tree())
 
 func _connect_source():
-	if not source or source.parameters_changed.is_connected(_mark_source_dirty):
+	if not source or source.changed.is_connected(_on_source_changed):
 		return
+	source.changed.connect(_on_source_changed)
 	source.maps_created.connect(_on_source_maps_created)
-	source.amplitude_changed.connect(_on_source_amplitude_changed)
-	source.parameters_changed.connect(_mark_source_dirty)
-	mesh_tile_size_changed.connect(_mark_source_dirty)
 	_mark_source_dirty()
 
 func _disconnect_source():
-	if not source or not source.parameters_changed.is_connected(_mark_source_dirty):
+	if not source or not source.changed.is_connected(_on_source_changed):
 		return
+	source.changed.disconnect(_on_source_changed)
 	source.maps_created.disconnect(_on_source_maps_created)
-	source.amplitude_changed.disconnect(_on_source_amplitude_changed)
-	source.parameters_changed.disconnect(_mark_source_dirty)
-	mesh_tile_size_changed.disconnect(_mark_source_dirty)
+	source.clear_maps()
 
 func _recalculate_source_origin():
 	if not source or not source.has_maps():
 		return
-	# TODO: remake maps on vert spacing change
 	source.shift_maps(Vector2(global_position.x, global_position.z))
 
-func _on_source_amplitude_changed(amplitude: float):
-	_mesh_handler.update_height_amplitude(amplitude)
-	_mark_source_dirty()
-
 func _on_source_maps_created():
-	#pass
 	_mesh_handler.update_map_rids(source.get_map_rids())
+	
+func _on_source_changed():
+	_mesh_handler.update_height_amplitude(source.get_height_amplitude())
+	_mark_source_dirty()

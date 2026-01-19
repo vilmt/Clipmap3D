@@ -2,12 +2,10 @@
 
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://scenes/clipmap_3d/clipmap_3d.gd" id="1_a1u1q"]
 [ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/clipmap_3d/clipmap_3d.tres" id="1_tog6l"]
+[ext_resource type="Script" uid="uid://s5kw1dtk4mvf" path="res://scenes/clipmap_3d/noise_params.gd" id="2_6mm2f"]
 [ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/clipmap_3d/source/noise_source.gd" id="3_wt30j"]
-[ext_resource type="Script" uid="uid://bghnyaj4fsaan" path="res://scenes/clipmap_3d/instancer/instancer.gd" id="4_6mm2f"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="4_owj7c"]
-[ext_resource type="Material" uid="uid://cor7kynnsfh01" path="res://scenes/grass/grass.tres" id="5_acxjd"]
 [ext_resource type="PackedScene" uid="uid://dm3mdkroo5725" path="res://scenes/ball/ball.tscn" id="5_vn06u"]
-[ext_resource type="Material" uid="uid://bekhxmsm5ef5y" path="res://scenes/clipmap_3d/instancer/instancer.tres" id="5_waa5k"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tjx8f"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -24,14 +22,15 @@ glow_enabled = true
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pvg1d"]
 
-[sub_resource type="Resource" id="Resource_um6qw"]
-script = ExtResource("3_wt30j")
-continental_amplitude = 50.0
-metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
+[sub_resource type="Resource" id="Resource_acxjd"]
+script = ExtResource("2_6mm2f")
+amplitude = 150.0
+metadata/_custom_type_script = "uid://s5kw1dtk4mvf"
 
-[sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_waa5k"]
-material = ExtResource("5_acxjd")
-shape = 0
+[sub_resource type="Resource" id="Resource_waa5k"]
+script = ExtResource("3_wt30j")
+continental_noise = SubResource("Resource_acxjd")
+metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="BoxMesh" id="BoxMesh_tjx8f"]
 size = Vector3(1000, 100, 100)
@@ -55,23 +54,14 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 234.9, 0.00012207031, -15.387817)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 182.46222, 0.00012207031, -15.387817)
 script = ExtResource("1_a1u1q")
-source = SubResource("Resource_um6qw")
+source = SubResource("Resource_waa5k")
 follow_target = NodePath("../Player")
 mesh_tile_size = Vector2i(48, 48)
+mesh_lod_count = 7
 material = ExtResource("1_tog6l")
 collision_targets = [NodePath("../Player")]
-
-[node name="Clipmap3DInstancer" type="Node3D" parent="Clipmap3D" unique_id=1412272999]
-visible = false
-script = ExtResource("4_6mm2f")
-rows_and_columns = Vector2i(50, 50)
-fixed_fps = 30
-process_material = ExtResource("5_waa5k")
-mesh = SubResource("RibbonTrailMesh_waa5k")
-
-[node name="Node2D" type="Node2D" parent="Clipmap3D" unique_id=730983112]
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=749457015]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 250.2037, 0)
@@ -79,7 +69,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 234.9, 473.7893, -15.387817)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 182.46222, 141.40024, -15.387817)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

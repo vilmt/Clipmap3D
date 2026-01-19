@@ -158,17 +158,14 @@ void fragment() {
 	vec2 scale = 1.0 / float(1 << vertex_lod) / _vertex_spacing;
 	vec3 normal = normalize(vec3(grad.x * scale.x, 1.0, grad.y * scale.y));
 	
-	//if (lod_blend_mask > EPSILON) {
-		//float lod_1 = lod + 1.0;
-		//float h_1 = texture(_height_maps, vec3(UV2, lod_1)).r;
-		//float r_1 = texture(_height_maps, vec3(UV2 + vec2(texel.x, 0.0), lod_1)).r;
-		//float u_1 = texture(_height_maps, vec3(UV2 + vec2(0.0, texel.y), lod_1)).r;
-		//
-		//vec2 scale_1 = scale * 0.5;
-		//vec3 normal_1 = normalize(vec3((h_1 - r_1) * scale_1.x, 1.0, (h_1 - u_1) * scale_1.y));
-	//
-		//normal = mix(normal, normal_1, lod_blend_mask);
-	//}
+	if (lod_blend_mask > EPSILON) {
+		float lod_1 = lod + 1.0;
+		vec2 grad_1 = texture(_normal_maps, vec3(UV2, lod_1)).rg;
+		vec2 scale_1 = scale * 0.5;
+		vec3 normal_1 = normalize(vec3(grad_1.x * scale_1.x, 1.0, grad_1.y * scale_1.y));
+	
+		normal = mix(normal, normal_1, lod_blend_mask);
+	}
 	
 	vec3 tangent = normalize(cross(normal, vec3(0.0, 0.0, 1.0)));
 	vec3 binormal = normalize(cross(normal, tangent));

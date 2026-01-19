@@ -62,14 +62,14 @@ func _mark_meshes_dirty():
 	_meshes_dirty = true
 	_rebuild.call_deferred()
 
-func update_map_rids(map_rids: Array[RID]):
+func update_map_rids(map_rids: Dictionary[Clipmap3DNoiseSource.TextureType, RID]):
 	if _material_rid:
-		if map_rids.is_empty():
-			map_rids.resize(3)
-			map_rids.fill(RID())
-		RenderingServer.material_set_param(_material_rid, &"_height_maps", map_rids[0])
-		RenderingServer.material_set_param(_material_rid, &"_normal_maps", map_rids[1])
-		RenderingServer.material_set_param(_material_rid, &"_control_maps", map_rids[2])
+		var height_maps: RID = map_rids.get(Clipmap3DNoiseSource.TextureType.HEIGHT, RID())
+		var normal_maps: RID = map_rids.get(Clipmap3DNoiseSource.TextureType.NORMAL, RID())
+		var control_maps: RID = map_rids.get(Clipmap3DNoiseSource.TextureType.CONTROL, RID())
+		RenderingServer.material_set_param(_material_rid, &"_height_maps", height_maps)
+		RenderingServer.material_set_param(_material_rid, &"_normal_maps", normal_maps)
+		RenderingServer.material_set_param(_material_rid, &"_control_maps", control_maps)
 
 #func update_texture_arrays(albedo_textures_rid: RID, normal_textures_rid: RID):
 	#_albedo_textures_rid = albedo_textures_rid
