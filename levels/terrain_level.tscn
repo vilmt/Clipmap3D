@@ -2,8 +2,7 @@
 
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://scenes/clipmap_3d/clipmap_3d.gd" id="1_a1u1q"]
 [ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://scenes/clipmap_3d/clipmap_3d.tres" id="1_tog6l"]
-[ext_resource type="Script" uid="uid://s5kw1dtk4mvf" path="res://scenes/clipmap_3d/noise_params.gd" id="2_6mm2f"]
-[ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/clipmap_3d/source/noise_source.gd" id="3_wt30j"]
+[ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://scenes/clipmap_3d/source/compute_source.gd" id="3_wt30j"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://scenes/player/player.tscn" id="4_owj7c"]
 [ext_resource type="PackedScene" uid="uid://dm3mdkroo5725" path="res://scenes/ball/ball.tscn" id="5_vn06u"]
 
@@ -22,20 +21,8 @@ glow_enabled = true
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pvg1d"]
 
-[sub_resource type="Resource" id="Resource_acxjd"]
-script = ExtResource("2_6mm2f")
-noise_type = 1
-amplitude = 1200.0
-frequency = 0.05
-fractal_enabled = true
-fractal_octaves = 8
-fractal_lacunarity = 2.085
-fractal_gain = 0.44
-metadata/_custom_type_script = "uid://s5kw1dtk4mvf"
-
-[sub_resource type="Resource" id="Resource_waa5k"]
+[sub_resource type="Resource" id="Resource_vn06u"]
 script = ExtResource("3_wt30j")
-continental_noise = SubResource("Resource_acxjd")
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="BoxMesh" id="BoxMesh_tjx8f"]
@@ -60,12 +47,12 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.622559, 0.00012207031, -369.05444)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -254.98999, 0.00012207031, -608.20795)
 script = ExtResource("1_a1u1q")
-source = SubResource("Resource_waa5k")
+source = SubResource("Resource_vn06u")
 follow_target = NodePath("../Player")
 mesh_tile_size = Vector2i(48, 48)
-mesh_lod_count = 7
+mesh_lod_count = 8
 material = ExtResource("1_tog6l")
 collision_targets = [NodePath("../Player")]
 
@@ -75,7 +62,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.622559, 947.65454, -369.05444)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -254.98999, 947.65454, -608.20795)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

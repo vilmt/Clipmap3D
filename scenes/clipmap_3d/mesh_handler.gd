@@ -14,7 +14,6 @@ var _height_maps_rid: RID
 var _control_maps_rid: RID
 var _albedo_textures_rid: RID
 var _normal_textures_rid: RID
-var _map_origin: Vector2 # TODO: this is the same as p_xz
 
 var _instance_rids: Array[RID]
 var _instance_mesh_types: Array[MeshType]
@@ -62,11 +61,11 @@ func _mark_meshes_dirty():
 	_meshes_dirty = true
 	_rebuild.call_deferred()
 
-func update_map_rids(map_rids: Dictionary[Clipmap3DNoiseSource.TextureType, RID]):
+func update_map_rids(map_rids: Dictionary[Clipmap3DSource.TextureType, RID]):
 	if _material_rid:
-		var height_maps: RID = map_rids.get(Clipmap3DNoiseSource.TextureType.HEIGHT, RID())
-		var normal_maps: RID = map_rids.get(Clipmap3DNoiseSource.TextureType.NORMAL, RID())
-		var control_maps: RID = map_rids.get(Clipmap3DNoiseSource.TextureType.CONTROL, RID())
+		var height_maps: RID = map_rids.get(Clipmap3DSource.TextureType.HEIGHT, RID())
+		var normal_maps: RID = map_rids.get(Clipmap3DSource.TextureType.NORMAL, RID())
+		var control_maps: RID = map_rids.get(Clipmap3DSource.TextureType.CONTROL, RID())
 		RenderingServer.material_set_param(_material_rid, &"_height_maps", height_maps)
 		RenderingServer.material_set_param(_material_rid, &"_normal_maps", normal_maps)
 		RenderingServer.material_set_param(_material_rid, &"_control_maps", control_maps)

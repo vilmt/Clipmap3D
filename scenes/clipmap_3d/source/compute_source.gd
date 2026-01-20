@@ -1,32 +1,12 @@
 @tool
-class_name Clipmap3DNoiseSource extends Clipmap3DSource
+class_name Clipmap3DComputeSource extends Clipmap3DSource
 
-# TODO: parameters for each noise instance 
+@export var max_altitude: float = 800.0
 
-# TODO: nulling this crashes editor
-@export var continental_noise: Clipmap3DNoiseParams:
+@export var compute_seed: int = 0:
 	set(value):
-		if continental_noise == value:
-			return
-		_disconnect_noise_params(continental_noise)
-		continental_noise = value
-		#if not has_maps():
-			#return
-		_connect_noise_params(continental_noise)
+		compute_seed = value
 		emit_changed()
-
-func _connect_noise_params(noise_params: Clipmap3DNoiseParams):
-	if noise_params and not noise_params.changed.is_connected(emit_changed):
-		noise_params.changed.connect(emit_changed)
-
-func _disconnect_noise_params(noise_params: Clipmap3DNoiseParams):
-	if noise_params and noise_params.changed.is_connected(emit_changed):
-		noise_params.changed.disconnect(emit_changed)
-
-#@export var mountain_noise: Noise
-#@export var ridge_noise: Noise
-
-const MAX_NOISES: int = 8
 
 static var _rd := RenderingServer.get_rendering_device()
 
@@ -34,7 +14,6 @@ var _uniform_set_rid: RID
 var _pipeline_rid: RID
 var _texture_rd_rids: Dictionary[TextureType, RID]
 var _map_rids: Dictionary[TextureType, RID]
-var _noise_buffer_rid: RID
 
 var _size: Vector2i
 var _lod_count: int
@@ -51,10 +30,7 @@ func get_map_rids() -> Dictionary[TextureType, RID]:
 	return _map_rids
 
 func get_height_amplitude():
-	var result: float = 0.0
-	if continental_noise:
-		result += continental_noise.amplitude
-	return result
+	return max_altitude
 
 func get_height_world(world_xz: Vector2) -> float:
 	return 0.0
@@ -103,8 +79,7 @@ func _initialize_threaded():
 	var uniforms: Array[RDUniform] = [
 		_create_texture_uniform_threaded(TextureType.HEIGHT, 0),
 		_create_texture_uniform_threaded(TextureType.NORMAL, 1),
-		_create_texture_uniform_threaded(TextureType.CONTROL, 2),
-		_create_noise_buffer_threaded(3)
+		_create_texture_uniform_threaded(TextureType.CONTROL, 2)
 	]
 	
 	_uniform_set_rid = _rd.uniform_set_create(uniforms, shader_rid, 0)
@@ -121,9 +96,6 @@ func _initialize_threaded():
 	maps_created.emit()
 
 func _compute_threaded(use_signal: bool = true) -> void:
-	var noise_data := _encode_noise_array([continental_noise])
-	_rd.buffer_update(_noise_buffer_rid, 0, noise_data.size(), noise_data)
-	
 	# TODO: try adding strips back... there is no escape
 	var groups_x := ceili(_size.x / 8.0)
 	var groups_y := ceili(_size.y / 8.0)
@@ -141,8 +113,8 @@ func _compute_threaded(use_signal: bool = true) -> void:
 		push.encode_float(4, _world_origin.y)
 		push.encode_float(8, _vertex_spacing.x)
 		push.encode_float(12, _vertex_spacing.y)
-		push.encode_s32(16, 1) # noise count
-		push.encode_s32(20, lod)
+		push.encode_s32(16, lod)
+		push.encode_s32(20, compute_seed)
 		
 		_rd.compute_list_set_push_constant(compute_list, push, push.size())
 		
@@ -168,9 +140,6 @@ func _free_rids_threaded() -> void:
 	_map_rids.clear()
 	for rid: RID in _texture_rd_rids.values():
 		_rd.free_rid(rid)
-	if _noise_buffer_rid:
-		_rd.free_rid(_noise_buffer_rid)
-		_noise_buffer_rid = RID()
 	_texture_rd_rids.clear()
 
 func _create_texture_uniform_threaded(type: TextureType, binding: int) -> RDUniform:
@@ -193,17 +162,6 @@ func _create_texture_uniform_threaded(type: TextureType, binding: int) -> RDUnif
 	uniform.uniform_type = _rd.UNIFORM_TYPE_IMAGE
 	uniform.binding = binding
 	uniform.add_id(_texture_rd_rids[type])
-	
-	return uniform
-
-func _create_noise_buffer_threaded(binding: int) -> RDUniform:
-	var size := MAX_NOISES * Clipmap3DNoiseParams.ENCODED_SIZE
-	_noise_buffer_rid = _rd.storage_buffer_create(size)
-	
-	var uniform := RDUniform.new()
-	uniform.uniform_type = _rd.UNIFORM_TYPE_STORAGE_BUFFER
-	uniform.binding = binding
-	uniform.add_id(_noise_buffer_rid)
 	
 	return uniform
 
