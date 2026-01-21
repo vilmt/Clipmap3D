@@ -23,10 +23,11 @@ glow_enabled = true
 
 [sub_resource type="Resource" id="Resource_vn06u"]
 script = ExtResource("3_wt30j")
+height_amplitude = 1000.0
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="BoxMesh" id="BoxMesh_tjx8f"]
-size = Vector3(1000, 100, 100)
+size = Vector3(100, 3000, 100)
 
 [node name="TerrainLevel" type="Node3D" unique_id=932743419]
 
@@ -47,22 +48,22 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -254.98999, 0.00012207031, -608.20795)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 170.03656, 0.00012207031, -330.42017)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_vn06u")
 follow_target = NodePath("../Player")
 mesh_tile_size = Vector2i(48, 48)
-mesh_lod_count = 8
+mesh_lod_count = 7
 material = ExtResource("1_tog6l")
 collision_targets = [NodePath("../Player")]
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=749457015]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 250.2037, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1446.2037, 0)
 visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -254.98999, 947.65454, -608.20795)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 170.03656, 1166.2179, -330.42017)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)

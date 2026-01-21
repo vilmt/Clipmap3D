@@ -154,6 +154,7 @@ void fragment() {
 	
 	float lod = float(vertex_lod);
 	
+	// TODO: texelFetch + slerp
 	vec2 grad = texture(_normal_maps, vec3(UV, lod)).rg;
 	vec2 scale = 1.0 / float(1 << vertex_lod) / _vertex_spacing;
 	vec3 normal = normalize(vec3(grad.x * scale.x, 1.0, grad.y * scale.y));

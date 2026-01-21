@@ -1,7 +1,10 @@
 @tool
 class_name Clipmap3DComputeSource extends Clipmap3DSource
 
-@export var max_altitude: float = 800.0
+@export var height_amplitude: float = 800.0:
+	set(value):
+		height_amplitude = value
+		emit_changed()
 
 @export var compute_seed: int = 0:
 	set(value):
@@ -30,7 +33,7 @@ func get_map_rids() -> Dictionary[TextureType, RID]:
 	return _map_rids
 
 func get_height_amplitude():
-	return max_altitude
+	return height_amplitude
 
 func get_height_world(world_xz: Vector2) -> float:
 	return 0.0
@@ -115,6 +118,7 @@ func _compute_threaded(use_signal: bool = true) -> void:
 		push.encode_float(12, _vertex_spacing.y)
 		push.encode_s32(16, lod)
 		push.encode_s32(20, compute_seed)
+		push.encode_float(24, height_amplitude)
 		
 		_rd.compute_list_set_push_constant(compute_list, push, push.size())
 		
