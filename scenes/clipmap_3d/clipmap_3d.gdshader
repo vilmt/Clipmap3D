@@ -156,14 +156,14 @@ void fragment() {
 	
 	// TODO: texelFetch + slerp
 	vec2 grad = texture(_normal_maps, vec3(UV, lod)).rg;
-	vec2 scale = 1.0 / float(1 << vertex_lod) / _vertex_spacing;
-	vec3 normal = normalize(vec3(grad.x * scale.x, 1.0, grad.y * scale.y));
+	vec2 scale = 1.0 / (_vertex_spacing * float(1 << vertex_lod));
+	vec3 normal = normalize(vec3(-grad.x * scale.x, 1.0, -grad.y * scale.y));
 	
 	if (lod_blend_mask > EPSILON) {
 		float lod_1 = lod + 1.0;
 		vec2 grad_1 = texture(_normal_maps, vec3(UV2, lod_1)).rg;
 		vec2 scale_1 = scale * 0.5;
-		vec3 normal_1 = normalize(vec3(grad_1.x * scale_1.x, 1.0, grad_1.y * scale_1.y));
+		vec3 normal_1 = normalize(vec3(-grad_1.x * scale_1.x, 1.0, -grad_1.y * scale_1.y));
 	
 		normal = mix(normal, normal_1, lod_blend_mask);
 	}
