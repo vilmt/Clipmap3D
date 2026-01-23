@@ -6,6 +6,11 @@ class_name Clipmap3DComputeSource extends Clipmap3DSource
 		height_amplitude = value
 		emit_changed()
 
+@export var dumb_scale: float = 0.1:
+	set(value):
+		dumb_scale = value
+		emit_changed()
+
 @export var compute_seed: int = 0:
 	set(value):
 		compute_seed = value
@@ -119,6 +124,7 @@ func _compute_threaded(use_signal: bool = true) -> void:
 		push.encode_s32(16, lod)
 		push.encode_s32(20, compute_seed)
 		push.encode_float(24, height_amplitude)
+		push.encode_float(28, dumb_scale)
 		
 		_rd.compute_list_set_push_constant(compute_list, push, push.size())
 		

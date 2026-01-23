@@ -14,16 +14,22 @@ layout(push_constant, std430) uniform Params {
 	int lod;
 	int noise_seed; // TODO
 	float amplitude;
-	float pad2;
+	float scale;
 
 } params;
 
 #define EPSILON 1e-6
+#define PI 3.14159265358979
 
-vec2 hash(in vec2 x) {
-	const vec2 k = vec2( 0.3183099, 0.3678794 );
-	x = x * k + k.yx;
-	return -1.0 + 2.0 * fract(16.0 * k * fract( x.x * x.y * (x.x + x.y)));
+vec2 hash21(vec2 p) {
+	const vec2 k = vec2(0.3183099, 0.3678794);
+	p = p * k + k.yx;
+	return -1.0 + 2.0 * fract(16.0 * k * fract( p.x * p.y * (p.x + p.y)));
+}
+
+vec2 hash22(vec2 p) {
+	vec2 q = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)));
+	return fract(sin(q)*43758.5453);
 }
 
 // https://www.shadertoy.com/view/XdXBRH
@@ -34,10 +40,10 @@ vec3 noised(in vec2 p) {
     vec2 u = f*f*f*(f*(f*6.0-15.0)+10.0);
     vec2 du = 30.0*f*f*(f*(f-2.0)+1.0); 
     
-    vec2 ga = hash(i + vec2(0.0, 0.0));
-    vec2 gb = hash(i + vec2(1.0, 0.0));
-    vec2 gc = hash(i + vec2(0.0, 1.0));
-    vec2 gd = hash(i + vec2(1.0, 1.0));
+    vec2 ga = hash21(i + vec2(0.0, 0.0));
+    vec2 gb = hash21(i + vec2(1.0, 0.0));
+    vec2 gc = hash21(i + vec2(0.0, 1.0));
+    vec2 gd = hash21(i + vec2(1.0, 1.0));
     
     float va = dot(ga, f - vec2(0.0, 0.0));
     float vb = dot(gb, f - vec2(1.0, 0.0));
@@ -49,23 +55,71 @@ vec3 noised(in vec2 p) {
         du * (u.yx*(va-vb-vc+vd) + vec2(vb,vc) - va));
 }
 
-vec3 height_map(vec2 uv, vec2 scale) {
+vec3 ridges(vec2 p, vec2 gradient, vec2 scale) {
+	// scaling is wrong
+	vec2 curl = gradient.yx * vec2(1.0, -1.0);
+	
+	float f = 10.0;
+	float a = 1.0;
+	
+	p *= scale * f;
+	
+	vec2 p_i = floor(p);
+	vec2 p_f = fract(p);
+	
+	float height = 0.0;
+	vec2 d = vec2(0.0);
+	
+	for (int j = -1; j <= 1; j++) {
+		for (int i = -1; i <= 1; i++) {
+			vec2 offset = vec2(float(i), float(j));
+			// all correct here
+			vec2 displacement = offset - p_f + hash22(p_i + offset) * 1.0;
+			//float distance_squared = dot(displacement, displacement);
+			float l = length(displacement);
+			float weight = smoothstep(0.0, 1.0, 1.0 - l); // = l*l*(2.0*l-3.0)+1.0 for l <= 1.0
+			
+			// mistake is HERE, direction has wrong scale
+			float alignment = dot(displacement, normalize(curl) * 0.5);
+			
+			float phase = alignment * 2.0 * PI;
+			//height += curl.y * 0.05;
+			
+			height += cos(phase) * weight;
+			//d += -sin(phase) * (displacement + curl) * weight;
+			
+		}
+	}
+	
+	height *= a;
+	
+	return vec3(height, d);
+}
+
+vec3 fbmd(vec2 p, vec2 scale) {
+	float h = 0.0;
+	vec2 d = vec2(0.0);
+	float a = 0.5;
+	float f = 1.0;
+	
+	for (int i = 0; i < 2; i++) {
+		vec3 n = noised(p * f * scale);
+		h += a * n.x;
+		d += a * n.yz * f * scale;
+		a *= 0.5;
+		f *= 1.8;
+	}
+	
+	return vec3(h, d);
+}
+
+vec3 height_map(vec2 p, vec2 scale) {
     // FBM terrain
-    vec3 h = vec3(0.0);
-    float h_f = 1.0;
-    float h_a = 0.5;
+    vec3 h = fbmd(p, scale); // all correct
 	
-    for (int i = 0; i < 8; i++) {
-		vec2 s = scale * h_f;
-        h += noised(uv * s) * h_a * vec3(1.0, s);
-		h_f *= 1.8;
-        h_a *= 0.5;
-    }
-    
-    h.x += 0.5;
-	
-	// TODO: fake erosion
-    
+	vec3 e = ridges(p, h.yz, scale);
+
+	h.x += e.x * 0.01;
 	return h;
 }
 
@@ -88,9 +142,16 @@ void main() {
 	vec2 origin = floor(params.world_origin * inv_scale + EPSILON);
 	vec2 uv = centered + origin;
 	
-	vec3 h = height_map(uv, scale * 0.001) * params.amplitude;
-
-	imageStore(height_maps, global_id, vec4(h.x, 0.0, 0.0, 0.0));
-	imageStore(normal_maps, global_id, vec4(h.yz, 0.0, 0.0));
+	vec2 sampling_scale = scale * 0.01 * params.scale;
+	
+	vec3 h_00 = height_map(uv, sampling_scale) * params.amplitude;
+	vec3 h_10 = height_map(uv + vec2(1.0, 0.0), sampling_scale) * params.amplitude;
+	vec3 h_01 = height_map(uv + vec2(0.0, 1.0), sampling_scale) * params.amplitude;
+	
+	vec2 d_h = vec2(h_00.x - h_10.x, h_00.x - h_01.x);
+	
+	imageStore(height_maps, global_id, vec4(h_00.x, 0.0, 0.0, 0.0));
+	//imageStore(normal_maps, global_id, vec4(h.yz, 0.0, 0.0));
+	imageStore(normal_maps, global_id, vec4(-d_h, 0.0, 0.0));
 	imageStore(control_maps, global_id, vec4(0.0, 0.0, 0.0, 0.0));
 }

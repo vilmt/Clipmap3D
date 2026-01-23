@@ -149,7 +149,6 @@ void accumulate(vec3 p, vec3 ddx, vec3 ddy, vec3 normal, bool projected, float w
 }
 
 void fragment() {
-	// central difference
 	vec2 texel = 1.0 / vec2(textureSize(_height_maps, 0).xy);
 	
 	float lod = float(vertex_lod);
@@ -159,14 +158,14 @@ void fragment() {
 	vec2 scale = 1.0 / (_vertex_spacing * float(1 << vertex_lod));
 	vec3 normal = normalize(vec3(-grad.x * scale.x, 1.0, -grad.y * scale.y));
 	
-	if (lod_blend_mask > EPSILON) {
-		float lod_1 = lod + 1.0;
-		vec2 grad_1 = texture(_normal_maps, vec3(UV2, lod_1)).rg;
-		vec2 scale_1 = scale * 0.5;
-		vec3 normal_1 = normalize(vec3(-grad_1.x * scale_1.x, 1.0, -grad_1.y * scale_1.y));
-	
-		normal = mix(normal, normal_1, lod_blend_mask);
-	}
+	//if (lod_blend_mask > EPSILON) {
+		//float lod_1 = lod + 1.0;
+		//vec2 grad_1 = texture(_normal_maps, vec3(UV2, lod_1)).rg;
+		//vec2 scale_1 = scale * 0.5;
+		//vec3 normal_1 = normalize(vec3(-grad_1.x * scale_1.x, 1.0, -grad_1.y * scale_1.y));
+	//
+		//normal = mix(normal, normal_1, lod_blend_mask);
+	//}
 	
 	vec3 tangent = normalize(cross(normal, vec3(0.0, 0.0, 1.0)));
 	vec3 binormal = normalize(cross(normal, tangent));
@@ -224,10 +223,10 @@ void fragment() {
 	material.albedo_height *= inv_w;
 	material.normal_rough *= inv_w;
 	
-	ALBEDO = material.albedo_height.rgb;
-	ROUGHNESS = material.normal_rough.a;
-	AO = material.ao;
-	NORMAL_MAP = material.normal_rough.xzy * 0.5 + 0.5;
+	//ALBEDO = material.albedo_height.rgb;
+	//ROUGHNESS = material.normal_rough.a;
+	//AO = material.ao;
+	//NORMAL_MAP = material.normal_rough.xzy * 0.5 + 0.5;
 	
 	//vec2 biome_uv = world_position.xz * 0.0001;
 	//int biome_count = 5;
@@ -235,5 +234,6 @@ void fragment() {
 	//ALBEDO = vec3(float(biome == 3 || biome == 4));
 	
 	//ALBEDO = debug_albedo;
-	//ALBEDO = vec3(0.7);
+	float c = texture(_normal_maps, vec3(UV, lod)).r;
+	ALBEDO = vec3(0.7);
 }

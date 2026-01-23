@@ -23,7 +23,8 @@ glow_enabled = true
 
 [sub_resource type="Resource" id="Resource_vn06u"]
 script = ExtResource("3_wt30j")
-height_amplitude = 1000.0
+height_amplitude = 100.0
+dumb_scale = 0.82
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="BoxMesh" id="BoxMesh_tjx8f"]
@@ -36,24 +37,22 @@ environment = SubResource("Environment_rm2gq")
 camera_attributes = SubResource("CameraAttributesPractical_pvg1d")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=810570797]
-transform = Transform3D(-0.11073945, 0.79338753, 0.5985592, 0.09127896, -0.5915987, 0.8010488, 0.9896489, 0.14334358, -0.00690628, 0, 496.4257, 306.4474)
-light_intensity_lux = 32766.99
+transform = Transform3D(-0.98883957, -0.14889368, -0.005190924, 0.13292316, -0.8974405, 0.42063326, -0.0672882, 0.41524884, 0.90721595, 0, 496.4257, 306.4474)
+light_intensity_lux = 36010.23
 light_temperature = 2989.0
 light_energy = 2.0
-shadow_enabled = true
 directional_shadow_split_1 = 0.04
 directional_shadow_split_2 = 0.11
 directional_shadow_split_3 = 0.33
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
-[node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 170.03656, 0.00012207031, -330.42017)
+[node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("collision_targets")]
+transform = Transform3D(0.99985313, -0.017138295, 0, 0.017138295, 0.99985313, 0, 0, 0, 1, 1548.3539, 0.00012207031, 799.5374)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_vn06u")
-follow_target = NodePath("../Player")
 mesh_tile_size = Vector2i(48, 48)
-mesh_lod_count = 7
+mesh_lod_count = 3
 material = ExtResource("1_tog6l")
 collision_targets = [NodePath("../Player")]
 
@@ -63,7 +62,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 170.03656, 1166.2179, -330.42017)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 542.1482, 1166.8177, -658.58734)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)
