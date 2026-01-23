@@ -57,7 +57,7 @@ vec3 noised(in vec2 p) {
 
 vec3 ridges(vec2 p, vec2 gradient, vec2 scale) {
 	// scaling is wrong
-	vec2 curl = gradient.yx * vec2(1.0, -1.0);
+	vec2 curl = gradient.yx * vec2(1.0, -1.0) / scale;
 	
 	float f = 10.0;
 	float a = 1.0;
@@ -73,17 +73,13 @@ vec3 ridges(vec2 p, vec2 gradient, vec2 scale) {
 	for (int j = -1; j <= 1; j++) {
 		for (int i = -1; i <= 1; i++) {
 			vec2 offset = vec2(float(i), float(j));
-			// all correct here
 			vec2 displacement = offset - p_f + hash22(p_i + offset) * 1.0;
-			//float distance_squared = dot(displacement, displacement);
-			float l = length(displacement);
-			float weight = smoothstep(0.0, 1.0, 1.0 - l); // = l*l*(2.0*l-3.0)+1.0 for l <= 1.0
+			float dd = min(1.0, dot(displacement, displacement));
+			float weight = dd * (dd - 2.0) + 1.0; // quartic interpolant pa que sepan
 			
-			// mistake is HERE, direction has wrong scale
-			float alignment = dot(displacement, normalize(curl) * 0.5);
+			float alignment = dot(displacement, curl);
 			
 			float phase = alignment * 2.0 * PI;
-			//height += curl.y * 0.05;
 			
 			height += cos(phase) * weight;
 			//d += -sin(phase) * (displacement + curl) * weight;

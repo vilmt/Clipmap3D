@@ -24,7 +24,7 @@ glow_enabled = true
 [sub_resource type="Resource" id="Resource_vn06u"]
 script = ExtResource("3_wt30j")
 height_amplitude = 100.0
-dumb_scale = 0.82
+dumb_scale = 0.88
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [sub_resource type="BoxMesh" id="BoxMesh_tjx8f"]
@@ -48,7 +48,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("collision_targets")]
-transform = Transform3D(0.99985313, -0.017138295, 0, 0.017138295, 0.99985313, 0, 0, 0, 1, 1548.3539, 0.00012207031, 799.5374)
+transform = Transform3D(0.99985313, -0.017138295, 0, 0.017138295, 0.99985313, 0, 0, 0, 1, 1595.8953, 0.00012207031, 611.73975)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_vn06u")
 mesh_tile_size = Vector2i(48, 48)
