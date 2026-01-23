@@ -19,7 +19,7 @@ layout(push_constant, std430) uniform Params {
 } params;
 
 #define EPSILON 1e-6
-#define PI 3.14159265358979
+#define TAU 6.28318530717958
 
 vec2 hash21(vec2 p) {
 	const vec2 k = vec2(0.3183099, 0.3678794);
@@ -32,8 +32,8 @@ vec2 hash22(vec2 p) {
 	return fract(sin(q)*43758.5453);
 }
 
-// https://www.shadertoy.com/view/XdXBRH
-vec3 noised(in vec2 p) {
+// gradient noise and derivative by IQ https://www.shadertoy.com/view/XdXBRH
+vec3 noised(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
 
@@ -55,67 +55,68 @@ vec3 noised(in vec2 p) {
         du * (u.yx*(va-vb-vc+vd) + vec2(vb,vc) - va));
 }
 
-vec3 ridges(vec2 p, vec2 gradient, vec2 scale) {
-	// scaling is wrong
-	vec2 curl = gradient.yx * vec2(1.0, -1.0) / scale;
-	
-	float f = 10.0;
-	float a = 1.0;
-	
-	p *= scale * f;
-	
+// erosion ridges and analytical derivative
+vec3 ridges(vec2 p, vec2 curl) {
 	vec2 p_i = floor(p);
 	vec2 p_f = fract(p);
 	
-	float height = 0.0;
-	vec2 d = vec2(0.0);
+	vec3 r = vec3(0.0);
 	
 	for (int j = -1; j <= 1; j++) {
 		for (int i = -1; i <= 1; i++) {
-			vec2 offset = vec2(float(i), float(j));
-			vec2 displacement = offset - p_f + hash22(p_i + offset) * 1.0;
-			float dd = min(1.0, dot(displacement, displacement));
-			float weight = dd * (dd - 2.0) + 1.0; // quartic interpolant pa que sepan
+			vec2 o = vec2(float(i), float(j));
+			vec2 d = o - p_f + hash22(p_i + o) * 1.0;
 			
-			float alignment = dot(displacement, curl);
+			float dd_raw = dot(d, d);
+			float dd = min(1.0, dot(d, d));
 			
-			float phase = alignment * 2.0 * PI;
+			float w = dd * (dd - 2.0) + 1.0; // quartic interpolant
+			vec2 w_d = 4.0 * (1.0 - dd) * d; // derivative
 			
-			height += cos(phase) * weight;
-			//d += -sin(phase) * (displacement + curl) * weight;
+			float alignment = dot(d, curl);
+			float phase = alignment * TAU;
 			
+			float c = cos(phase);
+			float s = sin(phase);
+			
+			r += vec3(c * w, TAU * s * curl * w + c * w_d);
 		}
 	}
 	
-	height *= a;
-	
-	return vec3(height, d);
+	return r;
 }
 
-vec3 fbmd(vec2 p, vec2 scale) {
-	float h = 0.0;
-	vec2 d = vec2(0.0);
-	float a = 0.5;
-	float f = 1.0;
-	
-	for (int i = 0; i < 2; i++) {
-		vec3 n = noised(p * f * scale);
-		h += a * n.x;
-		d += a * n.yz * f * scale;
-		a *= 0.5;
-		f *= 1.8;
-	}
-	
-	return vec3(h, d);
-}
-
+// terrain height and derivative
 vec3 height_map(vec2 p, vec2 scale) {
     // FBM terrain
-    vec3 h = fbmd(p, scale); // all correct
+	vec3 h = vec3(0.0);
+	float h_a = 0.5;
+	float h_f = 1.0;
 	
-	vec3 e = ridges(p, h.yz, scale);
-
-	h.x += e.x * 0.01;
+	for (int i = 0; i < 6; i++) {
+		vec3 n = noised(p * h_f * scale) * h_a;
+		h += n * vec3(1.0, h_f * scale); // chain rule
+		h_a *= 0.4;
+		h_f *= 1.8;
+	}
+	
+	// Erosion
+	vec3 e = vec3(0.0);
+	float e_a = 0.005;
+	float e_f = 20.0;
+	
+	for (int i = 0; i < 3; i++) {
+		vec2 curl = (h.zy + e.zy) * vec2(1.0, -1.0) / scale;
+		
+		vec3 r = ridges(p * e_f * scale, curl) * e_a;
+		e += r * vec3(1.0, e_f * scale); // chain rule
+		
+		e_a *= 0.5;
+		e_f *= 1.8;
+	}
+	
+	h += e;
+	h.x += 0.5;
 	return h;
 }
 
@@ -140,14 +141,21 @@ void main() {
 	
 	vec2 sampling_scale = scale * 0.01 * params.scale;
 	
-	vec3 h_00 = height_map(uv, sampling_scale) * params.amplitude;
-	vec3 h_10 = height_map(uv + vec2(1.0, 0.0), sampling_scale) * params.amplitude;
-	vec3 h_01 = height_map(uv + vec2(0.0, 1.0), sampling_scale) * params.amplitude;
+	//// analytical
+	vec3 h = height_map(uv, sampling_scale) * params.amplitude;
 	
-	vec2 d_h = vec2(h_00.x - h_10.x, h_00.x - h_01.x);
+	imageStore(height_maps, global_id, vec4(h.x, 0.0, 0.0, 0.0));
+	imageStore(normal_maps, global_id, vec4(h.yz, 0.0, 0.0));
 	
-	imageStore(height_maps, global_id, vec4(h_00.x, 0.0, 0.0, 0.0));
-	//imageStore(normal_maps, global_id, vec4(h.yz, 0.0, 0.0));
-	imageStore(normal_maps, global_id, vec4(-d_h, 0.0, 0.0));
+	//// central difference slop
+	// vec3 h_00 = height_map(uv, sampling_scale) * params.amplitude;
+	// vec3 h_10 = height_map(uv + vec2(1.0, 0.0), sampling_scale) * params.amplitude;
+	// vec3 h_01 = height_map(uv + vec2(0.0, 1.0), sampling_scale) * params.amplitude;
+	
+	// vec2 d_h = vec2(h_00.x - h_10.x, h_00.x - h_01.x);
+	
+	// imageStore(height_maps, global_id, vec4(h_00.x, 0.0, 0.0, 0.0));
+	// imageStore(normal_maps, global_id, vec4(-d_h, 0.0, 0.0));
+	
 	imageStore(control_maps, global_id, vec4(0.0, 0.0, 0.0, 0.0));
 }
