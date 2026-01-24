@@ -21,6 +21,10 @@ layout(push_constant, std430) uniform Params {
 #define EPSILON 1e-6
 #define TAU 6.28318530717958
 
+#define GRASS_ID 0
+#define CLIFF_ID 1
+#define SNOW_ID 2
+
 vec2 hash21(vec2 p) {
 	const vec2 k = vec2(0.3183099, 0.3678794);
 	p = p * k + k.yx;
@@ -32,7 +36,7 @@ vec2 hash22(vec2 p) {
 	return fract(sin(q)*43758.5453);
 }
 
-// gradient noise and derivative by IQ https://www.shadertoy.com/view/XdXBRH
+// gradient noise and derivative by iq https://www.shadertoy.com/view/XdXBRH
 vec3 noised(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
@@ -55,7 +59,8 @@ vec3 noised(vec2 p) {
         du * (u.yx*(va-vb-vc+vd) + vec2(vb,vc) - va));
 }
 
-// erosion ridges and analytical derivative
+// erosion ridges and derivative
+// copyright (c) vilmt
 vec3 ridges(vec2 p, vec2 curl) {
 	vec2 p_i = floor(p);
 	vec2 p_f = fract(p);
@@ -67,10 +72,9 @@ vec3 ridges(vec2 p, vec2 curl) {
 			vec2 o = vec2(float(i), float(j));
 			vec2 d = o - p_f + hash22(p_i + o) * 1.0;
 			
-			float dd_raw = dot(d, d);
 			float dd = min(1.0, dot(d, d));
 			
-			float w = dd * (dd - 2.0) + 1.0; // quartic interpolant
+			float w = dd * (dd - 2.0) + 1.0; // quartic interpolant weight
 			vec2 w_d = 4.0 * (1.0 - dd) * d; // derivative
 			
 			float alignment = dot(d, curl);
@@ -86,8 +90,8 @@ vec3 ridges(vec2 p, vec2 curl) {
 	return r;
 }
 
-// terrain height and derivative
-vec3 height_map(vec2 p, vec2 scale) {
+// terrain height, derivative, and erosion factor
+vec4 height_map(vec2 p, vec2 scale) {
     // FBM terrain
 	vec3 h = vec3(0.0);
 	float h_a = 0.5;
@@ -100,14 +104,17 @@ vec3 height_map(vec2 p, vec2 scale) {
 		h_f *= 1.8;
 	}
 	
-	// Erosion
+	h.x += 0.5;
+	
+	// FBM erosion
 	vec3 e = vec3(0.0);
 	float e_a = 0.005;
 	float e_f = 20.0;
 	
+	float erosion_factor = e_a;
+	
 	for (int i = 0; i < 3; i++) {
 		vec2 curl = (h.zy + e.zy) * vec2(1.0, -1.0) / scale;
-		
 		vec3 r = ridges(p * e_f * scale, curl) * e_a;
 		e += r * vec3(1.0, e_f * scale); // chain rule
 		
@@ -115,10 +122,13 @@ vec3 height_map(vec2 p, vec2 scale) {
 		e_f *= 1.8;
 	}
 	
-	h += e;
-	h.x += 0.5;
-	return h;
+	return vec4(h + e, e.x / erosion_factor);
 }
+
+struct MaterialWeight {
+	uint id;
+	float w;
+};
 
 void main() {
 	ivec3 global_id = ivec3(gl_GlobalInvocationID);
@@ -139,23 +149,51 @@ void main() {
 	vec2 origin = floor(params.world_origin * inv_scale + EPSILON);
 	vec2 uv = centered + origin;
 	
-	vec2 sampling_scale = scale * 0.01 * params.scale;
+	vec4 h = height_map(uv, scale * 0.01 * params.scale);
 	
-	//// analytical
-	vec3 h = height_map(uv, sampling_scale) * params.amplitude;
+	float height = h.x;
+	
+	h.xyz *= params.amplitude;
+	h.yz *= inv_scale;
 	
 	imageStore(height_maps, global_id, vec4(h.x, 0.0, 0.0, 0.0));
 	imageStore(normal_maps, global_id, vec4(h.yz, 0.0, 0.0));
 	
-	//// central difference slop
-	// vec3 h_00 = height_map(uv, sampling_scale) * params.amplitude;
-	// vec3 h_10 = height_map(uv + vec2(1.0, 0.0), sampling_scale) * params.amplitude;
-	// vec3 h_01 = height_map(uv + vec2(0.0, 1.0), sampling_scale) * params.amplitude;
+	float slope = length(h.yz);
+	float ridge = max(h.w, 0.0);
+	float occlusion = max(-h.w, 0.0);
 	
-	// vec2 d_h = vec2(h_00.x - h_10.x, h_00.x - h_01.x);
+	float w_snow = smoothstep(0.6, 0.7, height * 0.8 + ridge * 0.1);
+	float w_grass = smoothstep(0.4, 0.3, height) * smoothstep(0.6, 0.4, slope);
+	float w_cliff = (1.0 - w_snow) * (1.0 - w_grass);
 	
-	// imageStore(height_maps, global_id, vec4(h_00.x, 0.0, 0.0, 0.0));
-	// imageStore(normal_maps, global_id, vec4(-d_h, 0.0, 0.0));
+	MaterialWeight mats[3] = {
+		{GRASS_ID, w_grass},
+		{CLIFF_ID, w_cliff},
+		{SNOW_ID, w_snow}
+	};
 	
-	imageStore(control_maps, global_id, vec4(0.0, 0.0, 0.0, 0.0));
+	MaterialWeight primary = mats[0];
+	MaterialWeight secondary = mats[0];
+	for (int i = 1; i < 3; i++) {
+		if (mats[i].w > primary.w) {
+			secondary = primary;
+			primary = mats[i];
+		} else if (mats[i].w > secondary.w) {
+			secondary = mats[i];
+		}
+	}
+	
+	float sum = primary.w + secondary.w + EPSILON;
+	float blend = primary.w / sum;
+	
+	uint blend_u8 = uint(clamp(blend * 255.0, 0.0, 255.0));
+	
+	uint control = 0u;
+	
+	control |= (primary.id & 0x1F) << 27;
+	control |= (secondary.id & 0x1F) << 22;
+	control |= (blend_u8 & 0xFF) << 14;
+	
+	imageStore(control_maps, global_id, vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
 }

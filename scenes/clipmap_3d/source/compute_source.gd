@@ -1,6 +1,9 @@
 @tool
 class_name Clipmap3DComputeSource extends Clipmap3DSource
 
+# TODO
+@export var compute_shader: RDShaderFile
+
 @export var height_amplitude: float = 800.0:
 	set(value):
 		height_amplitude = value
@@ -20,8 +23,8 @@ static var _rd := RenderingServer.get_rendering_device()
 
 var _uniform_set_rid: RID
 var _pipeline_rid: RID
-var _texture_rd_rids: Dictionary[TextureType, RID]
-var _map_rids: Dictionary[TextureType, RID]
+var _map_rd_rids: Dictionary[MapType, RID]
+var _map_rids: Dictionary[MapType, RID]
 
 var _size: Vector2i
 var _lod_count: int
@@ -34,7 +37,7 @@ var _dirty: Array[bool]
 func has_maps() -> bool:
 	return not _map_rids.is_empty()
 
-func get_map_rids() -> Dictionary[TextureType, RID]:
+func get_map_rids() -> Dictionary[MapType, RID]:
 	return _map_rids
 
 func get_height_amplitude():
@@ -85,9 +88,9 @@ func _initialize_threaded():
 		return
 	
 	var uniforms: Array[RDUniform] = [
-		_create_texture_uniform_threaded(TextureType.HEIGHT, 0),
-		_create_texture_uniform_threaded(TextureType.NORMAL, 1),
-		_create_texture_uniform_threaded(TextureType.CONTROL, 2)
+		_create_texture_uniform_threaded(MapType.HEIGHT, 0),
+		_create_texture_uniform_threaded(MapType.NORMAL, 1),
+		_create_texture_uniform_threaded(MapType.CONTROL, 2)
 	]
 	
 	_uniform_set_rid = _rd.uniform_set_create(uniforms, shader_rid, 0)
@@ -148,11 +151,11 @@ func _free_rids_threaded() -> void:
 	for rid: RID in _map_rids.values():
 		RenderingServer.free_rid(rid)
 	_map_rids.clear()
-	for rid: RID in _texture_rd_rids.values():
+	for rid: RID in _map_rd_rids.values():
 		_rd.free_rid(rid)
-	_texture_rd_rids.clear()
+	_map_rd_rids.clear()
 
-func _create_texture_uniform_threaded(type: TextureType, binding: int) -> RDUniform:
+func _create_texture_uniform_threaded(type: MapType, binding: int) -> RDUniform:
 	var format := RDTextureFormat.new()
 	format.format = FORMATS[type]
 	format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
@@ -165,13 +168,13 @@ func _create_texture_uniform_threaded(type: TextureType, binding: int) -> RDUnif
 		_rd.TEXTURE_USAGE_CAN_UPDATE_BIT #| \
 		#_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT # TODO: needed to get CPU image for collision
 	
-	_texture_rd_rids[type] = _rd.texture_create(format, RDTextureView.new())
-	_map_rids[type] = RenderingServer.texture_rd_create(_texture_rd_rids[type], RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
+	_map_rd_rids[type] = _rd.texture_create(format, RDTextureView.new())
+	_map_rids[type] = RenderingServer.texture_rd_create(_map_rd_rids[type], RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
 	
 	var uniform := RDUniform.new()
 	uniform.uniform_type = _rd.UNIFORM_TYPE_IMAGE
 	uniform.binding = binding
-	uniform.add_id(_texture_rd_rids[type])
+	uniform.add_id(_map_rd_rids[type])
 	
 	return uniform
 
@@ -184,12 +187,6 @@ func _shader_disconnect():
 	if Clipmap3DShaderCache.reloaded.is_connected(_initialize_threaded):
 		Clipmap3DShaderCache.about_to_reload.disconnect(_free_rids_threaded)
 		Clipmap3DShaderCache.reloaded.disconnect(_initialize_threaded)
-
-func _encode_noise_array(noises: Array[Clipmap3DNoiseParams]) -> PackedByteArray:
-	var data := PackedByteArray()
-	for noise in noises:
-		data.append_array(noise.encode())
-	return data
 
 # DEBUG
 func _notification(what: int) -> void:

@@ -1,24 +1,18 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://sppic5ftnktj"]
 
 [ext_resource type="Shader" uid="uid://co8jxwmiyfqh3" path="res://scenes/clipmap_3d/clipmap_3d.gdshader" id="1_xxpvx"]
-[ext_resource type="Texture2D" uid="uid://ddprscrpsofah" path="res://assets/textures/ground037_alb_ht.png" id="2_3vfjj"]
-[ext_resource type="Texture2D" uid="uid://c1ots7w6i0i1q" path="res://assets/textures/ground037_nrm_rgh.png" id="3_wjmaf"]
-[ext_resource type="Texture2D" uid="uid://c88j3oj0lf6om" path="res://assets/textures/rock023_alb_ht.png" id="4_62wp6"]
-[ext_resource type="Texture2D" uid="uid://c307hdmos4gtm" path="res://assets/textures/rock023_nrm_rgh.png" id="5_0aff4"]
+[ext_resource type="Texture2D" uid="uid://cmjr0ahqaito3" path="res://assets/textures/grass/grass_normal_height_ao.png" id="2_n3dgm"]
 
 [resource]
 render_priority = 0
 shader = ExtResource("1_xxpvx")
+shader_parameter/test_normal_map = ExtResource("2_n3dgm")
 shader_parameter/lod_blend_ratio = 0.2
 shader_parameter/ao_strength = 1.0
 shader_parameter/projection_threshold = 0.8
 shader_parameter/auto_slope = 2.915
 shader_parameter/auto_sharpness = 4.0
 shader_parameter/auto_height_reduction = 0.0
-shader_parameter/shallow_albedo_height = ExtResource("2_3vfjj")
-shader_parameter/shallow_normal_rough = ExtResource("3_wjmaf")
-shader_parameter/steep_albedo_height = ExtResource("4_62wp6")
-shader_parameter/steep_normal_rough = ExtResource("5_0aff4")
 shader_parameter/_target_position = Vector3(0, 0, 0)
 shader_parameter/_vertex_spacing = Vector2(0, 0)
 shader_parameter/_tile_size = Vector2i(0, 0)

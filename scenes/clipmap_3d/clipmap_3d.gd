@@ -214,14 +214,18 @@ func _connect_source():
 		return
 	source.changed.connect(_on_source_changed)
 	source.maps_created.connect(_on_source_maps_created)
+	source.textures_changed.connect(_on_source_textures_changed)
 	_mark_source_dirty()
+	source.create_textures()
 
 func _disconnect_source():
 	if not source or not source.changed.is_connected(_on_source_changed):
 		return
 	source.changed.disconnect(_on_source_changed)
 	source.maps_created.disconnect(_on_source_maps_created)
+	source.textures_changed.disconnect(_on_source_textures_changed)
 	source.clear_maps()
+	source.clear_textures()
 
 func _recalculate_source_origin():
 	if not source or not source.has_maps():
@@ -230,6 +234,9 @@ func _recalculate_source_origin():
 
 func _on_source_maps_created():
 	_mesh_handler.update_map_rids(source.get_map_rids())
+	
+func _on_source_textures_changed():
+	_mesh_handler.update_texture_rids(source.get_texture_rids())
 	
 func _on_source_changed():
 	_mesh_handler.update_height_amplitude(source.get_height_amplitude())

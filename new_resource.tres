@@ -1,8 +1,0 @@
-[gd_resource type="Resource" script_class="Clipmap3DNoiseParams" format=3 uid="uid://dm4hyr81vhy6k"]
-
-[ext_resource type="Script" uid="uid://s5kw1dtk4mvf" path="res://scenes/clipmap_3d/noise_params.gd" id="1_g5ko2"]
-
-[resource]
-script = ExtResource("1_g5ko2")
-amplitude = 140.54
-metadata/_custom_type_script = "uid://s5kw1dtk4mvf"

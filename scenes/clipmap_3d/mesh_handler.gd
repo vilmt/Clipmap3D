@@ -61,21 +61,21 @@ func _mark_meshes_dirty():
 	_meshes_dirty = true
 	_rebuild.call_deferred()
 
-func update_map_rids(map_rids: Dictionary[Clipmap3DSource.TextureType, RID]):
+func update_map_rids(map_rids: Dictionary[Clipmap3DSource.MapType, RID]):
 	if _material_rid:
-		var height_maps: RID = map_rids.get(Clipmap3DSource.TextureType.HEIGHT, RID())
-		var normal_maps: RID = map_rids.get(Clipmap3DSource.TextureType.NORMAL, RID())
-		var control_maps: RID = map_rids.get(Clipmap3DSource.TextureType.CONTROL, RID())
-		RenderingServer.material_set_param(_material_rid, &"_height_maps", height_maps)
-		RenderingServer.material_set_param(_material_rid, &"_normal_maps", normal_maps)
-		RenderingServer.material_set_param(_material_rid, &"_control_maps", control_maps)
+		var height_rid: RID = map_rids.get(Clipmap3DSource.MapType.HEIGHT, RID())
+		var normal_rid: RID = map_rids.get(Clipmap3DSource.MapType.NORMAL, RID())
+		var control_rid: RID = map_rids.get(Clipmap3DSource.MapType.CONTROL, RID())
+		RenderingServer.material_set_param(_material_rid, &"_height_maps", height_rid)
+		RenderingServer.material_set_param(_material_rid, &"_normal_maps", normal_rid)
+		RenderingServer.material_set_param(_material_rid, &"_control_maps", control_rid)
 
-#func update_texture_arrays(albedo_textures_rid: RID, normal_textures_rid: RID):
-	#_albedo_textures_rid = albedo_textures_rid
-	#_normal_textures_rid = normal_textures_rid
-	#if _material_rid:
-		#RenderingServer.material_set_param(_material_rid, &"_albedo_textures", _albedo_textures_rid)
-		#RenderingServer.material_set_param(_material_rid, &"_normal_textures", _normal_textures_rid)
+func update_texture_rids(texture_rids: Dictionary[Clipmap3DSource.TextureType, RID]):
+	if _material_rid:
+		var albedo_rid: RID = texture_rids.get(Clipmap3DSource.TextureType.ALBEDO, RID())
+		var normal_rid: RID = texture_rids.get(Clipmap3DSource.TextureType.NORMAL, RID())
+		RenderingServer.material_set_param(_material_rid, &"_albedo_textures", albedo_rid)
+		RenderingServer.material_set_param(_material_rid, &"_normal_textures", normal_rid)
 
 func update_height_amplitude(height_amplitude: float):
 	_height_amplitude = maxf(height_amplitude, 0.1)
