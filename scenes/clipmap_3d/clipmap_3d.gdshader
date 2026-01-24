@@ -45,7 +45,6 @@ struct material {
 
 vec4 gather_weights(vec2 sampler_size, vec2 uv) {
 	vec2 st = uv * sampler_size - 0.5;
-	vec2 i = floor(st);
 	vec2 w = fract(st);
 	
 	return vec4(
@@ -114,12 +113,13 @@ void vertex() {
 }
 
 // TODO: pass 2 ids, calculate world normal in first, apply to second
-void accumulate(inout material mat, vec3 p, vec3 ddx, vec3 ddy, vec3 normal, ivec2 texture_ids, float blend) {
+void accumulate(inout material mat, vec3 p, vec3 ddx, vec3 ddy, vec3 normal, uvec2 texture_ids, float blend, float bilerp_weight) {
 	vec4 dd = vec4(ddx.xz, ddy.xz);
 	mat2 align = mat2(1.0);
 	vec2 uv = p.xz;
 	
-	//if (projected && normal.y <= projection_threshold) {
+	// TODO: projection
+	//if (normal.y <= projection_threshold) {
 		//// Projected normal map alignment matrix
 		//align = mat2(vec2(normal.z, -normal.x), vec2(normal.x, normal.z));
 		//// Fast 45 degree snapping https://iquilezles.org/articles/noatan/
@@ -132,14 +132,15 @@ void accumulate(inout material mat, vec3 p, vec3 ddx, vec3 ddy, vec3 normal, ive
 		//dd.zw = vec2(dot(ddy.xz, xz), -ddy.y);
 	//}
 	
+	// TODO: fix texture ids same edge case
 	// skip first sample if both are same
-	blend = min(1.0, blend + float(texture_ids[1] == texture_ids[0]));
+	//blend = min(1.0, blend + float(texture_ids[1] == texture_ids[0]));
 	
-	//// secondary
+	// secondary
 	if (blend < 1.0 - EPSILON) {
-		float weight = 1.0 - blend;
+		float weight = (1.0 - blend) * bilerp_weight;
 		
-		int id = texture_ids[1];
+		uint id = texture_ids[1];
 		
 		vec4 albedo_r = textureGrad(_albedo_textures, vec3(uv, float(id)), dd.xy, dd.zw);
 		
@@ -152,19 +153,13 @@ void accumulate(inout material mat, vec3 p, vec3 ddx, vec3 ddy, vec3 normal, ive
 		// TODO: incorporate height in blending
 		mat.ao += normal_h_ao.w * weight;
 		mat.total_weight += weight;
-		
-		
-		
-		// TODO: fix texture ids same edge case
-		
-		
 	}
 	
 	// primary
 	if (blend > EPSILON) {
-		float weight = blend;
+		float weight = blend * bilerp_weight;
 		
-		int id = texture_ids[0];
+		uint id = texture_ids[0];
 		
 		vec4 albedo_r = textureGrad(_albedo_textures, vec3(uv, float(id)), dd.xy, dd.zw);
 		
@@ -205,26 +200,29 @@ void fragment() {
 	
 	vec4 weights = gather_weights(vec2(textureSize(_control_maps, 0).xy), UV);
 	
-	uvec4 control4 = floatBitsToUint(gather(_control_maps, UV, lod));
+	uvec4 controls = floatBitsToUint(gather(_control_maps, UV, lod));
 
-	uint control = floatBitsToUint(texture(_control_maps, vec3(UV, lod)).r);
-	
-	uint primary_id = control >> 27u & 0x1Fu;
-	uint secondary_id = control >> 22u & 0x1Fu;
-	float blend = float(control >> 14u & 0xFFu) * INV_255;
+	//uint control = floatBitsToUint(texture(_control_maps, vec3(UV, lod)).r);
+	//
+	//uint primary_id = control >> 27u & 0x1Fu;
+	//uint secondary_id = control >> 22u & 0x1Fu;
+	//float blend = float(control >> 14u & 0xFFu) * INV_255;
 
 	vec3 base_p = world_position * 0.1;
 	
 	vec3 base_ddx = dFdxCoarse(base_p);
 	vec3 base_ddy = dFdyCoarse(base_p);
 	
-	//for (int i = 0; i < 4; i++) {
-		//uint c = control4[i];
-		//uint primary = ;
-		//uvec2 ids = uvec2(control >> 27u & 0x1Fu, control >> 22u & 0x1Fu);
-	//}
+	for (int i = 0; i < 4; i++) {
+		uint control = controls[i];
+		float weight = weights[i];
+		uvec2 ids = uvec2(control >> 27u & 0x1Fu, control >> 22u & 0x1Fu);
+		float blend = float(control >> 14u & 0xFFu) * INV_255;
+		
+		accumulate(mat, base_p, base_ddx, base_ddy, normal, ids, blend, weight);
+	}
 	
-	accumulate(mat, base_p, base_ddx, base_ddy, normal, ivec2(int(primary_id), int(secondary_id)), blend);
+	//accumulate(mat, base_p, base_ddx, base_ddy, normal, ivec2(int(primary_id), int(secondary_id)), blend);
 	
 	float inv_w = 1.0 / max(mat.total_weight, EPSILON);
 	mat.albedo *= inv_w;

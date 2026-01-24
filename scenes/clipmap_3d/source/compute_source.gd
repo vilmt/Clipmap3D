@@ -34,6 +34,8 @@ var _world_origin: Vector2
 var _origins: Array[Vector2]
 var _dirty: Array[bool]
 
+var _cpu_height_image: Image
+
 func has_maps() -> bool:
 	return not _map_rids.is_empty()
 
@@ -44,7 +46,16 @@ func get_height_amplitude():
 	return height_amplitude
 
 func get_height_world(world_xz: Vector2) -> float:
-	return 0.0
+	if not _cpu_height_image:
+		return 0.0
+	var _image_size := _cpu_height_image.get_size()
+	var inv_scale := Vector2.ONE / (_vertex_spacing * float(1 << 0))
+	var lod_cell := Vector2i((world_xz * inv_scale).floor() - _origins[0])
+	@warning_ignore("integer_division")
+	var texel := lod_cell + _image_size / 2;
+	if not Rect2i(Vector2i.ZERO, _image_size).has_point(texel):
+		return 0.0
+	return _cpu_height_image.get_pixelv(texel).r
 	
 func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_spacing: Vector2) -> void:
 	if not _rd:
@@ -106,8 +117,8 @@ func _initialize_threaded():
 	_compute_threaded(false)
 	maps_created.emit()
 
+# TODO: add "strip" mode where only small dirty sections of map are updated
 func _compute_threaded(use_signal: bool = true) -> void:
-	# TODO: try adding strips back... there is no escape
 	var groups_x := ceili(_size.x / 8.0)
 	var groups_y := ceili(_size.y / 8.0)
 	for lod: int in _lod_count:
@@ -135,6 +146,9 @@ func _compute_threaded(use_signal: bool = true) -> void:
 		_rd.compute_list_end()
 		
 		_dirty[lod] = false
+		
+		if lod == 0:
+			_cpu_height_image = RenderingServer.texture_2d_layer_get(_map_rids[MapType.HEIGHT], 0)
 	
 	if use_signal:
 		maps_redrawn.emit()
@@ -165,8 +179,10 @@ func _create_texture_uniform_threaded(type: MapType, binding: int) -> RDUniform:
 	format.usage_bits = \
 		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
 		_rd.TEXTURE_USAGE_STORAGE_BIT | \
-		_rd.TEXTURE_USAGE_CAN_UPDATE_BIT #| \
-		#_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT # TODO: needed to get CPU image for collision
+		_rd.TEXTURE_USAGE_CAN_UPDATE_BIT
+	
+	if type == MapType.HEIGHT:
+		format.usage_bits |= _rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT
 	
 	_map_rd_rids[type] = _rd.texture_create(format, RDTextureView.new())
 	_map_rids[type] = RenderingServer.texture_rd_create(_map_rd_rids[type], RenderingServer.TEXTURE_LAYERED_2D_ARRAY)

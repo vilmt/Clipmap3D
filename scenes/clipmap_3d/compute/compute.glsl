@@ -59,8 +59,8 @@ vec3 noised(vec2 p) {
         du * (u.yx*(va-vb-vc+vd) + vec2(vb,vc) - va));
 }
 
-// erosion ridges and derivative
-// copyright (c) vilmt
+// erosion ridges and derivative by vilmt
+// with ideas from smooth voronoi by iq https://iquilezles.org/articles/smoothvoronoi/
 vec3 ridges(vec2 p, vec2 curl) {
 	vec2 p_i = floor(p);
 	vec2 p_f = fract(p);
@@ -70,7 +70,7 @@ vec3 ridges(vec2 p, vec2 curl) {
 	for (int j = -1; j <= 1; j++) {
 		for (int i = -1; i <= 1; i++) {
 			vec2 o = vec2(float(i), float(j));
-			vec2 d = o - p_f + hash22(p_i + o) * 1.0;
+			vec2 d = o - p_f + hash22(p_i + o);
 			
 			float dd = min(1.0, dot(d, d));
 			
@@ -99,7 +99,7 @@ vec4 height_map(vec2 p, vec2 scale) {
 	
 	for (int i = 0; i < 6; i++) {
 		vec3 n = noised(p * h_f * scale) * h_a;
-		h += n * vec3(1.0, h_f * scale); // chain rule
+		h += n * vec3(1.0, h_f * scale);
 		h_a *= 0.4;
 		h_f *= 1.8;
 	}
@@ -111,18 +111,18 @@ vec4 height_map(vec2 p, vec2 scale) {
 	float e_a = 0.005;
 	float e_f = 20.0;
 	
-	float erosion_factor = e_a;
+	float e_w = e_a;
 	
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 6; i++) {
 		vec2 curl = (h.zy + e.zy) * vec2(1.0, -1.0) / scale;
 		vec3 r = ridges(p * e_f * scale, curl) * e_a;
-		e += r * vec3(1.0, e_f * scale); // chain rule
+		e += r * vec3(1.0, e_f * scale);
 		
 		e_a *= 0.5;
 		e_f *= 1.8;
 	}
 	
-	return vec4(h + e, e.x / erosion_factor);
+	return vec4(h + e, e.x / e_w);
 }
 
 struct MaterialWeight {
@@ -163,8 +163,8 @@ void main() {
 	float ridge = max(h.w, 0.0);
 	float occlusion = max(-h.w, 0.0);
 	
-	float w_snow = smoothstep(0.6, 0.7, height * 0.8 + ridge * 0.1);
-	float w_grass = smoothstep(0.4, 0.3, height) * smoothstep(0.6, 0.4, slope);
+	float w_snow = smoothstep(0.6, 0.62, height * 0.8 + ridge * 0.1);
+	float w_grass = smoothstep(0.4, 0.38, height) * smoothstep(0.6, 0.58, slope);
 	float w_cliff = (1.0 - w_snow) * (1.0 - w_grass);
 	
 	MaterialWeight mats[3] = {

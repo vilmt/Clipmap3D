@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="Clipmap3DTextureAsset" format=3 uid="uid://dm4hyr81vhy6k"]
+
+[ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://scenes/clipmap_3d/clipmap_3d_texture.gd" id="1_g5ko2"]
+
+[resource]
+script = ExtResource("1_g5ko2")
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"

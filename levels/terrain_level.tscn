@@ -30,20 +30,20 @@ glow_enabled = true
 
 [sub_resource type="Resource" id="Resource_mjw01"]
 script = ExtResource("3_6mm2f")
-albedo_texture = ExtResource("4_prn7l")
-normal_texture = ExtResource("5_klpgc")
+albedo_roughness_texture = ExtResource("4_prn7l")
+normal_height_ao_texture = ExtResource("5_klpgc")
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 
 [sub_resource type="Resource" id="Resource_j51eg"]
 script = ExtResource("3_6mm2f")
-albedo_texture = ExtResource("6_cflic")
-normal_texture = ExtResource("7_ce33q")
+albedo_roughness_texture = ExtResource("6_cflic")
+normal_height_ao_texture = ExtResource("7_ce33q")
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 
 [sub_resource type="Resource" id="Resource_gpc8w"]
 script = ExtResource("3_6mm2f")
-albedo_texture = ExtResource("8_a25cu")
-normal_texture = ExtResource("9_oq7cu")
+albedo_roughness_texture = ExtResource("8_a25cu")
+normal_height_ao_texture = ExtResource("9_oq7cu")
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 
 [sub_resource type="Resource" id="Resource_vn06u"]
@@ -74,13 +74,12 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(0.99985313, -0.017138295, 0, 0.014870682, 0.8675599, -0.49711028, 0.0085196225, 0.49703726, 0.86768734, -46.439316, 0.00036621094, -1501.3895)
+transform = Transform3D(0.99985313, -0.017138295, 0, 0.014870682, 0.8675599, -0.49711028, 0.0085196225, 0.49703726, 0.86768734, 3729.864, 0.00036621094, -1501.3895)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_vn06u")
 follow_target = NodePath("../Player")
-mesh_vertex_spacing = Vector2(0.5, 0.5)
 mesh_tile_size = Vector2i(64, 64)
-mesh_lod_count = 8
+mesh_lod_count = 6
 material = ExtResource("1_tog6l")
 collision_targets = [NodePath("../Player")]
 
@@ -90,7 +89,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -46.439316, 1364.2986, -1501.3895)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3729.864, 1364.2986, -1501.3895)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)
