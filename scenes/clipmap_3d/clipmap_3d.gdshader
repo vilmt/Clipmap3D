@@ -30,7 +30,7 @@ varying flat vec3 debug_albedo;
 
 #define INV_255 0.003921568627450
 #define EPSILON 1e-6
-
+	
 struct material {
 	vec3 albedo;
 	float roughness;
@@ -43,26 +43,24 @@ struct material {
 	float total_weight;
 };
 
-vec4 gather_weights(vec2 sampler_size, vec2 uv) {
+vec3 gather_coords(vec2 sampler_size, vec2 uv, int lod, out vec4 weights) {
 	vec2 st = uv * sampler_size - 0.5;
+	vec2 i = floor(st);
 	vec2 w = fract(st);
-	
-	return vec4(
-		(1.0 - w.x) * (1.0 - w.y),
-		w.x * (1.0 - w.y),
-		(1.0 - w.x) * w.y,
-		w.x * w.y
-	);
+	weights = vec2(1.0 - w.x, w.x).xyxy * vec2(1.0 - w.y, w.y).xxyy;
+	return vec3((i + 0.5) / sampler_size, float(lod));
 }
 
-float gather_bilerp(sampler2DArray sampler, vec2 uv, float lod) {
+float gather_bilerp(sampler2DArray sampler, vec2 uv, float lod, int comp) {
 	vec2 size = vec2(textureSize(sampler, 0).xy);
 	
 	vec2 st = uv * size - 0.5;
 	vec2 i = floor(st);
 	vec2 w = fract(st);
 	
-	vec4 g = textureGather(sampler, vec3((i + 0.5) / size, lod));
+	vec4 g = textureGather(sampler, vec3((i + 0.5) / size, lod), 0);
+	
+	
 	return mix(mix(g.w, g.z, w.x), mix(g.x, g.y, w.x), w.y);
 }
 
@@ -108,7 +106,9 @@ void vertex() {
 	UV = to_uv(world_position.xz, inv_scale);
 	UV2 = to_uv(world_position.xz, inv_scale * 0.5);
 	
-	world_position.y = gather_bilerp(_height_maps, UV, float(vertex_lod));
+	vec4 weights;
+	vec3 coords = gather_coords(vec2(textureSize(_height_maps, 0).xy), UV, vertex_lod, weights);
+	world_position.y = dot(textureGather(_height_maps, coords).wzxy, weights);
 	VERTEX.y = world_position.y;
 }
 
@@ -176,19 +176,29 @@ void accumulate(inout material mat, vec3 p, vec3 ddx, vec3 ddy, vec3 normal, uve
 }
 
 void fragment() {
-	float lod = float(vertex_lod);
+	vec2 sampler_size = vec2(textureSize(_normal_maps, 0).xy);
 	
-	// TODO: mix manually after [-1, 1] conversion.
-	vec2 grad = texture(_normal_maps, vec3(UV, lod)).rg;
-	vec3 normal = normalize(vec3(-grad.x, 1.0, -grad.y));
+	vec4 weights;
+	vec3 coords = gather_coords(sampler_size, UV, vertex_lod, weights); 
+	
+	vec2 gradient = vec2(
+		dot(textureGather(_normal_maps, coords, 0).wzxy, weights),
+		dot(textureGather(_normal_maps, coords, 1).wzxy, weights)
+	);
 	
 	if (lod_blend_mask > EPSILON) {
-		vec2 grad_1 = texture(_normal_maps, vec3(UV2, lod + 1.0)).rg;
-		vec3 normal_1 = normalize(vec3(-grad_1.x, 1.0, -grad_1.y));
+		vec4 weights_1;
+		vec3 coords_1 = gather_coords(sampler_size, UV2, vertex_lod + 1, weights_1); 
+		
+		vec2 gradient_1 = vec2(
+			dot(textureGather(_normal_maps, coords_1, 0).wzxy, weights_1),
+			dot(textureGather(_normal_maps, coords_1, 1).wzxy, weights_1)
+		);
 	
-		normal = mix(normal, normal_1, lod_blend_mask);
+		gradient = mix(gradient, gradient_1, lod_blend_mask);
 	}
 	
+	vec3 normal = normalize(vec3(-gradient.x, 1.0, -gradient.y));
 	vec3 tangent = normalize(cross(normal, vec3(0.0, 0.0, 1.0)));
 	vec3 binormal = normalize(cross(normal, tangent));
 	
@@ -198,16 +208,8 @@ void fragment() {
 	
 	material mat = material(vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0);
 	
-	vec4 weights = gather_weights(vec2(textureSize(_control_maps, 0).xy), UV);
+	uvec4 controls = floatBitsToUint(textureGather(_control_maps, coords, 0).wzxy);
 	
-	uvec4 controls = floatBitsToUint(gather(_control_maps, UV, lod));
-
-	//uint control = floatBitsToUint(texture(_control_maps, vec3(UV, lod)).r);
-	//
-	//uint primary_id = control >> 27u & 0x1Fu;
-	//uint secondary_id = control >> 22u & 0x1Fu;
-	//float blend = float(control >> 14u & 0xFFu) * INV_255;
-
 	vec3 base_p = world_position * 0.1;
 	
 	vec3 base_ddx = dFdxCoarse(base_p);
@@ -222,20 +224,14 @@ void fragment() {
 		accumulate(mat, base_p, base_ddx, base_ddy, normal, ids, blend, weight);
 	}
 	
-	//accumulate(mat, base_p, base_ddx, base_ddy, normal, ivec2(int(primary_id), int(secondary_id)), blend);
-	
 	float inv_w = 1.0 / max(mat.total_weight, EPSILON);
 	mat.albedo *= inv_w;
 	mat.roughness *= inv_w;
 	mat.normal *= inv_w;
 	mat.ao *= inv_w;
 	
-	
 	ALBEDO = mat.albedo;
 	ROUGHNESS = mat.roughness;
 	NORMAL_MAP = mat.normal.xyz * 0.5 + 0.5;
 	AO = mat.ao;
-	//NORMAL_MAP_DEPTH = 3.0;
-	
-	//ALBEDO = vec3(float(secondary_id == 2u));
 }

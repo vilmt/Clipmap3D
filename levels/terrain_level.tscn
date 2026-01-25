@@ -63,10 +63,11 @@ environment = SubResource("Environment_rm2gq")
 camera_attributes = SubResource("CameraAttributesPractical_pvg1d")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=810570797]
-transform = Transform3D(-0.46875927, 0.09963364, 0.87768906, 0.31871393, 0.9457644, 0.06285841, -0.82382417, 0.30919713, -0.4750902, 0, 496.4257, 306.4474)
+transform = Transform3D(-0.5042829, -0.017015917, 0.8633708, 0.25886765, 0.95084566, 0.16994095, -0.8238241, 0.30919713, -0.47509035, 0, 496.4257, 306.4474)
 light_intensity_lux = 65176.9
 light_temperature = 2989.0
 light_energy = 2.0
+shadow_enabled = true
 directional_shadow_split_1 = 0.04
 directional_shadow_split_2 = 0.11
 directional_shadow_split_3 = 0.33
@@ -74,7 +75,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(0.99985313, -0.017138295, 0, 0.014870682, 0.8675599, -0.49711028, 0.0085196225, 0.49703726, 0.86768734, 3729.864, 0.00036621094, -1501.3895)
+transform = Transform3D(0.99985313, -0.017138295, 0, 0.014870682, 0.8675599, -0.49711028, 0.0085196225, 0.49703726, 0.86768734, 3773.7178, 0.00036621094, -1429.0638)
 script = ExtResource("1_a1u1q")
 source = SubResource("Resource_vn06u")
 follow_target = NodePath("../Player")
@@ -89,7 +90,7 @@ visible = false
 mesh = SubResource("BoxMesh_tjx8f")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3729.864, 1364.2986, -1501.3895)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3773.7178, 1204.8733, -1429.0638)
 
 [node name="Ball" parent="." unique_id=1142737108 instance=ExtResource("5_vn06u")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.3156357, 217.36813, -11.665321)
