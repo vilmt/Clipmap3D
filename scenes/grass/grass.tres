@@ -1,9 +1,0 @@
-[gd_resource type="ShaderMaterial" format=3 uid="uid://cor7kynnsfh01"]
-
-[ext_resource type="Shader" uid="uid://di0bcyjpxu6h5" path="res://scenes/grass/grass.gdshader" id="1_h8vq5"]
-
-[resource]
-render_priority = 0
-shader = ExtResource("1_h8vq5")
-shader_parameter/wind_velocity = Vector2(1, 1)
-shader_parameter/camera_position = Vector3(0, 0, 0)
