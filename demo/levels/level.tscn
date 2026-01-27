@@ -82,7 +82,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(0.99985313, -0.017138295, 0, 0.014870682, 0.8675599, -0.49711028, 0.0085196225, 0.49703726, 0.86768734, -135.06847, 0.00036621094, -1018.9281)
+transform = Transform3D(0.99985313, -0.017138295, 0, 0.014870682, 0.8675599, -0.49711028, 0.0085196225, 0.49703726, 0.86768734, -78.79172, 0.00036621094, -1214.0311)
 script = ExtResource("1_a1u1q")
 follow_target = NodePath("../Player")
 source = SubResource("Resource_vn06u")
@@ -92,7 +92,7 @@ material = ExtResource("1_tog6l")
 collision_targets = [NodePath("../Player")]
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("4_owj7c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -135.06847, 1250.4841, -1018.9281)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -78.79172, 1250.4841, -1214.0311)
 
 [node name="ZoomOutWarningLabel" type="Label3D" parent="." unique_id=1827955459]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.225605, 0)

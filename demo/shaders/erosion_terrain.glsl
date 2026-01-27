@@ -77,9 +77,7 @@ vec3 ridges(vec2 p, vec2 curl) {
 			float w = dd * (dd - 2.0) + 1.0; // quartic interpolant weight
 			vec2 w_d = 4.0 * (1.0 - dd) * d; // derivative
 			
-			float alignment = dot(d, curl);
-			float phase = alignment * TAU;
-			
+			float phase = dot(d, curl) * TAU;
 			float c = cos(phase);
 			float s = sin(phase);
 			
@@ -113,7 +111,7 @@ vec4 height_map(vec2 p, vec2 scale) {
 	
 	float e_w = e_a;
 	
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < 7; i++) {
 		vec2 curl = (h.zy + e.zy) * vec2(1.0, -1.0) / scale;
 		vec3 r = ridges(p * e_f * scale, curl) * e_a;
 		e += r * vec3(1.0, e_f * scale);

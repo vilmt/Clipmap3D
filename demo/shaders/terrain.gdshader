@@ -23,7 +23,7 @@ varying flat vec3 debug_albedo;
 
 #define INV_255 0.003921568627450
 #define EPSILON 1e-6
-#define LOD_BLEND
+//#define LOD_BLEND
 	
 struct material {
 	vec3 albedo;
@@ -193,8 +193,8 @@ void fragment() {
 	
 	uvec4 controls = floatBitsToUint(textureGather(_control_maps, coords, 0).wzxy);
 	
-	// TODO: come up with more efficient way to blend lods
-	// currently doubles texture samples from 16 -> 32
+	// TODO: blend lod boundaries exactly, similarly to height
+	// 
 	
 	for (int i = 0; i < 4; i++) {
 		uint control = controls[i];
