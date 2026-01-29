@@ -23,10 +23,8 @@ class_name Clipmap3D extends Node3D
 		mesh_vertex_spacing = value
 		if not is_node_ready():
 			return
-		
 		mesh_vertex_spacing_changed.emit(mesh_vertex_spacing)
 		_mark_source_dirty()
-		#_recalculate_source_origin()
 		
 @export var mesh_tile_size := Vector2i(32, 32):
 	set(value):
@@ -39,7 +37,7 @@ class_name Clipmap3D extends Node3D
 		_mark_source_dirty()
 
 # NOTE: arbitrary lower limit of 2 because of https://github.com/godotengine/godot/issues/115103
-@export_range(2, 10, 1) var mesh_lod_count: int = 5:
+@export_range(2, Clipmap3DMeshHandler.MAX_LOD_COUNT, 1) var mesh_lod_count: int = 5:
 	set(value):
 		if mesh_lod_count == value:
 			return
@@ -149,8 +147,7 @@ func _mark_source_dirty():
 func _rebuild_source():
 	if _source_dirty:
 		var target := Vector2(global_position.x, global_position.z)
-		var size := 4 * mesh_tile_size + Vector2i.ONE * 8
-		source.create_maps(target, size, mesh_lod_count, mesh_vertex_spacing)
+		source.create_maps(target, _mesh_handler.get_mesh_vertices(), mesh_lod_count, mesh_vertex_spacing)
 	_source_dirty = false
 
 func _enter_tree() -> void:
@@ -164,8 +161,6 @@ func _ready():
 	_mesh_handler.update_scenario_rid(get_world_3d().scenario)
 	if material:
 		_mesh_handler.update_material_rid(material.get_rid())
-	if source:
-		_mesh_handler.update_height_amplitude(source.get_height_amplitude())
 	_mesh_handler.generate()
 	if not _collision_handler and not Engine.is_editor_hint():
 		_collision_handler = Clipmap3DCollisionHandler.new()
@@ -214,15 +209,17 @@ func _connect_source():
 		return
 	source.changed.connect(_on_source_changed)
 	source.maps_created.connect(_on_source_maps_created)
+	source.maps_shifted.connect(_on_source_maps_shifted)
 	source.textures_changed.connect(_on_source_textures_changed)
-	_mark_source_dirty()
 	source.create_textures()
+	_on_source_changed()
 
 func _disconnect_source():
 	if not source or not source.changed.is_connected(_on_source_changed):
 		return
 	source.changed.disconnect(_on_source_changed)
 	source.maps_created.disconnect(_on_source_maps_created)
+	source.maps_shifted.disconnect(_on_source_maps_shifted)
 	source.textures_changed.disconnect(_on_source_textures_changed)
 	source.clear_maps()
 	source.clear_textures()
@@ -232,12 +229,17 @@ func _recalculate_source_origin():
 		return
 	source.shift_maps(Vector2(global_position.x, global_position.z))
 
+# TODO: clean up spaghetti connections
 func _on_source_maps_created():
 	_mesh_handler.update_map_rids(source.get_map_rids())
-	
+
+func _on_source_maps_shifted():
+	_mesh_handler.update_map_origins(source.get_map_origins())
+
 func _on_source_textures_changed():
 	_mesh_handler.update_texture_rids(source.get_texture_rids())
 	
 func _on_source_changed():
-	_mesh_handler.update_height_amplitude(source.get_height_amplitude())
+	_mesh_handler.update_height_amplitude(source.height_amplitude)
+	_mesh_handler.update_texels_per_vertex(source.texels_per_vertex)
 	_mark_source_dirty()

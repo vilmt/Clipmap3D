@@ -1,19 +1,30 @@
 shader_type spatial;
 
-uniform float lod_blend_ratio = 0.2; // this causes seams > 0.2
+#define MAX_LOD_COUNT 10
+#define MAX_TEXTURE_COUNT 32
+
+// must be smaller than 1.0 - sqrt(2.0) / 2.0 to avoid lod overlap
+uniform float lod_blend_ratio: hint_range(0.0, 0.2928932188134525) = 0.2;
 uniform float projection_threshold = 0.8;
 
 group_uniforms private;
 uniform sampler2DArray _albedo_textures: source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2DArray _normal_textures: hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform float[MAX_TEXTURE_COUNT] _normal_depths;
+uniform vec2[MAX_TEXTURE_COUNT] _uv_scales;
+uniform vec3[MAX_TEXTURE_COUNT] _albedo_colors: source_color;
 
 uniform highp sampler2DArray _height_maps: repeat_disable, hint_default_black, filter_nearest;
 uniform sampler2DArray _normal_maps: repeat_disable, hint_normal, filter_nearest;
 uniform highp sampler2DArray _control_maps: repeat_disable, hint_default_black, filter_nearest;
 
-uniform vec3 _target_position;
+uniform ivec2[MAX_LOD_COUNT] _map_origins;
+uniform ivec2 _texels_per_vertex;
 uniform vec2 _vertex_spacing;
-uniform ivec2 _tile_size;
+uniform ivec2 _tile_size; // unnecessary if image size matches lods exactly. imageSize / texels_per_vertex
+
+// world origin, used for continuous values such as geomorph
+uniform vec3 _target_position;
 
 varying vec3 world_position;
 varying flat int vertex_lod;
@@ -23,7 +34,6 @@ varying flat vec3 debug_albedo;
 
 #define INV_255 0.003921568627450
 #define EPSILON 1e-6
-//#define LOD_BLEND
 	
 struct material {
 	vec3 albedo;
@@ -37,23 +47,14 @@ struct material {
 	float total_weight;
 };
 
-vec2 to_uv(vec2 world_xz, vec2 inv_scale) {
-	vec2 lod_cell = world_xz * inv_scale;
-	vec2 origin = floor(_target_position.xz * inv_scale + EPSILON);
-	vec2 texel = lod_cell - origin + 0.5; // sample vertex center
-	return texel / vec2(textureSize(_height_maps, 0).xy) + 0.5; // center texture
-}
-
-vec3 gather_coords(vec2 sampler_size, vec2 uv, int lod, out vec4 weights) {
-	vec2 st = uv * sampler_size - 0.5;
-	vec2 i = floor(st);
-	vec2 w = fract(st);
+vec3 gather_coords(vec2 sampler_size, vec2 texel, int lod, out vec4 weights) {
+	vec2 i;
+	vec2 w = modf(texel, i);
 	weights = vec2(1.0 - w.x, w.x).xyxy * vec2(1.0 - w.y, w.y).xxyy;
 	return vec3((i + 0.5) / sampler_size, float(lod));
 }
 
 void vertex() {
-	// camera_pos = MAIN_CAM_INV_VIEW_MATRIX[3].xyz;
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	
 	// scale and lod from transform
@@ -61,34 +62,50 @@ void vertex() {
 	vec2 inv_scale = 1.0 / scale;
 	vertex_lod = int(log2(scale.x / _vertex_spacing.x) + EPSILON);
 	
-	vec2 edge = mod(floor(_target_position.xz * inv_scale + EPSILON), 2.0);
-	vec2 lod_position = (world_position.xz - _target_position.xz) * inv_scale;
-	vec2 lod_position_snapped = floor(lod_position - EPSILON) + edge;
-
-#ifdef LOD_BLEND
-	// geo-morph blend vertices on lod boundaries
-	vec2 lod_size = fma(vec2(_tile_size), vec2(2.0), vec2(1.0));
-	lod_blend_mask = smoothstep(1.0 - lod_blend_ratio, 1.0, length(lod_position / lod_size));
-	lod_blend_mask *= float((vertex_lod + 1) < textureSize(_height_maps, 0).z);
-	vec2 even_mask = abs(mod(lod_position_snapped, 2.0) - 1.0);
+	// could use fractional component of world pos for geomorph?
+	
+	vec2 size = vec2(textureSize(_height_maps, 0).xy);
+	
+	vec2 lod_position = world_position.xz * inv_scale;
+	vec2 texel = lod_position * vec2(_texels_per_vertex);
+	
+	vec2 target = (world_position.xz - _target_position.xz) * inv_scale * vec2(_texels_per_vertex);
+	vec2 edge = mod(target, 2.0);
+	vec2 lod_position_snapped = floor(target - EPSILON) + edge;
+	lod_blend_mask = smoothstep(1.0 - lod_blend_ratio, 1.0, length(target / (size * 0.5)));
+	// TODO: square mask
+	
+	vec2 even_mask = abs(mod(texel, 2.0));
 	vec2 offset = even_mask * lod_blend_mask;
 	
-	world_position.xz += offset * scale;
+	
+	
+	debug_albedo.rg = offset;
+	
+	texel += offset;
 	VERTEX.xz += offset;
-	UV2 = to_uv(world_position.xz, inv_scale * 0.5);
-#endif
-	
-	UV = to_uv(world_position.xz, inv_scale);
-	
-	vec2 sampler_size = vec2(textureSize(_height_maps, 0).xy);
+	texel = mod(texel, size);
 	
 	vec4 weights;
-	vec3 coords = gather_coords(sampler_size, UV, vertex_lod, weights);
-	world_position.y = dot(textureGather(_height_maps, coords).wzxy, weights);
+	vec3 coords = gather_coords(size, texel, vertex_lod, weights);
+	
+	world_position.y = dot(textureGather(_height_maps, coords, 0).wzxy, weights);
 	VERTEX.y = world_position.y;
+	
+	//vec2 f = floor(texel);
+	//vec2 w = fract(texel);
+	//float h_00 = texelFetch(_height_maps, ivec3(ivec2(mod(f + vec2(0.0, 0.0), size)), vertex_lod), 0).r;
+	//float h_10 = texelFetch(_height_maps, ivec3(ivec2(mod(f + vec2(1.0, 0.0), size)), vertex_lod), 0).r;
+	//float h_01 = texelFetch(_height_maps, ivec3(ivec2(mod(f + vec2(0.0, 1.0), size)), vertex_lod), 0).r;
+	//float h_11 = texelFetch(_height_maps, ivec3(ivec2(mod(f + vec2(1.0, 1.0), size)), vertex_lod), 0).r;
+	//
+	//world_position.y = mix(mix(h_00, h_10, w.x), mix(h_01, h_11, w.x), w.y);
+	
+	debug_albedo = vec3(0.7);
+	
+	//debug_albedo.b = 0.0;
 }
 
-// TODO: pass 2 ids, calculate world normal in first, apply to second
 void accumulate(inout material mat, vec3 p, vec3 ddx, vec3 ddy, vec3 normal, uvec2 texture_ids, float blend, float bilerp_weight) {
 	vec4 dd = vec4(ddx.xz, ddy.xz);
 	mat2 align = mat2(1.0);
@@ -146,6 +163,7 @@ void accumulate(inout material mat, vec3 p, vec3 ddx, vec3 ddy, vec3 normal, uve
 		mat.normal += (normal_h_ao.xyz * 2.0 - 1.0) * weight;
 		
 		// TODO: incorporate height in blending
+		// Can make high parts of secondary stick out of primary
 		mat.ao += normal_h_ao.w * weight;
 		mat.total_weight += weight;
 	}
@@ -156,33 +174,37 @@ void fragment() {
 	
 	vec4 weights, weights_2;
 	vec3 coords, coords_2;
-	coords = gather_coords(sampler_size, UV, vertex_lod, weights); 
+	coords = gather_coords(sampler_size, UV, vertex_lod, weights);
 	
 	vec2 gradient = vec2(
 		dot(textureGather(_normal_maps, coords, 0).wzxy, weights),
 		dot(textureGather(_normal_maps, coords, 1).wzxy, weights)
 	);
-
-#ifdef LOD_BLEND
-	if (lod_blend_mask > EPSILON) {
-		coords_2 = gather_coords(sampler_size, UV2, vertex_lod + 1, weights_2);
+	
+	// blend normals with lod + 1
+	//if (lod_blend_mask > EPSILON) {
+		//coords_2 = gather_coords(sampler_size, UV2, vertex_lod + 1, weights_2);
+		//
+		//vec2 gradient_2 = vec2(
+			//dot(textureGather(_normal_maps, coords_2, 0).wzxy, weights_2),
+			//dot(textureGather(_normal_maps, coords_2, 1).wzxy, weights_2)
+		//);
+		//
+		//gradient = mix(gradient, gradient_2, lod_blend_mask);
+	//}
+	
+	vec3 normal = normalize(vec3(
+		-gradient.r,
+		1.0,
+		-gradient.g
+	));
 		
-		vec2 gradient_2 = vec2(
-			dot(textureGather(_normal_maps, coords_2, 0).wzxy, weights_2),
-			dot(textureGather(_normal_maps, coords_2, 1).wzxy, weights_2)
-		);
+	vec3 tangent = normalize(cross(NORMAL, vec3(0.0, 0.0, 1.0)));
+	vec3 binormal = cross(NORMAL, tangent); // no need to normalize since perpendicular
 	
-		gradient = mix(gradient, gradient_2, lod_blend_mask);
-	}
-#endif
-	
-	vec3 normal = normalize(vec3(-gradient.x, 1.0, -gradient.y));
-	vec3 tangent = normalize(cross(normal, vec3(0.0, 0.0, 1.0)));
-	vec3 binormal = normalize(cross(normal, tangent));
-	
-	NORMAL = mat3(VIEW_MATRIX) * normal;
-	TANGENT = mat3(VIEW_MATRIX) * tangent;
-	BINORMAL = mat3(VIEW_MATRIX) * binormal;
+	//NORMAL = mat3(VIEW_MATRIX) * normal;
+	//TANGENT = mat3(VIEW_MATRIX) * tangent;
+	//BINORMAL = mat3(VIEW_MATRIX) * binormal;
 	
 	material mat = material(vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0);
 	
@@ -192,33 +214,28 @@ void fragment() {
 	vec3 base_ddy = dFdyCoarse(base_p);
 	
 	uvec4 controls = floatBitsToUint(textureGather(_control_maps, coords, 0).wzxy);
-	
-	// TODO: blend lod boundaries exactly, similarly to height
-	// 
-	
 	for (int i = 0; i < 4; i++) {
 		uint control = controls[i];
-		float weight = weights[i] * (1.0 - lod_blend_mask);
+		float weight = weights[i];
 		uvec2 ids = uvec2(control >> 27u & 0x1Fu, control >> 22u & 0x1Fu);
 		float blend = float(control >> 14u & 0xFFu) * INV_255;
 		
 		accumulate(mat, base_p, base_ddx, base_ddy, normal, ids, blend, weight);
 	}
-
-#ifdef LOD_BLEND
-	if (lod_blend_mask > EPSILON) {
-		uvec4 controls_2 = floatBitsToUint(textureGather(_control_maps, coords_2, 0).wzxy);
-		
-		for (int i = 0; i < 4; i++) {
-			uint control = controls_2[i];
-			float weight = weights_2[i] * lod_blend_mask;
-			uvec2 ids = uvec2(control >> 27u & 0x1Fu, control >> 22u & 0x1Fu);
-			float blend = float(control >> 14u & 0xFFu) * INV_255;
-			
-			accumulate(mat, base_p, base_ddx, base_ddy, normal, ids, blend, weight);
-		}
-	}
-#endif
+	
+	// lod blend control maps, unnecessary for 4x map res
+	//if (lod_blend_mask > EPSILON) {
+		//uvec4 controls_2 = floatBitsToUint(textureGather(_control_maps, coords_2, 0).wzxy);
+		//
+		//for (int i = 0; i < 4; i++) {
+			//uint control = controls_2[i];
+			//float weight = weights_2[i] * lod_blend_mask;
+			//uvec2 ids = uvec2(control >> 27u & 0x1Fu, control >> 22u & 0x1Fu);
+			//float blend = float(control >> 14u & 0xFFu) * INV_255;
+			//
+			//accumulate(mat, base_p, base_ddx, base_ddy, normal, ids, blend, weight);
+		//}
+	//}
 	
 	float inv_w = 1.0 / max(mat.total_weight, EPSILON);
 	mat.albedo *= inv_w;
@@ -226,8 +243,10 @@ void fragment() {
 	mat.normal *= inv_w;
 	mat.ao *= inv_w;
 	
-	ALBEDO = mat.albedo;
-	ROUGHNESS = mat.roughness;
-	NORMAL_MAP = mat.normal.xyz * 0.5 + 0.5;
-	AO = mat.ao;
+	//ALBEDO = mat.albedo;
+	//ROUGHNESS = mat.roughness;
+	//NORMAL_MAP = mat.normal.xyz * 0.5 + 0.5;
+	//AO = mat.ao;
+	
+	ALBEDO = debug_albedo;
 }

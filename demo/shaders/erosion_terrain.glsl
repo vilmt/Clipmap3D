@@ -8,14 +8,18 @@ layout(rg16f, binding = 1) restrict uniform image2DArray normal_maps;
 layout(r32f, binding = 2) restrict uniform image2DArray control_maps;
 
 layout(push_constant, std430) uniform Params {
-	vec2 world_origin;
-	vec2 vertex_spacing;
-	
+	ivec4 region;
 	int lod;
-	int noise_seed; // TODO
-	float amplitude;
+	int seed;
+	ivec2 origin;
+	ivec2 texels_per_vertex;
+	vec2 vertex_spacing;
+	float height_amplitude;
+	
+	float _pad0;
 	float _pad1;
-
+	float _pad2;
+	
 } params;
 
 #define EPSILON 1e-6
@@ -61,7 +65,7 @@ vec3 noised(vec2 p) {
 
 // erosion ridges and derivative by vilmt
 // based on smooth voronoi by iq https://iquilezles.org/articles/smoothvoronoi/
-vec3 ridges(vec2 p, vec2 curl) {
+vec3 erosion(vec2 p, vec2 curl) {
 	vec2 p_i = floor(p);
 	vec2 p_f = fract(p);
 	
@@ -92,29 +96,30 @@ vec3 ridges(vec2 p, vec2 curl) {
 vec4 height_map(vec2 p, vec2 scale) {
     // FBM terrain
 	vec3 h = vec3(0.0);
-	float h_a = 0.5;
-	float h_f = 1.0;
+	float h_a = 0.5; // amplitude (don't change this)
+	float h_f = 1.0; // frequency (already handled by scale)
 	
 	for (int i = 0; i < 6; i++) {
 		vec3 n = noised(p * h_f * scale) * h_a;
 		h += n * vec3(1.0, h_f * scale);
-		h_a *= 0.4;
-		h_f *= 1.8;
+		
+		h_a *= 0.4; // gain
+		h_f *= 1.8; // lacunarity
 	}
 	
-	h.x += 0.5;
+	h.x += 0.5; // map terrain to [0, 1]
 	
 	// FBM erosion
 	vec3 e = vec3(0.0);
-	float e_a = 0.005;
-	float e_f = 20.0;
+	float e_a = 0.005; // erosion amplitude
+	float e_f = 20.0; // erosion frequency
 	
-	float e_w = e_a;
+	float e_w = e_a; // erosion weight, used for normalizing
 	
 	for (int i = 0; i < 7; i++) {
 		vec2 curl = (h.zy + e.zy) * vec2(1.0, -1.0) / scale;
-		vec3 r = ridges(p * e_f * scale, curl) * e_a;
-		e += r * vec3(1.0, e_f * scale);
+		vec3 n = erosion(p * e_f * scale, curl) * e_a;
+		e += n * vec3(1.0, e_f * scale);
 		
 		e_a *= 0.5;
 		e_f *= 1.8;
@@ -129,34 +134,35 @@ struct MaterialWeight {
 };
 
 void main() {
-	ivec3 global_id = ivec3(gl_GlobalInvocationID);
-	global_id.z += params.lod;
-	ivec3 bounds = imageSize(height_maps);
+	// determine image size and bounds
+	ivec2 local = ivec2(gl_GlobalInvocationID.xy);
 	
-	if (any(greaterThanEqual(global_id, bounds))) {
+	if (any(greaterThanEqual(local, params.region.zw))) {
 		return;
 	}
 	
-	ivec2 texel = global_id.xy;
-	ivec2 size = bounds.xy;
+	// region is currently zero for debug
+	ivec3 coords = ivec3(local + params.region.xy, params.lod);
 	
-	vec2 scale = params.vertex_spacing * float(1 << params.lod);
+	vec2 size = vec2(imageSize(height_maps).xy);
+	vec2 texel = vec2(coords.xy + params.origin) - size / 2.0 + 1.5 * vec2(params.texels_per_vertex); // unwrapped sampling pos
+	
+	vec2 scale = params.vertex_spacing * float(1 << params.lod) / vec2(params.texels_per_vertex);
 	vec2 inv_scale = 1.0 / scale;
 	
-	vec2 centered = vec2(texel - size / 2);
-	vec2 origin = floor(params.world_origin * inv_scale + EPSILON);
-	vec2 uv = centered + origin;
-	
-	vec4 h = height_map(uv, scale * 0.0005);
+	vec4 h = height_map(texel, scale * 0.0005);
 	
 	float height = h.x;
 	
-	h.xyz *= params.amplitude;
+	h.xyz *= params.height_amplitude;
 	h.yz *= inv_scale;
 	
-	imageStore(height_maps, global_id, vec4(h.x, 0.0, 0.0, 0.0));
-	imageStore(normal_maps, global_id, vec4(h.yz, 0.0, 0.0));
+	coords.xy = ivec2(mod(texel.xy, size));
 	
+	imageStore(height_maps, coords, vec4(h.x, 0.0, 0.0, 0.0));
+	imageStore(normal_maps, coords, vec4(h.yz, 0.0, 0.0));
+	
+	// material mixing
 	float slope = length(h.yz);
 	float ridge = max(h.w, 0.0);
 	float occlusion = max(-h.w, 0.0);
@@ -165,6 +171,7 @@ void main() {
 	float w_grass = smoothstep(0.4, 0.38, height) * smoothstep(0.6, 0.58, slope);
 	float w_cliff = (1.0 - w_snow) * (1.0 - w_grass);
 	
+	// find top 2 materials
 	MaterialWeight mats[3] = {
 		{GRASS_ID, w_grass},
 		{CLIFF_ID, w_cliff},
@@ -182,6 +189,7 @@ void main() {
 		}
 	}
 	
+	// write to control map
 	float sum = primary.w + secondary.w + EPSILON;
 	float blend = primary.w / sum;
 	
@@ -193,5 +201,5 @@ void main() {
 	control |= (secondary.id & 0x1F) << 22;
 	control |= (blend_u8 & 0xFF) << 14;
 	
-	imageStore(control_maps, global_id, vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
+	imageStore(control_maps, coords, vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
 }

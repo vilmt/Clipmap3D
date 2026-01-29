@@ -1,6 +1,8 @@
 @tool
 class_name Clipmap3DComputeSource extends Clipmap3DSource
 
+# TODO: remove unnecessary image skirts
+
 ## The compute shader to use for generation.
 @export var compute_shader: RDShaderFile:
 	set(value):
@@ -12,14 +14,10 @@ class_name Clipmap3DComputeSource extends Clipmap3DSource
 			return
 		_connect_shader()
 
+## The random number seed passed to your shader.
 @export var compute_seed: int = 0:
 	set(value):
 		compute_seed = value
-		emit_changed()
-
-@export var height_amplitude: float = 800.0:
-	set(value):
-		height_amplitude = value
 		emit_changed()
 
 var _rd := RenderingServer.get_rendering_device()
@@ -36,8 +34,8 @@ var _lod_count: int
 var _vertex_spacing: Vector2
 var _world_origin: Vector2
 
-var _origins: Array[Vector2]
-var _dirty: Array[bool]
+var _origins: Array[Vector2i]
+var _deltas: Array[Vector2i]
 
 var _cpu_height_image: Image
 
@@ -47,20 +45,22 @@ func has_maps() -> bool:
 func get_map_rids() -> Dictionary[MapType, RID]:
 	return _map_rids
 
-func get_height_amplitude():
-	return height_amplitude
+func get_map_origins() -> Array[Vector2i]:
+	return _origins
 
+## Get the height from the LOD 0 map.
 func get_height_world(world_xz: Vector2) -> float:
-	if not _cpu_height_image:
-		return 0.0
-	var _image_size := _cpu_height_image.get_size()
-	var inv_scale := Vector2.ONE / (_vertex_spacing * float(1 << 0))
-	var lod_cell := Vector2i((world_xz * inv_scale).floor() - _origins[0])
-	@warning_ignore("integer_division")
-	var texel := lod_cell + _image_size / 2;
-	if not Rect2i(Vector2i.ZERO, _image_size).has_point(texel):
-		return 0.0
-	return _cpu_height_image.get_pixelv(texel).r
+	return 0.0
+	#if not _cpu_height_image:
+		#return 0.0
+	#var inv_scale := Vector2.ONE / _vertex_spacing
+	#var origin := Vector2i((_world_origin * inv_scale).floor()) * texels_per_vertex
+	#var lod_cell := Vector2i((world_xz * inv_scale).floor()) - origin
+	#@warning_ignore("integer_division")
+	#var texel := lod_cell + _size / 2;
+	#if not Rect2i(Vector2i.ZERO, _size).has_point(texel):
+		#return 0.0
+	#return _cpu_height_image.get_pixelv(texel).r
 	
 func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_spacing: Vector2) -> void:
 	if not _rd:
@@ -69,7 +69,7 @@ func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_s
 	
 	_initialized = true
 	_world_origin = world_origin
-	_size = size
+	_size = size * texels_per_vertex
 	_lod_count = lod_count
 	_vertex_spacing = vertex_spacing
 	
@@ -77,22 +77,22 @@ func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_s
 		return
 	
 	_connect_shader()
-	#
-	#RenderingServer.call_on_render_thread(_free_rids_threaded)
-	#RenderingServer.call_on_render_thread(_initialize_threaded)
 
 func shift_maps(world_origin: Vector2) -> void:
 	if not _rd:
 		return
 	_world_origin = world_origin
 	
+	var unscaled_origin: Vector2 = _world_origin / _vertex_spacing
+	
 	for lod: int in _lod_count:
-		var inv_scale := Vector2.ONE / (_vertex_spacing * float(1 << lod))
-		var origin := (_world_origin * inv_scale).floor()
-		if origin.is_equal_approx(_origins[lod]):
+		var snap := 2.0 * Vector2.ONE
+		var origin := Vector2i((unscaled_origin / float(1 << lod) / snap).floor() * snap) * texels_per_vertex
+		var delta := origin - _origins[lod]
+		if delta == Vector2i.ZERO:
 			continue
+		_deltas[lod] = delta
 		_origins[lod] = origin
-		_dirty[lod] = true
 	
 	RenderingServer.call_on_render_thread(_compute_threaded)
 
@@ -114,50 +114,80 @@ func _initialize_threaded():
 	_uniform_set_rid = _rd.uniform_set_create(uniforms, _shader_rid, 0)
 	_pipeline_rid = _rd.compute_pipeline_create(_shader_rid)
 	
-	_dirty.resize(_lod_count)
-	_dirty.fill(true)
+	_deltas.resize(_lod_count)
+	_deltas.fill(Vector2i(1000000, 1000000))
+
 	_origins.resize(_lod_count)
+	var unscaled_origin: Vector2 = _world_origin / _vertex_spacing
 	for lod: int in _lod_count:
-		var inv_scale := Vector2.ONE / (_vertex_spacing * float(1 << lod))
-		_origins[lod] = (_world_origin * inv_scale).floor()
+		var snap := 2.0 * Vector2.ONE
+		_origins[lod] = Vector2i((unscaled_origin / float(1 << lod) / snap).floor() * snap) * texels_per_vertex
 	
 	_compute_threaded(false)
 	maps_created.emit()
 
-# TODO: add "strip" mode where only small dirty sections of map are updated
 func _compute_threaded(use_signal: bool = true) -> void:
-	var groups_x := ceili(_size.x / 8.0)
-	var groups_y := ceili(_size.y / 8.0)
 	for lod: int in _lod_count:
-		if not _dirty[lod]:
+		var delta := _deltas[lod]
+		
+		if delta == Vector2i.ZERO:
 			continue
-		var compute_list := _rd.compute_list_begin()
-		_rd.compute_list_bind_compute_pipeline(compute_list, _pipeline_rid)
-		_rd.compute_list_bind_uniform_set(compute_list, _uniform_set_rid, 0)
 		
-		var push := PackedByteArray()
-		push.resize(32)
+		var delta_abs := delta.abs()
 		
-		push.encode_float(0, _world_origin.x)
-		push.encode_float(4, _world_origin.y)
-		push.encode_float(8, _vertex_spacing.x)
-		push.encode_float(12, _vertex_spacing.y)
-		push.encode_s32(16, lod)
-		push.encode_s32(20, compute_seed)
-		push.encode_float(24, height_amplitude)
+		# update entire region for now
+		_generate_region_threaded(lod)
 		
-		_rd.compute_list_set_push_constant(compute_list, push, push.size())
+		#if delta_abs.x >= _size.x or delta_abs.y >= _size.y:
+		#_generate_region_threaded(lod)
+		#else:
+			#if delta.x != 0:
+				#var x := _size.x if delta.x > 0 else delta.x # move right by size if delta is positive
+				#var region := Rect2i(x, 0, delta_abs.x, _size.y)
+				#_generate_region_threaded(lod, region)
+			#if delta.y != 0:
+				## pos.x is delta.x since this shift must accumulate from x shift
+				#var y := _size.y if delta.y > 0 else delta.y
+				#var region := Rect2i(0, y, _size.x, delta_abs.y)
+				#_generate_region_threaded(lod, region)
 		
-		_rd.compute_list_dispatch(compute_list, groups_x, groups_y, 1)
-		_rd.compute_list_end()
-		
-		_dirty[lod] = false
+		_deltas[lod] = Vector2i.ZERO
 		
 		if lod == 0:
 			_cpu_height_image = RenderingServer.texture_2d_layer_get(_map_rids[MapType.HEIGHT], 0)
 	
 	if use_signal:
-		maps_redrawn.emit()
+		maps_shifted.emit()
+
+func _generate_region_threaded(lod: int, region := Rect2i(Vector2i.ZERO, _size)):
+	var groups_x := ceili(region.size.x / 8.0)
+	var groups_y := ceili(region.size.y / 8.0)
+	
+	var compute_list := _rd.compute_list_begin()
+	_rd.compute_list_bind_compute_pipeline(compute_list, _pipeline_rid)
+	_rd.compute_list_bind_uniform_set(compute_list, _uniform_set_rid, 0)
+	
+	var push := PackedByteArray()
+	push.resize(64)
+	
+	push.encode_s32(0, region.position.x)
+	push.encode_s32(4, region.position.y)
+	push.encode_s32(8, region.size.x)
+	push.encode_s32(12, region.size.y)
+	push.encode_s32(16, lod)
+	push.encode_s32(20, compute_seed)
+	push.encode_s32(24, _origins[lod].x)
+	push.encode_s32(28, _origins[lod].y)
+	push.encode_s32(32, texels_per_vertex.x)
+	push.encode_s32(36, texels_per_vertex.y)
+	push.encode_float(40, _vertex_spacing.x)
+	push.encode_float(44, _vertex_spacing.y)
+	push.encode_float(48, height_amplitude)
+	
+	_rd.compute_list_set_push_constant(compute_list, push, push.size())
+	
+	_rd.compute_list_dispatch(compute_list, groups_x, groups_y, 1)
+	_rd.compute_list_end()
 
 func _create_texture_uniform_threaded(type: MapType, binding: int) -> RDUniform:
 	var format := RDTextureFormat.new()
@@ -169,10 +199,10 @@ func _create_texture_uniform_threaded(type: MapType, binding: int) -> RDUniform:
 	format.usage_bits = \
 		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
 		_rd.TEXTURE_USAGE_STORAGE_BIT | \
-		_rd.TEXTURE_USAGE_CAN_UPDATE_BIT
-	
-	if type == MapType.HEIGHT:
-		format.usage_bits |= _rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT
+		_rd.TEXTURE_USAGE_CAN_UPDATE_BIT | \
+		_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT | \
+		_rd.TEXTURE_USAGE_CAN_COPY_TO_BIT
+	 # dont need can update bit
 	
 	_map_rd_rids[type] = _rd.texture_create(format, RDTextureView.new())
 	_map_rids[type] = RenderingServer.texture_rd_create(_map_rd_rids[type], RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
@@ -230,9 +260,3 @@ func _free_compute_rids_threaded() -> void:
 	for rid: RID in _map_rd_rids.values():
 		_rd.free_rid(rid)
 	_map_rd_rids.clear()
-
-# DEBUG
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_PREDELETE:
-		if _pipeline_rid:
-			push_error("Maps were not deleted.")

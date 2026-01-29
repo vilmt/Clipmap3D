@@ -19,7 +19,7 @@ func initialize(clipmap: Clipmap3D):
 	_source = clipmap.source
 	if _source:
 		_source.maps_created.connect(update.bind(true))
-		_source.maps_redrawn.connect(update.bind(true))
+		_source.maps_shifted.connect(update.bind(true))
 	
 	_vertex_spacing = clipmap.mesh_vertex_spacing
 	_mesh_size = clipmap.collision_mesh_size
@@ -98,7 +98,8 @@ func _on_collision_layer_changed(physics_layer: int):
 	
 func _on_collision_mask_changed(physics_mask: int):
 	PhysicsServer3D.body_set_collision_mask(_body_rid, physics_mask)
-	
+
+# TODO: do lookups first, then build mesh. Doing 3x work here
 func _build_mesh(shape_index: int, xz: Vector2):
 	for i: int in _template_faces.size():
 		var v_world := Vector2(_template_faces[i].x, _template_faces[i].z) + xz

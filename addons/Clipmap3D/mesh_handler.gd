@@ -4,6 +4,8 @@ class_name Clipmap3DMeshHandler
 var _lod_count: int
 var _tile_size: Vector2i
 var _vertex_spacing: Vector2
+var _texels_per_vertex: Vector2i
+var _map_origins: Array[Vector2i]
 var _material_rid: RID
 var _scenario_rid: RID
 var _visible: bool
@@ -11,6 +13,7 @@ var _cast_shadows: RenderingServer.ShadowCastingSetting
 var _render_layer: int
 var _height_amplitude: float = 0.1
 var _height_maps_rid: RID
+var _normal_maps_rid: RID
 var _control_maps_rid: RID
 var _albedo_textures_rid: RID
 var _normal_textures_rid: RID
@@ -38,8 +41,12 @@ enum MeshType {
 	EDGE_Z
 }
 
+const MAX_LOD_COUNT: int = 10
 const LOD_0_INSTANCES: int = 19
 const LOD_X_INSTANCES: int = 18
+
+func get_mesh_vertices() -> Vector2i:
+	return 4 * _tile_size + Vector2i.ONE * 3
 
 func _rebuild():
 	if _meshes_dirty:
@@ -61,21 +68,10 @@ func _mark_meshes_dirty():
 	_meshes_dirty = true
 	_rebuild.call_deferred()
 
-func update_map_rids(map_rids: Dictionary[Clipmap3DSource.MapType, RID]):
+func update_map_origins(map_origins: Array[Vector2i]):
+	_map_origins = map_origins
 	if _material_rid:
-		var height_rid: RID = map_rids.get(Clipmap3DSource.MapType.HEIGHT, RID())
-		var normal_rid: RID = map_rids.get(Clipmap3DSource.MapType.NORMAL, RID())
-		var control_rid: RID = map_rids.get(Clipmap3DSource.MapType.CONTROL, RID())
-		RenderingServer.material_set_param(_material_rid, &"_height_maps", height_rid)
-		RenderingServer.material_set_param(_material_rid, &"_normal_maps", normal_rid)
-		RenderingServer.material_set_param(_material_rid, &"_control_maps", control_rid)
-
-func update_texture_rids(texture_rids: Dictionary[Clipmap3DSource.TextureType, RID]):
-	if _material_rid:
-		var albedo_rid: RID = texture_rids.get(Clipmap3DSource.TextureType.ALBEDO, RID())
-		var normal_rid: RID = texture_rids.get(Clipmap3DSource.TextureType.NORMAL, RID())
-		RenderingServer.material_set_param(_material_rid, &"_albedo_textures", albedo_rid)
-		RenderingServer.material_set_param(_material_rid, &"_normal_textures", normal_rid)
+		RenderingServer.material_set_param(_material_rid, &"_map_origins", _map_origins)
 
 func update_height_amplitude(height_amplitude: float):
 	_height_amplitude = maxf(height_amplitude, 0.1)
@@ -83,7 +79,28 @@ func update_height_amplitude(height_amplitude: float):
 		var aabb := _mesh_aabbs[type]
 		aabb.size.y = _height_amplitude
 		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
-		
+
+func update_texels_per_vertex(texels_per_vertex: Vector2i):
+	_texels_per_vertex = texels_per_vertex
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"_texels_per_vertex", _texels_per_vertex)
+
+func update_map_rids(map_rids: Dictionary[Clipmap3DSource.MapType, RID]):
+	_height_maps_rid = map_rids.get(Clipmap3DSource.MapType.HEIGHT, RID())
+	_normal_maps_rid = map_rids.get(Clipmap3DSource.MapType.NORMAL, RID())
+	_control_maps_rid = map_rids.get(Clipmap3DSource.MapType.CONTROL, RID())
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"_height_maps", _height_maps_rid)
+		RenderingServer.material_set_param(_material_rid, &"_normal_maps", _normal_maps_rid)
+		RenderingServer.material_set_param(_material_rid, &"_control_maps", _control_maps_rid)
+
+func update_texture_rids(texture_rids: Dictionary[Clipmap3DSource.TextureType, RID]):
+	_albedo_textures_rid = texture_rids.get(Clipmap3DSource.TextureType.ALBEDO, RID())
+	_normal_textures_rid = texture_rids.get(Clipmap3DSource.TextureType.NORMAL, RID())
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"_albedo_textures", _albedo_textures_rid)
+		RenderingServer.material_set_param(_material_rid, &"_normal_textures", _normal_textures_rid)
+
 func _on_tile_size_changed(tile_size: Vector2i):
 	_tile_size = tile_size
 	_mark_meshes_dirty()
@@ -106,10 +123,15 @@ func update_material_rid(material_rid: RID):
 	_material_rid = material_rid
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"_height_maps", _height_maps_rid)
+		RenderingServer.material_set_param(_material_rid, &"_normal_maps", _normal_maps_rid)
 		RenderingServer.material_set_param(_material_rid, &"_control_maps", _control_maps_rid)
+		RenderingServer.material_set_param(_material_rid, &"_albedo_textures", _albedo_textures_rid)
+		RenderingServer.material_set_param(_material_rid, &"_normal_textures", _normal_textures_rid)
 		RenderingServer.material_set_param(_material_rid, &"_tile_size", _tile_size)
 		RenderingServer.material_set_param(_material_rid, &"_vertex_spacing", _vertex_spacing)
 		RenderingServer.material_set_param(_material_rid, &"_target_position", _last_p)
+		RenderingServer.material_set_param(_material_rid, &"_texels_per_vertex", _texels_per_vertex)
+		RenderingServer.material_set_param(_material_rid, &"_map_origins", _map_origins)
 	for mesh_rid: RID in _mesh_rids.values():
 		RenderingServer.mesh_surface_set_material(mesh_rid, 0, _material_rid)
 		
@@ -134,16 +156,12 @@ func _on_cast_shadows_changed(cast_shadows: RenderingServer.ShadowCastingSetting
 		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, _cast_shadows)
 
 func snap(p: Vector3, force: bool = false) -> bool:
+	if p == _last_p and not force:
+		return false
+	_last_p = p
+	
 	if _material_rid:
 		RenderingServer.material_set_param(_material_rid, &"_target_position", p)
-	
-	if p.y == _last_p.y and (absf(p.x - _last_p.x) < _vertex_spacing.x and absf(p.z - _last_p.z) < _vertex_spacing.y) and not force:
-		return false
-	
-	_last_p = p # setting this but not updating is bad
-	
-	if _instance_rids.is_empty(): # bad
-		return false
 	
 	var starting_i: int = 0
 	var ending_i: int = LOD_0_INSTANCES
@@ -182,6 +200,7 @@ func snap(p: Vector3, force: bool = false) -> bool:
 		
 		starting_i = ending_i
 		ending_i += LOD_X_INSTANCES
+	
 	return true
 
 func initialize(clipmap: Clipmap3D) -> void:
@@ -284,7 +303,7 @@ func _generate_meshes():
 	_generate_mesh(MeshType.FILL_Z, Vector2i(_tile_size.x, 1))
 	_generate_mesh(MeshType.EDGE_X, Vector2i(1, _tile_size.y * 4 + 2))
 	_generate_mesh(MeshType.EDGE_Z, Vector2i(_tile_size.x * 4 + 1, 1))
-	
+
 func _generate_offsets():
 	_mesh_xzs.clear()
 	_edge_x_xzs.clear()

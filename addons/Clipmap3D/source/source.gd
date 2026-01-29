@@ -5,6 +5,19 @@ class_name Clipmap3DSource extends Resource
 # TODO
 #@export var world_offset := Vector2.ZERO
 
+## Defines how many pixels in the generated terrain images correspond to a vertex.
+## Higher values mean more normal and control detail.
+@export var texels_per_vertex := Vector2i.ONE:
+	set(value):
+		value = value.maxi(1)
+		texels_per_vertex = value
+		emit_changed()
+
+@export_range(0.1, 10000.0) var height_amplitude: float = 1000.0:
+	set(value):
+		height_amplitude = value
+		emit_changed()
+
 @export var texture_assets: Array[Clipmap3DTextureAsset]:
 	set(value):
 		if texture_assets == value:
@@ -51,10 +64,15 @@ class ImageParams:
 
 var _texture_rids: Dictionary[TextureType, RID]
 
+# TODO: consolidate into single update method and pass to shader
+var _normal_depths: PackedFloat32Array
+var _uv_scales: PackedVector2Array
+
+
 @warning_ignore_start("unused_signal")
 signal textures_changed
 signal maps_created
-signal maps_redrawn
+signal maps_shifted
 
 enum TextureType {
 	ALBEDO,
@@ -88,13 +106,13 @@ func _initialize_textures_threaded() -> void:
 	
 	_free_textures_threaded()
 	
-	_create_texture_layered(TextureType.ALBEDO)
-	_create_texture_layered(TextureType.NORMAL)
+	_create_texture_layered_threaded(TextureType.ALBEDO)
+	_create_texture_layered_threaded(TextureType.NORMAL)
 	
 	if has_textures():
 		textures_changed.emit()
 
-func _create_texture_layered(type: TextureType):
+func _create_texture_layered_threaded(type: TextureType):
 	var images: Array[Image] = []
 	var params: ImageParams = null
 	
@@ -130,7 +148,6 @@ func _create_texture_layered(type: TextureType):
 				images[i] = placeholder
 	_texture_rids[type] = RenderingServer.texture_2d_layered_create(images, RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
 	
-	
 func get_texture_rids() -> Dictionary[TextureType, RID]:
 	return _texture_rids
 
@@ -139,6 +156,9 @@ func clear_textures() -> void:
 
 func has_textures() -> bool:
 	return not _texture_rids.is_empty()
+
+@abstract
+func get_map_origins() -> Array[Vector2i]
 
 @abstract
 func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_spacing: Vector2) -> void
@@ -157,6 +177,3 @@ func has_maps() -> bool
 
 @abstract
 func get_height_world(world_xz: Vector2) -> float
-
-@abstract
-func get_height_amplitude() -> float
