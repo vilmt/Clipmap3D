@@ -1,6 +1,7 @@
 @tool
 class_name Clipmap3DTextureAsset extends Resource
 
+## The color to modulate the albedo texture with.
 @export_color_no_alpha var albedo_color := Color.WHITE
 
 ## RGB: Albedo, A: Roughness
@@ -19,13 +20,15 @@ class_name Clipmap3DTextureAsset extends Resource
 		normal_height_ao_texture = value
 		emit_changed()
 
+@export var uv_scale := Vector2.ONE
+
 @export var normal_depth: float = 1.0
 
+## WIP. Currently does nothing.
 @export var projected: bool = false
 
+## WIP. Currently does nothing.
 @export var roughness: float = 1.0
-
-@export var uv_scale := Vector2.ONE
 
 func get_texture(type: Clipmap3DSource.TextureType) -> Texture2D:
 	match type:

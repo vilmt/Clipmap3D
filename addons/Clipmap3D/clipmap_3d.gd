@@ -1,8 +1,10 @@
 @tool
 class_name Clipmap3D extends Node3D
 
+## The Node3D which the terrain snaps to on the X and Z axes.
 @export var follow_target: Node3D
 
+## The source to use for generation and texturing.
 @export var source: Clipmap3DSource:
 	set(value):
 		if source == value:
@@ -16,6 +18,7 @@ class_name Clipmap3D extends Node3D
 
 @export_group("Mesh", "mesh")
 
+## World spacing between vertices. Power-of-two values are recommended.
 @export var mesh_vertex_spacing := Vector2.ONE:
 	set(value):
 		if mesh_vertex_spacing == value:
@@ -25,7 +28,8 @@ class_name Clipmap3D extends Node3D
 			return
 		mesh_vertex_spacing_changed.emit(mesh_vertex_spacing)
 		_mark_source_dirty()
-		
+
+## The base tile size used to build the clipmap.
 @export var mesh_tile_size := Vector2i(32, 32):
 	set(value):
 		if mesh_tile_size == value:
@@ -37,6 +41,7 @@ class_name Clipmap3D extends Node3D
 		_mark_source_dirty()
 
 # NOTE: arbitrary lower limit of 2 because of https://github.com/godotengine/godot/issues/115103
+## The amount of level of detail (LOD) rings that form this mesh.
 @export_range(2, Clipmap3DMeshHandler.MAX_LOD_COUNT, 1) var mesh_lod_count: int = 5:
 	set(value):
 		if mesh_lod_count == value:
@@ -49,6 +54,7 @@ class_name Clipmap3D extends Node3D
 
 @export_group("Rendering")
 
+## The ShaderMaterial assigned to all meshes in this clipmap.
 @export var material: ShaderMaterial:
 	set(value):
 		if material == value:
@@ -238,6 +244,7 @@ func _on_source_maps_shifted():
 
 func _on_source_textures_changed():
 	_mesh_handler.update_texture_rids(source.get_texture_rids())
+	_mesh_handler.update_texture_data_arrays(source.get_texture_data_arrays())
 	
 func _on_source_changed():
 	_mesh_handler.update_height_amplitude(source.height_amplitude)

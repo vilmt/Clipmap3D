@@ -10,7 +10,9 @@
 [ext_resource type="Texture2D" uid="uid://cx1exp18lt4c2" path="res://demo/assets/textures/cliff/cliff_normal_height_ao.png" id="8_k1rqu"]
 [ext_resource type="Texture2D" uid="uid://dmcwfi8452i8k" path="res://demo/assets/textures/snow/snow_albedo_roughness.png" id="9_wwhtr"]
 [ext_resource type="Texture2D" uid="uid://bo1j3e7fo31mo" path="res://demo/assets/textures/snow/snow_normal_height_ao.png" id="10_62gnj"]
+[ext_resource type="Texture2D" uid="uid://d2872ifncqg7x" path="res://demo/assets/textures/moss/moss_albedo_roughness.png" id="11_nk31j"]
 [ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://demo/shaders/erosion_terrain.tres" id="11_vkopi"]
+[ext_resource type="Texture2D" uid="uid://tml154gmr8ty" path="res://demo/assets/textures/moss/moss_normal_height_ao.png" id="12_fy1p0"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://demo/scenes/player/player.tscn" id="12_qvfii"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tjx8f"]
@@ -24,17 +26,18 @@ sky_material = SubResource("ProceduralSkyMaterial_tjx8f")
 background_mode = 2
 sky = SubResource("Sky_cwqvt")
 tonemap_mode = 3
+fog_enabled = true
 fog_mode = 1
-fog_light_color = Color(0.40644738, 0.5172281, 0.57061434, 1)
-fog_sun_scatter = 0.08
+fog_light_color = Color(0.45593044, 0.48717862, 0.53744763, 1)
+fog_sun_scatter = 0.19
 fog_density = 1.0
-fog_aerial_perspective = 0.574
+fog_aerial_perspective = 0.818
 fog_sky_affect = 0.321
-fog_height = 795.25
+fog_height = 900.0
 fog_height_density = 0.003
-fog_depth_curve = 1.0352589
-fog_depth_begin = 5000.0
-fog_depth_end = 8000.0
+fog_depth_curve = 1.231135
+fog_depth_begin = 7065.0
+fog_depth_end = 15000.0
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_pvg1d"]
 dof_blur_far_distance = 2805.19
@@ -42,28 +45,41 @@ dof_blur_far_transition = 765.43
 
 [sub_resource type="Resource" id="Resource_hp380"]
 script = ExtResource("4_fy1p0")
+albedo_color = Color(0.595037, 0.7901385, 0.5836898, 1)
 albedo_roughness_texture = ExtResource("5_svvho")
 normal_height_ao_texture = ExtResource("6_x31ta")
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 
 [sub_resource type="Resource" id="Resource_bdhvs"]
 script = ExtResource("4_fy1p0")
+albedo_color = Color(0.7619876, 0.8541506, 0.93381196, 1)
 albedo_roughness_texture = ExtResource("7_d1m6b")
 normal_height_ao_texture = ExtResource("8_k1rqu")
+normal_depth = 1.895
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 
 [sub_resource type="Resource" id="Resource_lhras"]
 script = ExtResource("4_fy1p0")
 albedo_roughness_texture = ExtResource("9_wwhtr")
 normal_height_ao_texture = ExtResource("10_62gnj")
+uv_scale = Vector2(0.5, 0.5)
+normal_depth = 1.9449999999999998
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"
+
+[sub_resource type="Resource" id="Resource_svvho"]
+script = ExtResource("4_fy1p0")
+albedo_color = Color(0.45693997, 0.67, 0.31490004, 1)
+albedo_roughness_texture = ExtResource("11_nk31j")
+normal_height_ao_texture = ExtResource("12_fy1p0")
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 
 [sub_resource type="Resource" id="Resource_vn06u"]
 script = ExtResource("3_nk31j")
 compute_shader = ExtResource("2_tdg64")
+compute_seed = 5
 texels_per_vertex = Vector2i(4, 4)
-height_amplitude = 1619.1309999999999
-texture_assets = Array[ExtResource("4_fy1p0")]([SubResource("Resource_hp380"), SubResource("Resource_bdhvs"), SubResource("Resource_lhras")])
+height_amplitude = 2000.0
+texture_assets = Array[ExtResource("4_fy1p0")]([SubResource("Resource_hp380"), SubResource("Resource_bdhvs"), SubResource("Resource_lhras"), SubResource("Resource_svvho")])
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
 [node name="Demo" type="Node3D" unique_id=932743419]
@@ -85,7 +101,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7653.514, 0, 1725.5247)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -642.3399, 0, -3832.3882)
 script = ExtResource("1_xm42s")
 follow_target = NodePath("../Player")
 source = SubResource("Resource_vn06u")
@@ -96,7 +112,7 @@ collision_mesh_size = Vector2i(6, 6)
 collision_targets = [NodePath("../Player")]
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("12_qvfii")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7653.514, 1054.9977, 1725.5247)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -642.3399, 1352.3208, -3832.3882)
 
 [node name="ZoomOutWarningLabel" type="Label3D" parent="." unique_id=1827955459]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.225605, 0)

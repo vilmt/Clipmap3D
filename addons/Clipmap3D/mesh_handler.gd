@@ -17,6 +17,8 @@ var _normal_maps_rid: RID
 var _control_maps_rid: RID
 var _albedo_textures_rid: RID
 var _normal_textures_rid: RID
+# HACK
+var _texture_data_arrays: Dictionary[String, Array]
 
 var _instance_rids: Array[RID]
 var _instance_mesh_types: Array[MeshType]
@@ -101,6 +103,20 @@ func update_texture_rids(texture_rids: Dictionary[Clipmap3DSource.TextureType, R
 		RenderingServer.material_set_param(_material_rid, &"_albedo_textures", _albedo_textures_rid)
 		RenderingServer.material_set_param(_material_rid, &"_normal_textures", _normal_textures_rid)
 
+# HACK
+func update_texture_data_arrays(arrays: Dictionary[String, Array]):
+	_texture_data_arrays = arrays
+	var normal_depths: PackedFloat32Array = arrays.get("normal_depths", PackedFloat32Array())
+	normal_depths.resize(Clipmap3DSource.MAX_TEXTURE_COUNT)
+	var uv_scales: PackedVector2Array = arrays.get("uv_scales", PackedVector2Array())
+	uv_scales.resize(Clipmap3DSource.MAX_TEXTURE_COUNT)
+	var albedos: PackedColorArray = arrays.get("albedos", PackedColorArray())
+	albedos.resize(Clipmap3DSource.MAX_TEXTURE_COUNT)
+	if _material_rid:
+		RenderingServer.material_set_param(_material_rid, &"_normal_depths", normal_depths)
+		RenderingServer.material_set_param(_material_rid, &"_uv_scales", uv_scales)
+		RenderingServer.material_set_param(_material_rid, &"_albedo_colors", albedos)
+
 func _on_tile_size_changed(tile_size: Vector2i):
 	_tile_size = tile_size
 	_mark_meshes_dirty()
@@ -132,6 +148,7 @@ func update_material_rid(material_rid: RID):
 		RenderingServer.material_set_param(_material_rid, &"_target_position", _last_p)
 		RenderingServer.material_set_param(_material_rid, &"_texels_per_vertex", _texels_per_vertex)
 		RenderingServer.material_set_param(_material_rid, &"_map_origins", _map_origins)
+		update_texture_data_arrays(_texture_data_arrays) # HACK
 	for mesh_rid: RID in _mesh_rids.values():
 		RenderingServer.mesh_surface_set_material(mesh_rid, 0, _material_rid)
 		

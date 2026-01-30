@@ -1,9 +1,7 @@
 @tool
 class_name Clipmap3DComputeSource extends Clipmap3DSource
 
-# TODO: remove unnecessary image skirts
-
-## The compute shader to use for generation.
+## The compute shader to use for terrain generation.
 @export var compute_shader: RDShaderFile:
 	set(value):
 		if compute_shader == value:
@@ -64,7 +62,7 @@ func get_height_world(world_xz: Vector2) -> float:
 	
 func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_spacing: Vector2) -> void:
 	if not _rd:
-		push_error("RenderingDevice not initialized. Could not create maps.")
+		push_error("RenderingDevice not initialized. Compatibility renderer is not supported.")
 		return
 	
 	_initialized = true
@@ -102,7 +100,7 @@ func clear_maps() -> void:
 
 func _initialize_threaded():
 	if not _shader_rid:
-		push_error("Shader not loaded")
+		push_error("Shader not loaded.")
 		return
 	
 	var uniforms: Array[RDUniform] = [
@@ -195,10 +193,8 @@ func _create_texture_uniform_threaded(type: MapType, binding: int) -> RDUniform:
 	format.usage_bits = \
 		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
 		_rd.TEXTURE_USAGE_STORAGE_BIT | \
-		_rd.TEXTURE_USAGE_CAN_UPDATE_BIT | \
 		_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT | \
 		_rd.TEXTURE_USAGE_CAN_COPY_TO_BIT
-	 # dont need can update bit
 	
 	_map_rd_rids[type] = _rd.texture_create(format, RDTextureView.new())
 	_map_rids[type] = RenderingServer.texture_rd_create(_map_rd_rids[type], RenderingServer.TEXTURE_LAYERED_2D_ARRAY)

@@ -1,24 +1,42 @@
+![Thumbnail] (addons/Clipmap3D/plugin_thumbnail.jpg)
+
 # Clipmap3D
-An infinite procedural terrain system for Godot 4.5+
+A lightweight infinite procedural terrain system for Godot 4.5+
 
 ## Overview
-* Written in GDScript, GLSL, and GDShader.
-* Terrain is procedurally generated and textured in real time by a customizable compute shader
-* Over 30x30km render distance with configurable levels of detail (LODs)
+* Written in GDScript, GDShader, and GLSL
+* Supports Forward+ and Mobile renderers
+* Use a compute shader to generate and texture terrian on the GPU
+* No manual work to author terrain; everything is done through code
+* Over 30x30km render distance with configurable vertex density and levels of detail (LODs)
 * Real-time toroidal LOD shifting as the player moves
 * Supports blending up to 32 albedo + normal textures
-* Supports concave collision with physics bodies
+
+## Limitations
+* This project is work-in-progress and is subject to major changes
+* Physics interaction is currently limited to player collisions
+* Image imports are not yet supported
+
+## Trying the demos
+* This repository contains a demo folder with two example scenes
+	* High-spec demo
+	* Low-spec demo
+* After loading a scene, set View -> Settings... -> View Z-Far to 16000
+* Zoom out tweak some parameters!
+
+## Roadmap
+* Texture projection
+* Floating-point origin shifting
+* Foliage instancing
+* Cheap overlay normals in fragment for low-spec setups
+* Heightmap image imports and streaming
+
 
 ## WIP Disclaimer
-This project is heavily work-in-progress and is subject to sweeping changes.
+
 If you are interested in Clipmap3D, please try out the demo and report bugs.
 
-## Roadmap (Priority order)
-* Texture projection
-* Foliage instancing
-* Floating-point origin shifting
-* Cheap overlay normals in fragment for low-spec setups
 
-TODO: fix collisions, strip updating
+TODO: fix collisions
 after this, its done
 default normal map should be neutral direction

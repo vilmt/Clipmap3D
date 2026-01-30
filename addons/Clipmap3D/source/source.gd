@@ -27,6 +27,8 @@ class_name Clipmap3DSource extends Resource
 # TODO: live updating
 @export_tool_button("Upload Texture Assets", "Texture2DArray") var upload_textures: Callable = create_textures
 
+const MAX_TEXTURE_COUNT: int = 32
+
 class ImageParams:
 	var format: Image.Format
 	var size: Vector2i
@@ -65,8 +67,9 @@ class ImageParams:
 var _texture_rids: Dictionary[TextureType, RID]
 
 # TODO: consolidate into single update method and pass to shader
-var _normal_depths: PackedFloat32Array
+var _albedos: PackedColorArray
 var _uv_scales: PackedVector2Array
+var _normal_depths: PackedFloat32Array
 
 @warning_ignore_start("unused_signal")
 signal textures_changed
@@ -98,6 +101,10 @@ func _free_textures_threaded() -> void:
 	for rid in _texture_rids.values():
 		RenderingServer.free_rid(rid)
 	_texture_rids.clear()
+	
+	_albedos.clear()
+	_uv_scales.clear()
+	_normal_depths.clear()
 
 func _initialize_textures_threaded() -> void:
 	if texture_assets.is_empty():
@@ -107,6 +114,16 @@ func _initialize_textures_threaded() -> void:
 	
 	_create_texture_layered_threaded(TextureType.ALBEDO)
 	_create_texture_layered_threaded(TextureType.NORMAL)
+	
+	for asset in texture_assets:
+		if not asset:
+			_normal_depths.append(1.0)
+			_uv_scales.append(Vector2.ONE)
+			_albedos.append(Color(1.0, 1.0, 1.0))
+			continue
+		_normal_depths.append(asset.normal_depth)
+		_uv_scales.append(asset.uv_scale)
+		_albedos.append(asset.albedo_color)
 	
 	if has_textures():
 		textures_changed.emit()
@@ -149,6 +166,14 @@ func _create_texture_layered_threaded(type: TextureType):
 	
 func get_texture_rids() -> Dictionary[TextureType, RID]:
 	return _texture_rids
+
+# HACK
+func get_texture_data_arrays() -> Dictionary[String, Array]:
+	return {
+		"albedos": _albedos,
+		"normal_depths": _normal_depths,
+		"uv_scales": _uv_scales
+	}
 
 func clear_textures() -> void:
 	RenderingServer.call_on_render_thread(_free_textures_threaded)

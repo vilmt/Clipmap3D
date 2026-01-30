@@ -10,25 +10,25 @@ shader_type spatial;
 #define EPSILON 1e-6
 
 #ifdef USE_CIRCLE_MASK
-// circle mask: ratio be smaller than 1.0 - sqrt(2.0) / 2.0 to avoid lod overlap
+// ratio must be smaller than 1.0 - sqrt(2.0) / 2.0 to avoid lod overlap
 uniform float lod_blend_ratio: hint_range(0.0, 0.2928932188134525) = 0.2;
 #else
 uniform float lod_blend_ratio: hint_range(0.0, 0.5) = 0.2;
 #endif
 
-uniform float projection_threshold = 0.8;
-
 group_uniforms private;
-uniform sampler2DArray _albedo_textures: source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2DArray _normal_textures: hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2DArray _albedo_textures: source_color, repeat_enable, filter_linear_mipmap_anisotropic;
+uniform sampler2DArray _normal_textures: hint_normal, repeat_enable, filter_linear_mipmap_anisotropic;
+
+// TODO
 uniform float[MAX_TEXTURE_COUNT] _normal_depths;
 uniform vec2[MAX_TEXTURE_COUNT] _uv_scales;
 uniform vec3[MAX_TEXTURE_COUNT] _albedo_colors: source_color;
 
 // repeat creates toroidal coordinate space
-uniform highp sampler2DArray _height_maps: repeat_enable, hint_default_black, filter_nearest;
-uniform sampler2DArray _normal_maps: repeat_enable, hint_normal, filter_nearest;
-uniform highp sampler2DArray _control_maps: repeat_enable, hint_default_black, filter_nearest;
+uniform highp sampler2DArray _height_maps: hint_default_black, repeat_enable, filter_nearest;
+uniform highp sampler2DArray _normal_maps: hint_normal, repeat_enable, filter_nearest;
+uniform highp sampler2DArray _control_maps: hint_default_black, repeat_enable, filter_nearest;
 
 uniform ivec2 _texels_per_vertex;
 uniform vec2 _vertex_spacing;
@@ -44,9 +44,8 @@ struct material {
 	float roughness;
 	
 	vec3 normal;
+	float normal_depth;
 	float ao;
-	//
-	//float normal_depth;
 	float total_weight;
 };
 
@@ -107,66 +106,69 @@ void vertex() {
 	debug_albedo = vec3(0.7);
 }
 
-void accumulate(inout material mat, vec3 p, vec3 ddx, vec3 ddy, vec3 normal, uvec2 texture_ids, float blend, float bilerp_weight) {
-	vec4 dd = vec4(ddx.xz, ddy.xz);
-	mat2 align = mat2(1.0);
+void accumulate(inout material mat, vec3 p, vec3 ddx, vec3 ddy, vec3 normal, uvec2 ids, float blend, float bilerp_weight, inout int samples) {
 	vec2 uv = p.xz;
 	
-	// TODO: projection
-	//if (normal.y <= projection_threshold) {
-		//// Projected normal map alignment matrix
-		//align = mat2(vec2(normal.z, -normal.x), vec2(normal.x, normal.z));
-		//// Fast 45 degree snapping https://iquilezles.org/articles/noatan/
-		//vec2 xz = round(normalize(-normal.xz) * 1.3065629648763765); // sqrt(1.0 + sqrt(0.5))
-		//xz *= abs(xz.x) + abs(xz.y) > 1.5 ? 0.7071067811865475 : 1.0; // sqrt(0.5)
-		//xz = vec2(-xz.y, xz.x);
-		//
-		//uv = vec2(dot(p.xz, xz), -p.y);
-		//dd.xy = vec2(dot(ddx.xz, xz), -ddx.y);
-		//dd.zw = vec2(dot(ddy.xz, xz), -ddy.y);
-	//}
-	
-	// TODO: fix texture ids same edge case
-	// skip first sample if both are same
-	//blend = min(1.0, blend + float(texture_ids[1] == texture_ids[0]));
-	
-	// secondary
 	if (blend < 1.0 - EPSILON) {
 		float weight = (1.0 - blend) * bilerp_weight;
 		
-		uint id = texture_ids[1];
+		uint id = ids[0];
 		
-		vec4 albedo_r = textureGrad(_albedo_textures, vec3(uv, float(id)), dd.xy, dd.zw);
+		vec2 scale = _uv_scales[int(id)];
 		
-		mat.albedo += albedo_r.rgb * weight;
+		vec2 id_uv = uv * scale;
+		vec2 id_ddx = ddx.xz * scale;
+		vec2 id_ddy = ddy.xz * scale;
+		
+		vec4 albedo_r = textureGrad(_albedo_textures, vec3(id_uv, float(id)), id_ddx, id_ddy);
+		
+		vec3 modulate = _albedo_colors[int(id)];
+		
+		mat.albedo += albedo_r.rgb * modulate * weight;
 		mat.roughness += albedo_r.a * weight;
 		
-		vec4 normal_h_ao = textureGrad(_normal_textures, vec3(uv, float(id)), dd.xy, dd.zw);
-		mat.normal += (normal_h_ao.xyz * 2.0 - 1.0) * weight;
+		mat.normal_depth += _normal_depths[int(id)] * weight;
 		
-		// TODO: incorporate height in blending
-		mat.ao += normal_h_ao.w * weight;
-		mat.total_weight += weight;
-	}
-	
-	// primary
-	if (blend > EPSILON) {
-		float weight = blend * bilerp_weight;
-		
-		uint id = texture_ids[0];
-		
-		vec4 albedo_r = textureGrad(_albedo_textures, vec3(uv, float(id)), dd.xy, dd.zw);
-		
-		mat.albedo += albedo_r.rgb * weight;
-		mat.roughness += albedo_r.a * weight;
-		
-		vec4 normal_h_ao = textureGrad(_normal_textures, vec3(uv, float(id)), dd.xy, dd.zw);
+		vec4 normal_h_ao = textureGrad(_normal_textures, vec3(id_uv, float(id)), id_ddx, id_ddy);
 		mat.normal += (normal_h_ao.xyz * 2.0 - 1.0) * weight;
 		
 		// TODO: incorporate height in blending
 		// Can make high parts of secondary stick out of primary
 		mat.ao += normal_h_ao.w * weight;
 		mat.total_weight += weight;
+		
+		samples += 2;
+	}
+	
+	if (blend > EPSILON && ids[0] != ids[1]) {
+		float weight = blend * bilerp_weight;
+		
+		uint id = ids[1];
+		
+		vec2 scale = _uv_scales[int(id)];
+		
+		vec2 id_uv = uv * scale;
+		vec2 id_ddx = ddx.xz * scale;
+		vec2 id_ddy = ddy.xz * scale;
+		
+		vec4 albedo_r = textureGrad(_albedo_textures, vec3(id_uv, float(id)), id_ddx, id_ddy);
+		
+		vec3 modulate = _albedo_colors[int(id)];
+		
+		mat.albedo += albedo_r.rgb * modulate * weight;
+		mat.roughness += albedo_r.a * weight;
+		
+		mat.normal_depth += _normal_depths[int(id)] * weight;
+		
+		vec4 normal_h_ao = textureGrad(_normal_textures, vec3(id_uv, float(id)), id_ddx, id_ddy);
+		mat.normal += (normal_h_ao.xyz * 2.0 - 1.0) * weight;
+		
+		// TODO: incorporate height in blending
+		// Can make high parts of secondary stick out of primary
+		mat.ao += normal_h_ao.w * weight;
+		mat.total_weight += weight;
+		
+		samples += 2;
 	}
 }
 
@@ -207,35 +209,31 @@ void fragment() {
 	TANGENT = mat3(VIEW_MATRIX) * tangent;
 	BINORMAL = mat3(VIEW_MATRIX) * binormal;
 	
-	material mat = material(vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0);
+	material mat = material(vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0);
 	
 	vec3 base_p = world_position * 0.1;
 	
 	vec3 base_ddx = dFdxCoarse(base_p);
 	vec3 base_ddy = dFdyCoarse(base_p);
 	
+	int samples = 0;
+	
 	uvec4 controls = floatBitsToUint(textureGather(_control_maps, coords, 0).wzxy);
+	
+	
+	//
+	//// blend control with LOD + 1
+	//if (lod_blend_mask > EPSILON) {
+		//
+		//
 	for (int i = 0; i < 4; i++) {
 		uint control = controls[i];
 		float weight = weights[i];
 		uvec2 ids = uvec2(control >> 27u & 0x1Fu, control >> 22u & 0x1Fu);
 		float blend = float(control >> 14u & 0xFFu) * INV_255;
 		
-		accumulate(mat, base_p, base_ddx, base_ddy, normal, ids, blend, weight);
+		accumulate(mat, base_p, base_ddx, base_ddy, normal, ids, blend, weight, samples);
 	}
-	
-	// lod blend control maps, unnecessary for 4x map res
-	//if (lod_blend_mask > EPSILON) {
-		//uvec4 controls_2 = floatBitsToUint(textureGather(_control_maps, coords_2, 0).wzxy);
-		//
-		//for (int i = 0; i < 4; i++) {
-			//uint control = controls_2[i];
-			//float weight = weights_2[i] * lod_blend_mask;
-			//uvec2 ids = uvec2(control >> 27u & 0x1Fu, control >> 22u & 0x1Fu);
-			//float blend = float(control >> 14u & 0xFFu) * INV_255;
-			//
-			//accumulate(mat, base_p, base_ddx, base_ddy, normal, ids, blend, weight);
-		//}
 	//}
 	
 	float inv_w = 1.0 / max(mat.total_weight, EPSILON);
@@ -247,7 +245,8 @@ void fragment() {
 	ALBEDO = mat.albedo;
 	ROUGHNESS = mat.roughness;
 	NORMAL_MAP = mat.normal.xyz * 0.5 + 0.5;
+	NORMAL_MAP_DEPTH = mat.normal_depth;
 	AO = mat.ao;
 	
-	//ALBEDO = debug_albedo;
+	//ALBEDO = vec3(float(samples) * 1.0 / 32.0);
 }

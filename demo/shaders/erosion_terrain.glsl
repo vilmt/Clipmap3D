@@ -25,14 +25,11 @@ layout(push_constant, std430) uniform Params {
 #define EPSILON 1e-6
 #define TAU 6.28318530717958
 
-#define GRASS_ID 0
-#define CLIFF_ID 1
-#define SNOW_ID 2
-
 vec2 hash21(vec2 p) {
-	const vec2 k = vec2(0.3183099, 0.3678794);
-	p = p * k + k.yx;
-	return -1.0 + 2.0 * fract(16.0 * k * fract( p.x * p.y * (p.x + p.y)));
+	vec3 p3 = vec3(p, float(params.seed));
+	p3 = fract(p3 * vec3(.1031, .1030, .0973));
+    p3 += dot(p3, p3.yzx+33.33);
+    return -1.0 + 2.0 * fract((p3.xx+p3.yz)*p3.zy);
 }
 
 vec2 hash22(vec2 p) {
@@ -92,7 +89,7 @@ vec3 erosion(vec2 p, vec2 curl) {
 	return r;
 }
 
-
+// height, derivative, and erosion parameter
 vec4 height_map(vec2 p) {
 	float scale = 0.0005; // master scale value
 	
@@ -119,7 +116,7 @@ vec4 height_map(vec2 p) {
 	float e_w = e_a; // erosion weight, used for normalizing
 	
 	for (int i = 0; i < 7; i++) {
-		vec2 curl = (h.zy + e.zy) * vec2(1.0, -1.0) / scale; // scale-invariant direction
+		vec2 curl = (h.zy + e.zy) * vec2(1.0, -1.0) / scale; // scale-invariant curl direction
 		vec3 n = erosion(p * e_f, curl) * e_a;
 		e += n * vec3(1.0, e_f, e_f);
 		
@@ -130,10 +127,61 @@ vec4 height_map(vec2 p) {
 	return vec4(h + e, e.x / e_w);
 }
 
-struct MaterialWeight {
-	uint id;
-	float w;
+struct Material {
+	uint id_0;
+	uint id_1;
+	float blend;
 };
+
+// painting helpers
+void brush_replace(inout Material mat, uint id) {
+	mat.id_0 = id;
+	mat.id_1 = id;
+	mat.blend = 0.0;
+}
+
+void brush_add(inout Material mat, uint id, float strength) {
+	strength = clamp(strength, 0.0, 1.0);
+
+	if (mat.id_1 == id) {
+		mat.blend = min(mat.blend + strength, 1.0);
+		return;
+	}
+
+	if (mat.id_0 == id) {
+		mat.blend = max(mat.blend - strength, 0.0);
+		return;
+	}
+
+	if (mat.blend < 1.0 / 255.0) {
+		mat.id_1 = id;
+		mat.blend = strength;
+	} else if (mat.blend > 1.0 - 1.0 / 255.0) {
+		mat.id_0 = mat.id_1;
+		mat.id_1 = id;
+		mat.blend = strength;
+	}
+}
+
+float encode(Material mat) {
+	uint control = 0u;
+	
+	control |= (mat.id_0 & 0x1F) << 27;
+	control |= (mat.id_1 & 0x1F) << 22;
+	
+	uint blend = uint(clamp(mat.blend * 255.0, 0.0, 255.0));
+	control |= (blend & 0xFF) << 14;
+	
+	// plenty of space for custom data
+	
+	return uintBitsToFloat(control);
+}
+
+// should match asset array in source
+#define GRASS_ID 0
+#define CLIFF_ID 1
+#define SNOW_ID 2
+#define MOSS_ID 3
 
 void main() {
 	ivec2 local = ivec2(gl_GlobalInvocationID.xy);
@@ -157,44 +205,32 @@ void main() {
 	coords.xy = ivec2(mod(texel.xy, size)); // toroidal wrapping
 	
 	imageStore(height_maps, coords, vec4(h.x, 0.0, 0.0, 0.0));
+	
+	// NOTE: you could also use central differences for normals. 
+	// No need to derive analytical derivatives.
 	imageStore(normal_maps, coords, vec4(h.yz, 0.0, 0.0)); // normal maps expect world-space texel spacing
 	
-	// material mixing
+	// material parameters
 	float slope = length(h.yz);
 	float ridge = max(h.w, 0.0);
 	float occlusion = max(-h.w, 0.0);
 	
+	// material mixing
+	Material mat = Material(0u, 0u, 0.0);
+	
+	brush_replace(mat, CLIFF_ID); // initialize with cliff
+	
+	float w_moss = smoothstep(0.39, 0.37, height) * smoothstep(0.0, 0.3, occlusion); 
+	brush_add(mat, MOSS_ID, w_moss); // paint moss in low occluded ridges
+	
+	float w_grass = smoothstep(0.4, 0.39, height) * smoothstep(0.6, 0.54, slope);
+	brush_add(mat, GRASS_ID, w_grass); // paint grass in flat, low areas
+	
+	float w_moss_2 = smoothstep(0.37, 0.35, height) * (1.0 - w_grass);
+	brush_add(mat, MOSS_ID, w_moss_2); // paint more moss to fill gaps left by grass
+	
 	float w_snow = smoothstep(0.6, 0.62, height * 0.8 + ridge * 0.1);
-	float w_grass = smoothstep(0.4, 0.38, height) * smoothstep(0.6, 0.58, slope);
-	float w_cliff = (1.0 - w_snow) * (1.0 - w_grass);
+	brush_add(mat, SNOW_ID, w_snow); // paint peak ridges with snow
 	
-	// find top 2 materials
-	MaterialWeight mats[3] = {
-		{GRASS_ID, w_grass},
-		{CLIFF_ID, w_cliff},
-		{SNOW_ID, w_snow}
-	};
-	
-	MaterialWeight primary = mats[0];
-	MaterialWeight secondary = mats[0];
-	for (int i = 1; i < 3; i++) {
-		if (mats[i].w > primary.w) {
-			secondary = primary;
-			primary = mats[i];
-		} else if (mats[i].w > secondary.w) {
-			secondary = mats[i];
-		}
-	}
-	
-	float sum = primary.w + secondary.w + EPSILON;
-	uint blend = uint(clamp(primary.w / sum * 255.0, 0.0, 255.0));
-	
-	// write to control map
-	uint control = 0u;
-	
-	control |= (primary.id & 0x1F) << 27;
-	control |= (secondary.id & 0x1F) << 22;
-	control |= (blend & 0xFF) << 14;
-	
-	imageStore(control_maps, coords, vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
+	imageStore(control_maps, coords, vec4(encode(mat), 0.0, 0.0, 1.0));
 }
