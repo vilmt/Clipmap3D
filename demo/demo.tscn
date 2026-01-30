@@ -61,7 +61,8 @@ metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 [sub_resource type="Resource" id="Resource_vn06u"]
 script = ExtResource("3_nk31j")
 compute_shader = ExtResource("2_tdg64")
-height_amplitude = 2000.0
+texels_per_vertex = Vector2i(4, 4)
+height_amplitude = 1619.1309999999999
 texture_assets = Array[ExtResource("4_fy1p0")]([SubResource("Resource_hp380"), SubResource("Resource_bdhvs"), SubResource("Resource_lhras")])
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
@@ -72,7 +73,7 @@ environment = SubResource("Environment_rm2gq")
 camera_attributes = SubResource("CameraAttributesPractical_pvg1d")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=810570797]
-transform = Transform3D(-0.50428295, -0.017015962, 0.8633709, 0.73239505, 0.5212537, 0.438055, -0.45748925, 0.8532322, -0.25039688, 0, 496.4257, 306.4474)
+transform = Transform3D(-0.5054548, -0.18700783, 0.84234405, 0.73968905, 0.40873516, 0.5345986, -0.44426972, 0.893288, -0.06826959, 0, 496.4257, 306.4474)
 light_intensity_lux = 65176.9
 light_temperature = 2989.0
 light_energy = 2.0
@@ -84,7 +85,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19.089249, -0.00024414063, -43.63385)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7653.514, 0, 1725.5247)
 script = ExtResource("1_xm42s")
 follow_target = NodePath("../Player")
 source = SubResource("Resource_vn06u")
@@ -95,7 +96,7 @@ collision_mesh_size = Vector2i(6, 6)
 collision_targets = [NodePath("../Player")]
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("12_qvfii")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19.089249, 1041.7792, -43.63385)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7653.514, 1054.9977, 1725.5247)
 
 [node name="ZoomOutWarningLabel" type="Label3D" parent="." unique_id=1827955459]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.225605, 0)

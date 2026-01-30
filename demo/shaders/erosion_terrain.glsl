@@ -1,7 +1,7 @@
 #[compute]
 #version 460
 
-layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 layout(r32f, binding = 0) restrict uniform image2DArray height_maps;
 layout(rg16f, binding = 1) restrict uniform image2DArray normal_maps;
@@ -92,16 +92,18 @@ vec3 erosion(vec2 p, vec2 curl) {
 	return r;
 }
 
-// terrain height, derivative, and erosion factor
-vec4 height_map(vec2 p, vec2 scale) {
+
+vec4 height_map(vec2 p) {
+	float scale = 0.0005; // master scale value
+	
     // FBM terrain
 	vec3 h = vec3(0.0);
 	float h_a = 0.5; // amplitude (don't change this)
-	float h_f = 1.0; // frequency (already handled by scale)
+	float h_f = 1.0 * scale; // frequency
 	
 	for (int i = 0; i < 6; i++) {
-		vec3 n = noised(p * h_f * scale) * h_a;
-		h += n * vec3(1.0, h_f * scale);
+		vec3 n = noised(p * h_f) * h_a;
+		h += n * vec3(1.0, h_f, h_f);
 		
 		h_a *= 0.4; // gain
 		h_f *= 1.8; // lacunarity
@@ -112,14 +114,14 @@ vec4 height_map(vec2 p, vec2 scale) {
 	// FBM erosion
 	vec3 e = vec3(0.0);
 	float e_a = 0.005; // erosion amplitude
-	float e_f = 20.0; // erosion frequency
+	float e_f = 20.0 * scale; // erosion frequency
 	
 	float e_w = e_a; // erosion weight, used for normalizing
 	
 	for (int i = 0; i < 7; i++) {
-		vec2 curl = (h.zy + e.zy) * vec2(1.0, -1.0) / scale;
-		vec3 n = erosion(p * e_f * scale, curl) * e_a;
-		e += n * vec3(1.0, e_f * scale);
+		vec2 curl = (h.zy + e.zy) * vec2(1.0, -1.0) / scale; // scale-invariant direction
+		vec3 n = erosion(p * e_f, curl) * e_a;
+		e += n * vec3(1.0, e_f, e_f);
 		
 		e_a *= 0.5;
 		e_f *= 1.8;
@@ -134,33 +136,28 @@ struct MaterialWeight {
 };
 
 void main() {
-	// determine image size and bounds
 	ivec2 local = ivec2(gl_GlobalInvocationID.xy);
 	
 	if (any(greaterThanEqual(local, params.region.zw))) {
-		return;
+		return; // skip if texel is outside requested region
 	}
 	
-	// region is currently zero for debug
 	ivec3 coords = ivec3(local + params.region.xy, params.lod);
 	
 	vec2 size = vec2(imageSize(height_maps).xy);
-	vec2 texel = vec2(coords.xy + params.origin) - size / 2.0 + 1.5 * vec2(params.texels_per_vertex); // unwrapped sampling pos
-	
+	vec2 texel = vec2(coords.xy + params.origin) - size / 2.0 + 1.5 * vec2(params.texels_per_vertex);
 	vec2 scale = params.vertex_spacing * float(1 << params.lod) / vec2(params.texels_per_vertex);
-	vec2 inv_scale = 1.0 / scale;
 	
-	vec4 h = height_map(texel, scale * 0.0005);
+	vec4 h = height_map(texel * scale);
 	
 	float height = h.x;
 	
 	h.xyz *= params.height_amplitude;
-	h.yz *= inv_scale;
 	
-	coords.xy = ivec2(mod(texel.xy, size));
+	coords.xy = ivec2(mod(texel.xy, size)); // toroidal wrapping
 	
 	imageStore(height_maps, coords, vec4(h.x, 0.0, 0.0, 0.0));
-	imageStore(normal_maps, coords, vec4(h.yz, 0.0, 0.0));
+	imageStore(normal_maps, coords, vec4(h.yz, 0.0, 0.0)); // normal maps expect world-space texel spacing
 	
 	// material mixing
 	float slope = length(h.yz);
@@ -189,17 +186,15 @@ void main() {
 		}
 	}
 	
-	// write to control map
 	float sum = primary.w + secondary.w + EPSILON;
-	float blend = primary.w / sum;
+	uint blend = uint(clamp(primary.w / sum * 255.0, 0.0, 255.0));
 	
-	uint blend_u8 = uint(clamp(blend * 255.0, 0.0, 255.0));
-	
+	// write to control map
 	uint control = 0u;
 	
 	control |= (primary.id & 0x1F) << 27;
 	control |= (secondary.id & 0x1F) << 22;
-	control |= (blend_u8 & 0xFF) << 14;
+	control |= (blend & 0xFF) << 14;
 	
 	imageStore(control_maps, coords, vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
 }

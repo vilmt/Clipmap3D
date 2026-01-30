@@ -19,6 +19,6 @@ If you are interested in Clipmap3D, please try out the demo and report bugs.
 * Floating-point origin shifting
 * Cheap overlay normals in fragment for low-spec setups
 
-TODO: fix collisions, clean up double res, strip updating
+TODO: fix collisions, strip updating
 after this, its done
-Toroidal updating
+default normal map should be neutral direction

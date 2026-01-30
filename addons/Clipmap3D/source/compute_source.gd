@@ -135,33 +135,29 @@ func _compute_threaded(use_signal: bool = true) -> void:
 		
 		var delta_abs := delta.abs()
 		
-		# update entire region for now
-		_generate_region_threaded(lod)
-		
-		#if delta_abs.x >= _size.x or delta_abs.y >= _size.y:
-		#_generate_region_threaded(lod)
-		#else:
-			#if delta.x != 0:
-				#var x := _size.x if delta.x > 0 else delta.x # move right by size if delta is positive
-				#var region := Rect2i(x, 0, delta_abs.x, _size.y)
-				#_generate_region_threaded(lod, region)
-			#if delta.y != 0:
-				## pos.x is delta.x since this shift must accumulate from x shift
-				#var y := _size.y if delta.y > 0 else delta.y
-				#var region := Rect2i(0, y, _size.x, delta_abs.y)
-				#_generate_region_threaded(lod, region)
+		if delta_abs.x >= _size.x or delta_abs.y >= _size.y:
+			_generate_region_threaded(lod)
+		else:
+			if delta.x != 0:
+				var x := _size.x - delta.x if delta.x > 0 else 0.0
+				var region := Rect2i(x, 0, delta_abs.x, _size.y)
+				_generate_region_threaded(lod, region)
+			if delta.y != 0:
+				var y := _size.y - delta.y if delta.y > 0 else 0.0
+				var region := Rect2i(0, y, _size.x, delta_abs.y)
+				_generate_region_threaded(lod, region)
 		
 		_deltas[lod] = Vector2i.ZERO
 		
-		if lod == 0:
-			_cpu_height_image = RenderingServer.texture_2d_layer_get(_map_rids[MapType.HEIGHT], 0)
+		#if lod == 0:
+			#_cpu_height_image = RenderingServer.texture_2d_layer_get(_map_rids[MapType.HEIGHT], 0)
 	
 	if use_signal:
 		maps_shifted.emit()
 
 func _generate_region_threaded(lod: int, region := Rect2i(Vector2i.ZERO, _size)):
-	var groups_x := ceili(region.size.x / 8.0)
-	var groups_y := ceili(region.size.y / 8.0)
+	var groups_x := ceili(region.size.x / 16.0)
+	var groups_y := ceili(region.size.y / 16.0)
 	
 	var compute_list := _rd.compute_list_begin()
 	_rd.compute_list_bind_compute_pipeline(compute_list, _pipeline_rid)
