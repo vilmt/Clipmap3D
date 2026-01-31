@@ -1,4 +1,4 @@
-![Thumbnail] (addons/Clipmap3D/plugin_thumbnail.jpg)
+![Thumbnail](addons/Clipmap3D/plugin_thumbnail.jpg)
 
 # Clipmap3D
 A lightweight infinite procedural terrain system for Godot 4.5+
