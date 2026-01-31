@@ -35,7 +35,16 @@ var _world_origin: Vector2
 var _origins: Array[Vector2i]
 var _deltas: Array[Vector2i]
 
-var _cpu_height_image: Image
+var _cpu_data: PackedByteArray
+
+func get_lod_0_data() -> PackedByteArray:
+	return _cpu_data
+
+func get_lod_0_size():
+	return _size
+
+func get_lod_0_origin() -> Vector2i:
+	return _origins[0]
 
 func has_maps() -> bool:
 	return not _map_rids.is_empty()
@@ -43,12 +52,13 @@ func has_maps() -> bool:
 func get_map_rids() -> Dictionary[MapType, RID]:
 	return _map_rids
 
-func get_map_origins() -> Array[Vector2i]:
-	return _origins
+func get_world_origin() -> Vector2:
+	return _world_origin
 
 ## Get the height from the LOD 0 map.
 func get_height_world(world_xz: Vector2) -> float:
 	return 0.0
+	
 	#if not _cpu_height_image:
 		#return 0.0
 	#var inv_scale := Vector2.ONE / _vertex_spacing
@@ -59,6 +69,10 @@ func get_height_world(world_xz: Vector2) -> float:
 	#if not Rect2i(Vector2i.ZERO, _size).has_point(texel):
 		#return 0.0
 	#return _cpu_height_image.get_pixelv(texel).r
+
+func _update_cpu_data(data: PackedByteArray):
+	_cpu_data = data
+	lod_0_data_changed.emit()
 	
 func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_spacing: Vector2) -> void:
 	if not _rd:
@@ -81,11 +95,11 @@ func shift_maps(world_origin: Vector2) -> void:
 		return
 	_world_origin = world_origin
 	
-	var unscaled_origin: Vector2 = _world_origin / _vertex_spacing
+	var snap := 2.0 * Vector2.ONE
+	var unscaled_origin: Vector2 = _world_origin / _vertex_spacing / snap
 	
 	for lod: int in _lod_count:
-		var snap := 2.0 * Vector2.ONE
-		var origin := Vector2i((unscaled_origin / float(1 << lod) / snap).floor() * snap) * texels_per_vertex
+		var origin := Vector2i((unscaled_origin / float(1 << lod)).floor() * snap) * texels_per_vertex
 		var delta := origin - _origins[lod]
 		if delta == Vector2i.ZERO:
 			continue
@@ -147,6 +161,8 @@ func _compute_threaded(use_signal: bool = true) -> void:
 		
 		_deltas[lod] = Vector2i.ZERO
 		
+		if lod == 0:
+			_rd.texture_get_data_async(_map_rd_rids[MapType.HEIGHT], 0, _update_cpu_data)
 		#if lod == 0:
 			#_cpu_height_image = RenderingServer.texture_2d_layer_get(_map_rids[MapType.HEIGHT], 0)
 	

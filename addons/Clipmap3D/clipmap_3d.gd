@@ -105,7 +105,7 @@ class_name Clipmap3D extends Node3D
 			return
 		collision_mesh_size_changed.emit(collision_mesh_size)
 
-# TODO: setters
+## WIP: must currently only contain the follow target
 @export var collision_targets: Array[PhysicsBody3D]
 
 @export_flags_3d_physics var collision_layer: int = 1:
@@ -168,11 +168,13 @@ func _ready():
 	if material:
 		_mesh_handler.update_material_rid(material.get_rid())
 	_mesh_handler.generate()
-	if not _collision_handler and not Engine.is_editor_hint():
-		_collision_handler = Clipmap3DCollisionHandler.new()
-		_collision_handler.initialize(self)
-		
-	set_physics_process(not Engine.is_editor_hint())
+	
+	if Engine.is_editor_hint() or not collision_enabled:
+		set_physics_process(false)
+	else:
+		if not _collision_handler:
+			_collision_handler = Clipmap3DCollisionHandler.new()
+			_collision_handler.initialize(self)
 	
 	_update_position()
 	
@@ -181,7 +183,7 @@ func _ready():
 	
 func _exit_tree() -> void:
 	_mesh_handler.clear()
-	if not Engine.is_editor_hint():
+	if _collision_handler:
 		_collision_handler.clear()
 
 func _process(_delta: float) -> void:
@@ -199,9 +201,6 @@ func _update_position():
 	_recalculate_source_origin()
 	target_position_changed.emit(global_position)
 
-func _physics_process(_delta: float) -> void:
-	_collision_handler.update()
-
 func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_EXIT_WORLD:
@@ -215,7 +214,6 @@ func _connect_source():
 		return
 	source.changed.connect(_on_source_changed)
 	source.maps_created.connect(_on_source_maps_created)
-	source.maps_shifted.connect(_on_source_maps_shifted)
 	source.textures_changed.connect(_on_source_textures_changed)
 	source.create_textures()
 	_on_source_changed()
@@ -225,7 +223,6 @@ func _disconnect_source():
 		return
 	source.changed.disconnect(_on_source_changed)
 	source.maps_created.disconnect(_on_source_maps_created)
-	source.maps_shifted.disconnect(_on_source_maps_shifted)
 	source.textures_changed.disconnect(_on_source_textures_changed)
 	source.clear_maps()
 	source.clear_textures()
@@ -238,9 +235,6 @@ func _recalculate_source_origin():
 # TODO: clean up spaghetti connections
 func _on_source_maps_created():
 	_mesh_handler.update_map_rids(source.get_map_rids())
-
-func _on_source_maps_shifted():
-	_mesh_handler.update_map_origins(source.get_map_origins())
 
 func _on_source_textures_changed():
 	_mesh_handler.update_texture_rids(source.get_texture_rids())

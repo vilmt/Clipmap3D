@@ -6,7 +6,7 @@ A lightweight infinite procedural terrain system for Godot 4.5+
 ## Overview
 * Written in GDScript, GDShader, and GLSL
 * Supports Forward+ and Mobile renderers
-* Use a compute shader to generate and texture terrian on the GPU
+* Use a compute shader to generate and texture terrain on the GPU
 * No manual work to author terrain; everything is done through code
 * Over 30x30km render distance with configurable vertex density and levels of detail (LODs)
 * Real-time toroidal LOD shifting as the player moves
@@ -31,12 +31,5 @@ A lightweight infinite procedural terrain system for Godot 4.5+
 * Cheap overlay normals in fragment for low-spec setups
 * Heightmap image imports and streaming
 
-
-## WIP Disclaimer
-
-If you are interested in Clipmap3D, please try out the demo and report bugs.
-
-
 TODO: fix collisions
-after this, its done
-default normal map should be neutral direction
+TODO: default normal map should be neutral direction

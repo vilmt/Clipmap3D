@@ -63,7 +63,7 @@ script = ExtResource("4_fy1p0")
 albedo_roughness_texture = ExtResource("9_wwhtr")
 normal_height_ao_texture = ExtResource("10_62gnj")
 uv_scale = Vector2(0.5, 0.5)
-normal_depth = 1.9449999999999998
+normal_depth = 1.945
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 
 [sub_resource type="Resource" id="Resource_svvho"]
@@ -77,10 +77,13 @@ metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 script = ExtResource("3_nk31j")
 compute_shader = ExtResource("2_tdg64")
 compute_seed = 5
-texels_per_vertex = Vector2i(4, 4)
 height_amplitude = 2000.0
 texture_assets = Array[ExtResource("4_fy1p0")]([SubResource("Resource_hp380"), SubResource("Resource_bdhvs"), SubResource("Resource_lhras"), SubResource("Resource_svvho")])
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
+
+[sub_resource type="HeightMapShape3D" id="HeightMapShape3D_nk31j"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_nk31j"]
 
 [node name="Demo" type="Node3D" unique_id=932743419]
 
@@ -101,7 +104,7 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -642.3399, 0, -3832.3882)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 963.5504, 0, -3648.882)
 script = ExtResource("1_xm42s")
 follow_target = NodePath("../Player")
 source = SubResource("Resource_vn06u")
@@ -111,8 +114,17 @@ material = ExtResource("11_vkopi")
 collision_mesh_size = Vector2i(6, 6)
 collision_targets = [NodePath("../Player")]
 
+[node name="StaticBody3D" type="StaticBody3D" parent="Clipmap3D" unique_id=471147660]
+top_level = true
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Clipmap3D/StaticBody3D" unique_id=2143560169]
+shape = SubResource("HeightMapShape3D_nk31j")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Clipmap3D/StaticBody3D" unique_id=1615748695]
+mesh = SubResource("CylinderMesh_nk31j")
+
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("12_qvfii")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -642.3399, 1352.3208, -3832.3882)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 963.5504, 1451.8267, -3648.882)
 
 [node name="ZoomOutWarningLabel" type="Label3D" parent="." unique_id=1827955459]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.225605, 0)

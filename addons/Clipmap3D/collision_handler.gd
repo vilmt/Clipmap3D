@@ -1,25 +1,26 @@
 class_name Clipmap3DCollisionHandler
 
-# TODO: cache values for rebuilding close meshes
-
 var _source: Clipmap3DSource
 var _vertex_spacing: Vector2
 var _mesh_size: Vector2i
 var _position_y: float
 
 var _body_rid: RID
-var _shape_rids: Array[RID]
-var _shape_xzs: PackedVector2Array
+var _shape_rid: RID
 
-var _targets: Array[PhysicsBody3D]
+var _static_body: StaticBody3D
+var _shape: CollisionShape3D
+var _shape_resource: HeightMapShape3D
 
 var _template_faces: PackedVector3Array
 
 func initialize(clipmap: Clipmap3D):
 	_source = clipmap.source
-	if _source:
-		_source.maps_created.connect(update.bind(true))
-		_source.maps_shifted.connect(update.bind(true))
+	_connect_source()
+	
+	_static_body = clipmap.get_node("StaticBody3D")
+	_shape = clipmap.get_node("StaticBody3D/CollisionShape3D")
+	_shape_resource = _shape.shape
 	
 	_vertex_spacing = clipmap.mesh_vertex_spacing
 	_mesh_size = clipmap.collision_mesh_size
@@ -33,9 +34,8 @@ func initialize(clipmap: Clipmap3D):
 	PhysicsServer3D.body_set_collision_layer(_body_rid, clipmap.collision_layer)
 	PhysicsServer3D.body_set_collision_mask(_body_rid, clipmap.collision_mask)
 	
-	_generate_template_faces()
-	
-	clipmap.collision_targets.map(add_target)
+	_shape_rid = PhysicsServer3D.heightmap_shape_create()
+	PhysicsServer3D.body_add_shape(_body_rid, _shape_rid)
 	
 	clipmap.source_changed.connect(_on_source_changed)
 	clipmap.mesh_vertex_spacing_changed.connect(_on_vertex_spacing_changed)
@@ -43,51 +43,61 @@ func initialize(clipmap: Clipmap3D):
 	clipmap.target_position_changed.connect(_on_target_position_changed)
 	clipmap.collision_layer_changed.connect(_on_collision_layer_changed)
 	clipmap.collision_mask_changed.connect(_on_collision_layer_changed)
+
+func update():
+	#print("updated")
+	var data := _source.get_lod_0_data()
+	var origin := _source.get_world_origin()
+	var texel_origin := _source.get_lod_0_origin()
+	var size := _source.get_lod_0_size()
+	var step := _source.texels_per_vertex
 	
-func _generate_template_faces():
-	var template_plane := PlaneMesh.new()
-	template_plane.size = _vertex_spacing * Vector2(_mesh_size)
-	template_plane.subdivide_width = _mesh_size.x - 1
-	template_plane.subdivide_depth = _mesh_size.y - 1
-	_template_faces = template_plane.get_faces()
+	var heights := PackedFloat32Array()
 	
-func update(force: bool = false):
-	for i: int in _targets.size():
-		var target_body: PhysicsBody3D = _targets[i]
-		if not target_body:
-			remove_target(target_body)
-			continue
-		
-		var target_xz := Vector2(target_body.global_position.x, target_body.global_position.z)
-		var scale := _vertex_spacing * 1.0
-		var target_xz_snapped := (target_xz / scale).floor() * scale
-		if not force and _shape_xzs[i].is_equal_approx(target_xz_snapped):
-			continue
-			
-		_shape_xzs[i] = target_xz_snapped
-		
-		_build_mesh(i, target_xz_snapped)
+	# TODO: do this in compute source
+	for y: int in range(0, size.y, step.y):
+		for x: int in range(0, size.x, step.x):
+			var tx = posmod(x + texel_origin.x + ceili(float(size.x) / 2.0) + 1, size.x)
+			var ty = posmod(y + texel_origin.y + ceili(float(size.y) / 2.0) + 1, size.y)
+			var index = (tx + ty * size.x) * 4
+			var h = data.decode_float(index)
+			heights.append(h)
+	
+	var dict := {
+		"width": size.x / step.x,
+		"depth": size.y / step.y,
+		"heights": heights
+	}
+	
+	#_shape_resource.map_width = size.x / step.x
+	#_shape_resource.map_depth = size.y / step.y
+	#_shape_resource.map_data = heights
+	#_shape.global_transform = Transform3D(Basis.IDENTITY, Vector3(origin.x, 0.0, origin.y))
+	##
+	PhysicsServer3D.shape_set_data(_shape_rid, dict)
+	var o := Basis(Vector3(1.0, 0.0, 0.0), Vector3.UP, Vector3(0.0, 0.0, 1.0))
+	var p := Vector3(origin.x, 0.0, origin.y)
+	PhysicsServer3D.body_set_shape_transform(_body_rid, 0, Transform3D(o, p))
 	
 func _on_source_changed(source: Clipmap3DSource):
-	if _source:
-		_source.maps_created.disconnect(update)
-		_source.maps_redrawn.disconnect(update)
+	_disconnect_source()
 	_source = source
-	if _source:
-		_source.maps_created.connect(update)
-		_source.maps_redrawn.connect(update)
+	_connect_source()
+
+func _connect_source():
+	if _source and not _source.lod_0_data_changed.is_connected(update):
+		_source.lod_0_data_changed.connect(update)
+
+func _disconnect_source():
+	if _source and _source.lod_0_data_changed.is_connected(update):
+		_source.lod_0_data_changed.disconnect(update)
 
 func _on_vertex_spacing_changed(vertex_spacing: Vector2):
 	_vertex_spacing = vertex_spacing
 	
-	_generate_template_faces()
-	#update()
 
 func _on_mesh_size_changed(mesh_size: Vector2i):
 	_mesh_size = mesh_size
-	
-	_generate_template_faces()
-	#update()
 
 func _on_target_position_changed(target_position: Vector3):
 	_position_y = target_position.y
@@ -98,43 +108,11 @@ func _on_collision_layer_changed(physics_layer: int):
 	
 func _on_collision_mask_changed(physics_mask: int):
 	PhysicsServer3D.body_set_collision_mask(_body_rid, physics_mask)
-
-# TODO: do lookups first, then build mesh. Doing 3x work here
-func _build_mesh(shape_index: int, xz: Vector2):
-	for i: int in _template_faces.size():
-		var v_world := Vector2(_template_faces[i].x, _template_faces[i].z) + xz
-		_template_faces[i].y = _source.get_height_world(v_world)
-	
-	var shape_rid := _shape_rids[shape_index]
-	PhysicsServer3D.shape_set_data(shape_rid, {"faces": _template_faces, "backface_collision": false})
-	PhysicsServer3D.body_set_shape_transform(_body_rid, shape_index, Transform3D(Basis.IDENTITY, Vector3(xz.x, _position_y, xz.y)))
 	
 func clear():
-	_targets.clear()
-	PhysicsServer3D.free_rid(_body_rid)
-	for rid: RID in _shape_rids:
-		PhysicsServer3D.free_rid(rid)
-	_shape_rids.clear()
-
-func add_target(target_body: PhysicsBody3D):
-	if not target_body or not target_body.is_inside_tree():
-		push_error("Given target body is invalid.")
-		return
-	
-	_targets.append(target_body)
-	
-	var target_xz := Vector2(target_body.global_position.x, target_body.global_position.z)
-	var scale := _vertex_spacing * 1.0
-	var target_xz_snapped := (target_xz / scale).floor() * scale
-	_shape_xzs.append(target_xz_snapped)
-	
-	var shape_rid := PhysicsServer3D.concave_polygon_shape_create()
-	_shape_rids.append(shape_rid)
-	
-	PhysicsServer3D.body_add_shape(_body_rid, shape_rid)
-	
-	# TODO: height map null check
-	_build_mesh(_shape_rids.size() - 1, target_xz_snapped)
-
-func remove_target(body: PhysicsBody3D):
-	pass
+	if _body_rid:
+		PhysicsServer3D.free_rid(_body_rid)
+	_body_rid = RID()
+	if _shape_rid:
+		PhysicsServer3D.free_rid(_shape_rid)
+	_shape_rid = RID()

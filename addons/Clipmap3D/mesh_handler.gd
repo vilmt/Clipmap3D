@@ -70,11 +70,6 @@ func _mark_meshes_dirty():
 	_meshes_dirty = true
 	_rebuild.call_deferred()
 
-func update_map_origins(map_origins: Array[Vector2i]):
-	_map_origins = map_origins
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_map_origins", _map_origins)
-
 func update_height_amplitude(height_amplitude: float):
 	_height_amplitude = maxf(height_amplitude, 0.1)
 	for type: MeshType in _mesh_rids.keys():

@@ -75,6 +75,19 @@ var _normal_depths: PackedFloat32Array
 signal textures_changed
 signal maps_created
 signal maps_shifted
+signal lod_0_data_changed
+
+@abstract
+func get_lod_0_data() -> PackedByteArray
+
+@abstract
+func get_lod_0_size() -> Vector2i
+
+@abstract
+func get_lod_0_origin() -> Vector2i
+
+@abstract
+func get_world_origin() -> Vector2
 
 enum TextureType {
 	ALBEDO,
@@ -180,9 +193,6 @@ func clear_textures() -> void:
 
 func has_textures() -> bool:
 	return not _texture_rids.is_empty()
-
-@abstract
-func get_map_origins() -> Array[Vector2i]
 
 @abstract
 func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_spacing: Vector2) -> void
