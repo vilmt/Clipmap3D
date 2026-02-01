@@ -11,7 +11,7 @@
 [ext_resource type="Texture2D" uid="uid://cmjr0ahqaito3" path="res://demo/assets/textures/grass/grass_normal_height_ao.png" id="9_7bq1q"]
 [ext_resource type="Texture2D" uid="uid://dmcwfi8452i8k" path="res://demo/assets/textures/snow/snow_albedo_roughness.png" id="10_xoos8"]
 [ext_resource type="Texture2D" uid="uid://bo1j3e7fo31mo" path="res://demo/assets/textures/snow/snow_normal_height_ao.png" id="11_2c444"]
-[ext_resource type="Material" uid="uid://sppic5ftnktj" path="res://demo/shaders/high_spec_material.tres" id="12_bfe6i"]
+[ext_resource type="Material" uid="uid://bee03e3l65s56" path="res://demo/shaders/low_spec_material.tres" id="11_e3by6"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_e3by6"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -94,7 +94,7 @@ script = ExtResource("1_k63h2")
 follow_target = NodePath("../Player")
 source = SubResource("Resource_jb2h6")
 mesh_lod_count = 7
-material = ExtResource("12_bfe6i")
+material = ExtResource("11_e3by6")
 collision_targets = [NodePath("../Player")]
 metadata/_custom_type_script = "uid://wudkpxu6xggb"
 
