@@ -28,3 +28,4 @@ A lightweight infinite procedural terrain system for Godot 4.6
 	* High-spec demo
 	* Low-spec demo
 * After loading a scene, set View -> Settings... -> View Z-Far to 16000
+* Make edits to the compute shaders in a text editor such as Notepad++ and see changes immediately!
