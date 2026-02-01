@@ -1,7 +1,7 @@
 ![Thumbnail](addons/Clipmap3D/plugin_thumbnail.jpg)
 
 # Clipmap3D
-A lightweight infinite procedural terrain system for Godot 4.5+
+A lightweight infinite procedural terrain system for Godot 4.6
 
 ## Overview
 * Written in GDScript, GDShader, and GLSL
@@ -23,7 +23,7 @@ A lightweight infinite procedural terrain system for Godot 4.5+
 * Physics interaction is primitive and limited to player collisions
 * Image imports are not yet supported
 
-## Trying the demos
+## Trying the demos (4.6)
 * This repository contains a demo folder with two example scenes
 	* High-spec demo
 	* Low-spec demo
