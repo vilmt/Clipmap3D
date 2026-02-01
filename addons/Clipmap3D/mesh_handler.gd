@@ -1,38 +1,61 @@
 @tool
 class_name Clipmap3DMeshHandler
 
-var _lod_count: int
-var _tile_size: Vector2i
-var _vertex_spacing: Vector2
-var _texels_per_vertex: Vector2i
-var _map_origins: Array[Vector2i]
-var _material_rid: RID
-var _scenario_rid: RID
-var _visible: bool
-var _cast_shadows: RenderingServer.ShadowCastingSetting
-var _render_layer: int
-var _height_amplitude: float = 0.1
-var _height_maps_rid: RID
-var _normal_maps_rid: RID
-var _control_maps_rid: RID
-var _albedo_textures_rid: RID
-var _normal_textures_rid: RID
-# HACK
-var _texture_data_arrays: Dictionary[String, Array]
+var source: Clipmap3DSource:
+	set(value):
+		_disconnect_source()
+		source = value
+		_connect_source()
 
-var _instance_rids: Array[RID]
-var _instance_mesh_types: Array[MeshType]
+var lod_count: int:
+	set(value):
+		lod_count = value
+		_mark_meshes_dirty()
+		_apply_material_state()
 
-var _mesh_rids: Dictionary[MeshType, RID]
-var _mesh_aabbs: Dictionary[MeshType, AABB]
-var _mesh_xzs: Dictionary[MeshType, PackedVector2Array]
-var _edge_x_xzs: Dictionary[Vector2i, Vector2]
-var _edge_z_xzs: Dictionary[Vector2i, Vector2]
+var tile_size: Vector2i:
+	set(value):
+		tile_size = value
+		_mark_meshes_dirty()
+		_apply_material_state()
 
-var _last_p := Vector3.ZERO
+var vertex_spacing: Vector2:
+	set(value):
+		vertex_spacing = value
+		_mark_meshes_dirty()
+		_apply_material_state()
 
-var _meshes_dirty: bool = false
-var _instances_dirty: bool = false
+var material_rid: RID:
+	set(value):
+		material_rid = value
+		_apply_mesh_state()
+		_apply_material_state()
+
+var scenario_rid: RID:
+	set(value):
+		scenario_rid = value
+		_apply_mesh_state()
+
+var visible: bool:
+	set(value):
+		visible = value
+		_apply_mesh_state()
+			
+var cast_shadows: RenderingServer.ShadowCastingSetting:
+	set(value):
+		cast_shadows = value
+		_apply_mesh_state()
+
+var render_layer: int:
+	set(value):
+		render_layer = value
+		_apply_mesh_state()
+
+var target_position: Vector3:
+	set(value):
+		target_position = value
+		_apply_material_state()
+		_apply_instance_state()
 
 enum MeshType {
 	CORE,
@@ -47,142 +70,61 @@ const MAX_LOD_COUNT: int = 10
 const LOD_0_INSTANCES: int = 19
 const LOD_X_INSTANCES: int = 18
 
-func get_mesh_vertices() -> Vector2i:
-	return 4 * _tile_size + Vector2i.ONE * 3
+var _instance_rids: Array[RID]
+var _instance_mesh_types: Array[MeshType]
+
+var _mesh_rids: Dictionary[MeshType, RID]
+var _mesh_aabbs: Dictionary[MeshType, AABB]
+var _mesh_xzs: Dictionary[MeshType, PackedVector2Array] # XZ offsets are fixed per mesh
+var _edge_x_xzs: Dictionary[Vector2i, Vector2] # XZ offsets vary for edges
+var _edge_z_xzs: Dictionary[Vector2i, Vector2]
+
+var _built: bool = false
+var _meshes_dirty: bool = false
+var _instances_dirty: bool = false
+
+func get_vertices() -> Vector2i:
+	return 4 * tile_size + 3 * Vector2i.ONE
 
 func _rebuild():
 	if _meshes_dirty:
 		_generate_meshes()
 		_generate_offsets()
+		_apply_mesh_state()
 		_instances_dirty = true
 	if _instances_dirty:
 		_create_instances()
-		snap(_last_p, true)
+		_apply_instance_state()
+	
 	_meshes_dirty = false
 	_instances_dirty = false
 
 func _mark_instances_dirty():
+	if not _built:
+		return
 	_instances_dirty = true
 	_rebuild.call_deferred()
 
 func _mark_meshes_dirty():
+	if not _built:
+		return
 	_instances_dirty = true
 	_meshes_dirty = true
 	_rebuild.call_deferred()
 
-func update_height_amplitude(height_amplitude: float):
-	_height_amplitude = maxf(height_amplitude, 0.1)
-	for type: MeshType in _mesh_rids.keys():
-		var aabb := _mesh_aabbs[type]
-		aabb.size.y = _height_amplitude
-		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)
-
-func update_texels_per_vertex(texels_per_vertex: Vector2i):
-	_texels_per_vertex = texels_per_vertex
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_texels_per_vertex", _texels_per_vertex)
-
-func update_map_rids(map_rids: Dictionary[Clipmap3DSource.MapType, RID]):
-	_height_maps_rid = map_rids.get(Clipmap3DSource.MapType.HEIGHT, RID())
-	_normal_maps_rid = map_rids.get(Clipmap3DSource.MapType.NORMAL, RID())
-	_control_maps_rid = map_rids.get(Clipmap3DSource.MapType.CONTROL, RID())
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_height_maps", _height_maps_rid)
-		RenderingServer.material_set_param(_material_rid, &"_normal_maps", _normal_maps_rid)
-		RenderingServer.material_set_param(_material_rid, &"_control_maps", _control_maps_rid)
-
-func update_texture_rids(texture_rids: Dictionary[Clipmap3DSource.TextureType, RID]):
-	_albedo_textures_rid = texture_rids.get(Clipmap3DSource.TextureType.ALBEDO, RID())
-	_normal_textures_rid = texture_rids.get(Clipmap3DSource.TextureType.NORMAL, RID())
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_albedo_textures", _albedo_textures_rid)
-		RenderingServer.material_set_param(_material_rid, &"_normal_textures", _normal_textures_rid)
-
-# HACK
-func update_texture_data_arrays(arrays: Dictionary[String, Array]):
-	_texture_data_arrays = arrays
-	var normal_depths: PackedFloat32Array = arrays.get("normal_depths", PackedFloat32Array())
-	normal_depths.resize(Clipmap3DSource.MAX_TEXTURE_COUNT)
-	var uv_scales: PackedVector2Array = arrays.get("uv_scales", PackedVector2Array())
-	uv_scales.resize(Clipmap3DSource.MAX_TEXTURE_COUNT)
-	var albedos: PackedColorArray = arrays.get("albedos", PackedColorArray())
-	albedos.resize(Clipmap3DSource.MAX_TEXTURE_COUNT)
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_normal_depths", normal_depths)
-		RenderingServer.material_set_param(_material_rid, &"_uv_scales", uv_scales)
-		RenderingServer.material_set_param(_material_rid, &"_albedo_colors", albedos)
-
-func _on_tile_size_changed(tile_size: Vector2i):
-	_tile_size = tile_size
-	_mark_meshes_dirty()
-	
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_tile_size", tile_size)
-		
-func _on_lod_count_changed(lod_count: int):
-	_lod_count = lod_count
-	
-	_mark_instances_dirty()
-
-func _on_vertex_spacing_changed(vertex_spacing: Vector2):
-	_vertex_spacing = vertex_spacing
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_vertex_spacing", vertex_spacing)
-	snap(_last_p, true)
-
-func update_material_rid(material_rid: RID):
-	_material_rid = material_rid
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_height_maps", _height_maps_rid)
-		RenderingServer.material_set_param(_material_rid, &"_normal_maps", _normal_maps_rid)
-		RenderingServer.material_set_param(_material_rid, &"_control_maps", _control_maps_rid)
-		RenderingServer.material_set_param(_material_rid, &"_albedo_textures", _albedo_textures_rid)
-		RenderingServer.material_set_param(_material_rid, &"_normal_textures", _normal_textures_rid)
-		RenderingServer.material_set_param(_material_rid, &"_tile_size", _tile_size)
-		RenderingServer.material_set_param(_material_rid, &"_vertex_spacing", _vertex_spacing)
-		RenderingServer.material_set_param(_material_rid, &"_target_position", _last_p)
-		RenderingServer.material_set_param(_material_rid, &"_texels_per_vertex", _texels_per_vertex)
-		RenderingServer.material_set_param(_material_rid, &"_map_origins", _map_origins)
-		update_texture_data_arrays(_texture_data_arrays) # HACK
-	for mesh_rid: RID in _mesh_rids.values():
-		RenderingServer.mesh_surface_set_material(mesh_rid, 0, _material_rid)
-		
-func update_scenario_rid(scenario_rid: RID):
-	_scenario_rid = scenario_rid
-	for instance_rid: RID in _instance_rids:
-		RenderingServer.instance_set_scenario(instance_rid, _scenario_rid)
-
-func update_visible(visible: bool):
-	_visible = visible
-	for instance_rid: RID in _instance_rids:
-		RenderingServer.instance_set_visible(instance_rid, _visible)
-
-func _on_render_layer_changed(render_layer: int):
-	_render_layer = render_layer
-	for instance_rid: RID in _instance_rids:
-		RenderingServer.instance_set_layer_mask(instance_rid, _render_layer)
-
-func _on_cast_shadows_changed(cast_shadows: RenderingServer.ShadowCastingSetting):
-	_cast_shadows = cast_shadows
-	for instance_rid: RID in _instance_rids:
-		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, _cast_shadows)
-
-func snap(p: Vector3, force: bool = false) -> bool:
-	if p == _last_p and not force:
-		return false
-	_last_p = p
-	
-	if _material_rid:
-		RenderingServer.material_set_param(_material_rid, &"_target_position", p)
+func _snap() -> void:
+	if not _built or _instance_rids.is_empty():
+		return
+	var world_xz := Vector2(target_position.x, target_position.z)
 	
 	var starting_i: int = 0
 	var ending_i: int = LOD_0_INSTANCES
 	
-	for lod: int in _lod_count:
-		var scale: Vector2 = _vertex_spacing * float(1 << lod)
-		var snapped_p_xz = (Vector2(p.x, p.z) / scale).floor()
-		var edge := Vector2i(snapped_p_xz.posmod(2.0))
-		snapped_p_xz *= scale
+	for lod: int in lod_count:
+		var scale: Vector2 = vertex_spacing * float(1 << lod)
+		var vertex_xz := Vector2i((world_xz / scale).floor())
+		var edge := vertex_xz.abs() % 2
+		var world_xz_snapped := Vector2(vertex_xz) * scale
 		
 		var instance_count: Dictionary[MeshType, int] = {}
 		
@@ -201,7 +143,7 @@ func snap(p: Vector3, force: bool = false) -> bool:
 			
 			var t := Transform3D(Basis(), Vector3(xz.x, 0.0, xz.y))
 			t = t.scaled(Vector3(scale.x, 1.0, scale.y))
-			t.origin += Vector3(snapped_p_xz.x, p.y, snapped_p_xz.y)
+			t.origin += Vector3(world_xz_snapped.x, target_position.y, world_xz_snapped.y)
 			RenderingServer.instance_set_transform(instance_rid, t)
 			RenderingServer.instance_teleport(instance_rid)
 			
@@ -213,42 +155,27 @@ func snap(p: Vector3, force: bool = false) -> bool:
 		starting_i = ending_i
 		ending_i += LOD_X_INSTANCES
 	
-	return true
-
-func initialize(clipmap: Clipmap3D) -> void:
-	_tile_size = clipmap.mesh_tile_size
-	_lod_count = clipmap.mesh_lod_count
-	_vertex_spacing = clipmap.mesh_vertex_spacing
-	_cast_shadows = clipmap.cast_shadows as RenderingServer.ShadowCastingSetting
-	_render_layer = clipmap.render_layer
-	_last_p = clipmap.global_position
-	
-	clipmap.mesh_tile_size_changed.connect(_on_tile_size_changed)
-	clipmap.mesh_lod_count_changed.connect(_on_lod_count_changed)
-	clipmap.mesh_vertex_spacing_changed.connect(_on_vertex_spacing_changed)
-	clipmap.cast_shadows_changed.connect(_on_cast_shadows_changed)
-	clipmap.render_layer_changed.connect(_on_render_layer_changed)
-	clipmap.target_position_changed.connect(snap)
-
-func generate():
+func build():
+	_built = true
 	_mark_meshes_dirty()
+	_apply_material_state()
 
 func clear():
+	_built = false
+	_meshes_dirty = false
+	_instances_dirty = false
 	_clear_instances()
 	_clear_meshes()
 
 func _create_instance(type: MeshType):
-	var rid := RenderingServer.instance_create2(_mesh_rids[type], _scenario_rid)
+	var rid := RenderingServer.instance_create2(_mesh_rids[type], scenario_rid)
 	_instance_rids.append(rid)
 	_instance_mesh_types.append(type)
-	RenderingServer.instance_set_visible(rid, _visible)
-	RenderingServer.instance_set_layer_mask(rid, _render_layer)
-	RenderingServer.instance_geometry_set_cast_shadows_setting(rid, _cast_shadows)
 
 func _create_instances() -> void:
 	_clear_instances()
 	_create_instance(MeshType.CORE)
-	for lod: int in _lod_count:
+	for lod: int in lod_count:
 		for i: int in 12:
 			_create_instance(MeshType.TILE)
 		for i: int in 2:
@@ -298,23 +225,20 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 	RenderingServer.mesh_add_surface_from_arrays(mesh, RenderingServer.PRIMITIVE_TRIANGLES, mesh_arrays)
 	_mesh_rids[type] = mesh
 	
-	var aabb := AABB(Vector3(-size.x, 0.0, -size.y) / 2.0, Vector3(size.x, _height_amplitude, size.y))
+	var aabb := AABB(Vector3(-size.x, 0.0, -size.y) / 2.0, Vector3(size.x, 0.1, size.y))
 	RenderingServer.mesh_set_custom_aabb(mesh, aabb)
 	_mesh_aabbs[type] = aabb
-	
-	if _material_rid:
-		RenderingServer.mesh_surface_set_material(mesh, 0, _material_rid)
 
 func _generate_meshes():
 	_clear_instances()
 	_clear_meshes()
 	
-	_generate_mesh(MeshType.CORE, _tile_size * 2 + Vector2i.ONE)
-	_generate_mesh(MeshType.TILE, _tile_size)
-	_generate_mesh(MeshType.FILL_X, Vector2i(1, _tile_size.y))
-	_generate_mesh(MeshType.FILL_Z, Vector2i(_tile_size.x, 1))
-	_generate_mesh(MeshType.EDGE_X, Vector2i(1, _tile_size.y * 4 + 2))
-	_generate_mesh(MeshType.EDGE_Z, Vector2i(_tile_size.x * 4 + 1, 1))
+	_generate_mesh(MeshType.CORE, tile_size * 2 + Vector2i.ONE)
+	_generate_mesh(MeshType.TILE, tile_size)
+	_generate_mesh(MeshType.FILL_X, Vector2i(1, tile_size.y))
+	_generate_mesh(MeshType.FILL_Z, Vector2i(tile_size.x, 1))
+	_generate_mesh(MeshType.EDGE_X, Vector2i(1, tile_size.y * 4 + 2))
+	_generate_mesh(MeshType.EDGE_Z, Vector2i(tile_size.x * 4 + 1, 1))
 
 func _generate_offsets():
 	_mesh_xzs.clear()
@@ -324,42 +248,42 @@ func _generate_offsets():
 	_mesh_xzs[MeshType.CORE] = PackedVector2Array([Vector2(0.5, 0.5)])
 	
 	_mesh_xzs[MeshType.TILE] = PackedVector2Array([
-		Vector2(_tile_size.x * +1.5 + 1.0, _tile_size.y * +1.5 + 1.0),
-		Vector2(_tile_size.x * +0.5 + 1.0, _tile_size.y * +1.5 + 1.0),
-		Vector2(_tile_size.x * -0.5, _tile_size.y * +1.5 + 1.0),
-		Vector2(_tile_size.x * -1.5, _tile_size.y * +1.5 + 1.0),
-		Vector2(_tile_size.x * -1.5, _tile_size.y * +0.5 + 1.0),
-		Vector2(_tile_size.x * -1.5, _tile_size.y * -0.5),
-		Vector2(_tile_size.x * -1.5, _tile_size.y * -1.5),
-		Vector2(_tile_size.x * -0.5, _tile_size.y * -1.5),
-		Vector2(_tile_size.x * +0.5 + 1.0, _tile_size.y * -1.5),
-		Vector2(_tile_size.x * +1.5 + 1.0, _tile_size.y * -1.5),
-		Vector2(_tile_size.x * +1.5 + 1.0, _tile_size.y * -0.5),
-		Vector2(_tile_size.x * +1.5 + 1.0, _tile_size.y * +0.5 + 1.0),
+		Vector2(tile_size.x * +1.5 + 1.0, tile_size.y * +1.5 + 1.0),
+		Vector2(tile_size.x * +0.5 + 1.0, tile_size.y * +1.5 + 1.0),
+		Vector2(tile_size.x * -0.5, tile_size.y * +1.5 + 1.0),
+		Vector2(tile_size.x * -1.5, tile_size.y * +1.5 + 1.0),
+		Vector2(tile_size.x * -1.5, tile_size.y * +0.5 + 1.0),
+		Vector2(tile_size.x * -1.5, tile_size.y * -0.5),
+		Vector2(tile_size.x * -1.5, tile_size.y * -1.5),
+		Vector2(tile_size.x * -0.5, tile_size.y * -1.5),
+		Vector2(tile_size.x * +0.5 + 1.0, tile_size.y * -1.5),
+		Vector2(tile_size.x * +1.5 + 1.0, tile_size.y * -1.5),
+		Vector2(tile_size.x * +1.5 + 1.0, tile_size.y * -0.5),
+		Vector2(tile_size.x * +1.5 + 1.0, tile_size.y * +0.5 + 1.0),
 	])
 	
 	_mesh_xzs[MeshType.FILL_X] = PackedVector2Array([
-		Vector2(0.5, _tile_size.y * 1.5 + 1.0),
-		Vector2(0.5, _tile_size.y * -1.5)
+		Vector2(0.5, tile_size.y * 1.5 + 1.0),
+		Vector2(0.5, tile_size.y * -1.5)
 	])
 	
 	_mesh_xzs[MeshType.FILL_Z] = PackedVector2Array([
-		Vector2(_tile_size.x * 1.5 + 1.0, 0.5),
-		Vector2(_tile_size.x * -1.5, 0.5)
+		Vector2(tile_size.x * 1.5 + 1.0, 0.5),
+		Vector2(tile_size.x * -1.5, 0.5)
 	])
 	
 	_edge_x_xzs = {
-		Vector2i(0, 0): Vector2(_tile_size.x * 2.0 + 1.5, 1.0),
-		Vector2i(1, 0): Vector2(_tile_size.x * -2.0 - 0.5, 1.0),
-		Vector2i(0, 1): Vector2(_tile_size.x * 2.0 + 1.5, 0.0),
-		Vector2i(1, 1): Vector2(_tile_size.x * -2.0 - 0.5, 0.0)
+		Vector2i(0, 0): Vector2(tile_size.x * 2.0 + 1.5, 1.0),
+		Vector2i(1, 0): Vector2(tile_size.x * -2.0 - 0.5, 1.0),
+		Vector2i(0, 1): Vector2(tile_size.x * 2.0 + 1.5, 0.0),
+		Vector2i(1, 1): Vector2(tile_size.x * -2.0 - 0.5, 0.0)
 	}
 	
 	_edge_z_xzs = {
-		Vector2i(0, 0): Vector2(0.5, _tile_size.y * 2.0 + 1.5),
-		Vector2i(1, 0): Vector2(0.5, _tile_size.y * 2.0 + 1.5),
-		Vector2i(0, 1): Vector2(0.5, _tile_size.y * -2.0 - 0.5),
-		Vector2i(1, 1): Vector2(0.5, _tile_size.y * -2.0 - 0.5)
+		Vector2i(0, 0): Vector2(0.5, tile_size.y * 2.0 + 1.5),
+		Vector2i(1, 0): Vector2(0.5, tile_size.y * 2.0 + 1.5),
+		Vector2i(0, 1): Vector2(0.5, tile_size.y * -2.0 - 0.5),
+		Vector2i(1, 1): Vector2(0.5, tile_size.y * -2.0 - 0.5)
 	}
 
 func _clear_instances():
@@ -373,3 +297,84 @@ func _clear_meshes():
 		RenderingServer.free_rid(mesh_rid)
 	_mesh_rids.clear()
 	_mesh_aabbs.clear()
+
+func _connect_source():
+	if not source or source.changed.is_connected(_apply_material_state):
+		return
+	source.changed.connect(_apply_material_state)
+	source.changed.connect(_apply_mesh_state)
+	_apply_material_state()
+	_apply_mesh_state()
+	
+func _disconnect_source():
+	if not source or not source.changed.is_connected(_apply_material_state):
+		return
+	source.changed.disconnect(_apply_material_state)
+	source.changed.disconnect(_apply_mesh_state)
+
+func _apply_material_state():
+	if not _built or not material_rid:
+		return
+	
+	RenderingServer.material_set_param(material_rid, &"_vertex_spacing", vertex_spacing)
+	RenderingServer.material_set_param(material_rid, &"_lod_count", lod_count)
+	RenderingServer.material_set_param(material_rid, &"_tile_size", tile_size)
+	RenderingServer.material_set_param(material_rid, &"_target_position", target_position)
+	
+	if source:
+		RenderingServer.material_set_param(material_rid, &"_texels_per_vertex", source.texels_per_vertex)
+		
+		var map_rids := source.get_map_rids()
+		RenderingServer.material_set_param(material_rid, &"_height_maps", map_rids.get(Clipmap3DSource.MapType.HEIGHT, RID()))
+		RenderingServer.material_set_param(material_rid, &"_normal_maps", map_rids.get(Clipmap3DSource.MapType.NORMAL, RID()))
+		RenderingServer.material_set_param(material_rid, &"_control_maps", map_rids.get(Clipmap3DSource.MapType.CONTROL, RID()))
+		
+		var texture_rids := source.get_texture_rids()
+		RenderingServer.material_set_param(material_rid, &"_albedo_textures", texture_rids.get(Clipmap3DSource.TextureType.ALBEDO, RID()))
+		RenderingServer.material_set_param(material_rid, &"_normal_textures", texture_rids.get(Clipmap3DSource.TextureType.NORMAL, RID()))
+		
+		var normal_depths := source.get_normal_depths()
+		var uv_scales := source.get_uv_scales()
+		var albedo_colors := source.get_albedo_colors()
+		RenderingServer.material_set_param(material_rid, &"_normal_depths", normal_depths)
+		RenderingServer.material_set_param(material_rid, &"_uv_scales", uv_scales)
+		RenderingServer.material_set_param(material_rid, &"_albedo_colors", albedo_colors)
+	else:
+		RenderingServer.material_set_param(material_rid, &"_texels_per_vertex", Vector2i.ONE)
+		
+		RenderingServer.material_set_param(material_rid, &"_height_maps", RID())
+		RenderingServer.material_set_param(material_rid, &"_normal_maps", RID())
+		RenderingServer.material_set_param(material_rid, &"_control_maps", RID())
+		
+		RenderingServer.material_set_param(material_rid, &"_albedo_textures", RID())
+		RenderingServer.material_set_param(material_rid, &"_normal_textures", RID())
+		
+		RenderingServer.material_set_param(material_rid, &"_normal_depths", PackedFloat32Array())
+		RenderingServer.material_set_param(material_rid, &"_uv_scales", PackedVector2Array())
+		RenderingServer.material_set_param(material_rid, &"_albedo_colors", PackedColorArray())
+
+func _apply_instance_state():
+	if not _built:
+		return
+	for instance_rid: RID in _instance_rids:
+		RenderingServer.instance_set_scenario(instance_rid, scenario_rid)
+		RenderingServer.instance_set_visible(instance_rid, visible)
+		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, cast_shadows)
+		RenderingServer.instance_set_layer_mask(instance_rid, render_layer)
+		
+	_snap()
+
+func _apply_mesh_state():
+	if not _built:
+		return
+	for mesh_rid: RID in _mesh_rids.values():
+		RenderingServer.mesh_surface_set_material(mesh_rid, 0, material_rid)
+	
+	var height_amplitude: float = 0.1
+	if source:
+		height_amplitude = source.height_amplitude
+	
+	for type: MeshType in _mesh_rids.keys():
+		var aabb := _mesh_aabbs[type]
+		aabb.size.y = height_amplitude
+		RenderingServer.mesh_set_custom_aabb(_mesh_rids[type], aabb)

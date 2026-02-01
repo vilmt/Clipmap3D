@@ -9,12 +9,21 @@ class_name Clipmap3D extends Node3D
 	set(value):
 		if source == value:
 			return
-		_disconnect_source()
+		if source:
+			source.clear()
 		source = value
 		if not is_node_ready():
 			return
-		_connect_source()
-		source_changed.emit(source)
+		_mesh_handler.source = source
+		if _collision_handler:
+			_collision_handler.source = source
+		if source:
+			# TODO: move to func
+			source.size = _mesh_handler.get_vertices()
+			source.vertex_spacing = mesh_vertex_spacing
+			source.lod_count = mesh_lod_count
+			source.collision_enabled = collision_enabled # HACK
+			source.build()
 
 @export_group("Mesh", "mesh")
 
@@ -26,8 +35,11 @@ class_name Clipmap3D extends Node3D
 		mesh_vertex_spacing = value
 		if not is_node_ready():
 			return
-		mesh_vertex_spacing_changed.emit(mesh_vertex_spacing)
-		_mark_source_dirty()
+		_mesh_handler.vertex_spacing = mesh_vertex_spacing
+		if _collision_handler:
+			_collision_handler.vertex_spacing = mesh_vertex_spacing
+		if source:
+			source.vertex_spacing = mesh_vertex_spacing
 
 ## The base tile size used to build the clipmap.
 @export var mesh_tile_size := Vector2i(32, 32):
@@ -37,8 +49,9 @@ class_name Clipmap3D extends Node3D
 		mesh_tile_size = value
 		if not is_node_ready():
 			return
-		mesh_tile_size_changed.emit(mesh_tile_size)
-		_mark_source_dirty()
+		_mesh_handler.tile_size = mesh_tile_size
+		if source:
+			source.size = _mesh_handler.get_vertices()
 
 # NOTE: arbitrary lower limit of 2 because of https://github.com/godotengine/godot/issues/115103
 ## The amount of level of detail (LOD) rings that form this mesh.
@@ -49,8 +62,9 @@ class_name Clipmap3D extends Node3D
 		mesh_lod_count = value
 		if not is_node_ready():
 			return
-		mesh_lod_count_changed.emit(mesh_lod_count)
-		_mark_source_dirty()
+		_mesh_handler.lod_count = mesh_lod_count
+		if source:
+			source.lod_count = mesh_lod_count
 
 @export_group("Rendering")
 
@@ -62,11 +76,10 @@ class_name Clipmap3D extends Node3D
 		material = value
 		if not is_node_ready():
 			return
-		material_changed.emit(material)
 		if material:
-			_mesh_handler.update_material_rid(material.get_rid())
+			_mesh_handler.material_rid = material.get_rid()
 		else:
-			_mesh_handler.update_material_rid(RID())
+			_mesh_handler.material_rid = RID()
 
 @export_flags_3d_render var render_layer: int = 1:
 	set(value):
@@ -75,7 +88,7 @@ class_name Clipmap3D extends Node3D
 		render_layer = value
 		if not is_node_ready():
 			return
-		render_layer_changed.emit(render_layer)
+		_mesh_handler.render_layer = render_layer
 
 @export_enum("Off:0", "On:1", "Double-Sided:2", "Shadows Only:3") var cast_shadows: int = 1:
 	set(value):
@@ -84,7 +97,7 @@ class_name Clipmap3D extends Node3D
 		cast_shadows = value
 		if not is_node_ready():
 			return
-		cast_shadows_changed.emit(cast_shadows as RenderingServer.ShadowCastingSetting)
+		_mesh_handler.cast_shadows = cast_shadows as RenderingServer.ShadowCastingSetting
 
 @export_group("Collision", "collision")
 @export_custom(PROPERTY_HINT_GROUP_ENABLE, "") var collision_enabled: bool = true:
@@ -94,16 +107,18 @@ class_name Clipmap3D extends Node3D
 		collision_enabled = value
 		if not is_node_ready():
 			return
-		collision_enabled_changed.emit(collision_enabled)
+		if _collision_handler:
+			_collision_handler.enabled = collision_enabled
 
-@export var collision_mesh_size := Vector2i(8, 8):
+@export var collision_mesh_radius := Vector2i(4, 4):
 	set(value):
-		if collision_mesh_size == value:
+		if collision_mesh_radius == value:
 			return
-		collision_mesh_size = value
+		collision_mesh_radius = value
 		if not is_node_ready():
 			return
-		collision_mesh_size_changed.emit(collision_mesh_size)
+		if _collision_handler:
+			_collision_handler.mesh_size = collision_mesh_radius
 
 ## WIP: must currently only contain the follow target
 @export var collision_targets: Array[PhysicsBody3D]
@@ -115,7 +130,8 @@ class_name Clipmap3D extends Node3D
 		collision_layer = value
 		if not is_node_ready():
 			return
-		collision_layer_changed.emit(collision_layer)
+		if _collision_handler:
+			_collision_handler.collision_layer = collision_layer
 
 @export_flags_3d_physics var collision_mask: int = 1:
 	set(value):
@@ -124,37 +140,12 @@ class_name Clipmap3D extends Node3D
 		collision_mask = value
 		if not is_node_ready():
 			return
-		collision_mask_changed.emit(collision_mask)
+		if _collision_handler:
+			_collision_handler.collision_mask = collision_mask
 
 var _mesh_handler: Clipmap3DMeshHandler
 var _collision_handler: Clipmap3DCollisionHandler
 var _last_p := Vector3(INF, INF, INF)
-
-signal source_changed(new_value: Clipmap3DSource)
-signal mesh_vertex_spacing_changed(new_value: Vector2)
-signal mesh_tile_size_changed(new_value: Vector2i)
-signal mesh_lod_count_changed(new_value: int)
-signal material_changed(new_value: ShaderMaterial)
-signal render_layer_changed(new_value: int)
-signal cast_shadows_changed(new_value: RenderingServer.ShadowCastingSetting)
-signal collision_enabled_changed(new_value: bool)
-signal collision_mesh_size_changed(new_value: Vector2i)
-signal collision_layer_changed(new_value: int)
-signal collision_mask_changed(new_value: int)
-
-signal target_position_changed(new_value: Vector3)
-
-var _source_dirty: bool = true
-
-func _mark_source_dirty():
-	_source_dirty = true
-	_rebuild_source.call_deferred()
-
-func _rebuild_source():
-	if _source_dirty:
-		var target := Vector2(global_position.x, global_position.z)
-		source.create_maps(target, _mesh_handler.get_mesh_vertices(), mesh_lod_count, mesh_vertex_spacing)
-	_source_dirty = false
 
 func _enter_tree() -> void:
 	request_ready()
@@ -162,24 +153,43 @@ func _enter_tree() -> void:
 func _ready():
 	if not _mesh_handler:
 		_mesh_handler = Clipmap3DMeshHandler.new()
-		_mesh_handler.initialize(self)
-	_mesh_handler.update_visible(is_visible_in_tree())
-	_mesh_handler.update_scenario_rid(get_world_3d().scenario)
-	if material:
-		_mesh_handler.update_material_rid(material.get_rid())
-	_mesh_handler.generate()
+		_mesh_handler.source = source
+		_mesh_handler.vertex_spacing = mesh_vertex_spacing
+		_mesh_handler.tile_size = mesh_tile_size
+		_mesh_handler.lod_count = mesh_lod_count
+		_mesh_handler.cast_shadows = cast_shadows
+		_mesh_handler.render_layer = render_layer
+		if material:
+			_mesh_handler.material_rid = material.get_rid()
+		
+	_mesh_handler.visible = is_visible_in_tree()
+	_mesh_handler.scenario_rid = get_world_3d().scenario
 	
-	if Engine.is_editor_hint() or not collision_enabled:
+	_mesh_handler.build()
+	
+	if Engine.is_editor_hint():
 		set_physics_process(false)
 	else:
 		if not _collision_handler:
 			_collision_handler = Clipmap3DCollisionHandler.new()
-			_collision_handler.initialize(self)
-	
+			_collision_handler.source = source
+			_collision_handler.mesh_radius = collision_mesh_radius
+			_collision_handler.enabled = collision_enabled
+			_collision_handler.collision_layer = collision_layer
+			_collision_handler.collision_mask = collision_mask
+			_collision_handler.vertex_spacing = mesh_vertex_spacing
+			
+		_collision_handler.space = get_world_3d().space
+		_collision_handler.build(self)
+			
 	_update_position()
 	
 	if source:
-		_connect_source()
+		source.size = _mesh_handler.get_vertices()
+		source.vertex_spacing = mesh_vertex_spacing
+		source.lod_count = mesh_lod_count
+		source.collision_enabled = collision_enabled # HACK
+		source.build()
 	
 func _exit_tree() -> void:
 	_mesh_handler.clear()
@@ -198,49 +208,30 @@ func _update_position():
 		return
 	
 	_last_p = global_position
-	_recalculate_source_origin()
-	target_position_changed.emit(global_position)
+	_mesh_handler.target_position = global_position
+	if _collision_handler:
+		_collision_handler.target_position = global_position
+	if source:
+		source.world_origin = Vector2(global_position.x, global_position.z)
 
 func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_EXIT_WORLD:
-			_disconnect_source()
-			_mesh_handler.update_scenario_rid(RID())
+			if source:
+				source.clear()
+			_mesh_handler.scenario_rid = RID()
 		NOTIFICATION_VISIBILITY_CHANGED:
-			_mesh_handler.update_visible(is_visible_in_tree())
+			_mesh_handler.visible = is_visible_in_tree()
 
-func _connect_source():
-	if not source or source.changed.is_connected(_on_source_changed):
-		return
-	source.changed.connect(_on_source_changed)
-	source.maps_created.connect(_on_source_maps_created)
-	source.textures_changed.connect(_on_source_textures_changed)
-	source.create_textures()
-	_on_source_changed()
-
-func _disconnect_source():
-	if not source or not source.changed.is_connected(_on_source_changed):
-		return
-	source.changed.disconnect(_on_source_changed)
-	source.maps_created.disconnect(_on_source_maps_created)
-	source.textures_changed.disconnect(_on_source_textures_changed)
-	source.clear_maps()
-	source.clear_textures()
-
-func _recalculate_source_origin():
-	if not source or not source.has_maps():
-		return
-	source.shift_maps(Vector2(global_position.x, global_position.z))
-
-# TODO: clean up spaghetti connections
-func _on_source_maps_created():
-	_mesh_handler.update_map_rids(source.get_map_rids())
-
-func _on_source_textures_changed():
-	_mesh_handler.update_texture_rids(source.get_texture_rids())
-	_mesh_handler.update_texture_data_arrays(source.get_texture_data_arrays())
+## TODO: clean up spaghetti connections
+#func _on_source_maps_created():
+	#_mesh_handler.update_map_rids(source.get_map_rids())
+#
+#func _on_source_textures_changed():
+	#_mesh_handler.update_texture_rids(source.get_texture_rids())
+	#_mesh_handler.update_texture_data_arrays(source.get_texture_data_arrays())
 	
-func _on_source_changed():
-	_mesh_handler.update_height_amplitude(source.height_amplitude)
-	_mesh_handler.update_texels_per_vertex(source.texels_per_vertex)
-	_mark_source_dirty()
+#func _on_source_changed():
+	#_mesh_handler.update_height_amplitude(source.height_amplitude)
+	#_mesh_handler.update_texels_per_vertex(source.texels_per_vertex)
+	#_mark_source_dirty()

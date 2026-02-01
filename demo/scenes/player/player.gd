@@ -2,16 +2,38 @@ extends CharacterBody3D
 
 @export var sensitivity: float = 3.0
 
-@export var first_person: bool = false: 
+@export var third_person: bool = false: 
 	set(value):
-		first_person = value
-		if first_person:
-			var tween: Tween = create_tween()
-			tween.tween_property(spring_arm, "spring_length", 0.0, 0.3)
-			tween.tween_callback(body.set_visible.bind(false))
-		else:
-			body.visible = true
-			create_tween().tween_property(spring_arm, "spring_length", _spring_length, 0.3)
+		third_person = value
+		if not is_node_ready():
+			return
+		_transition_perspective()
+
+var _transition_tween: Tween
+
+func _transition_perspective(instant: bool = false):
+	var time: float = 0.3
+	if instant:
+		time = 0.0
+	
+	if _transition_tween:
+		_transition_tween.kill()
+		_transition_tween = null
+		
+	_transition_tween = create_tween()
+	_transition_tween.set_trans(Tween.TRANS_CUBIC)
+	_transition_tween.set_ease(Tween.EASE_OUT)
+
+	if third_person:
+		#body.visible = true
+		_transition_tween.tween_callback(body.set_visible.bind(true))
+		_transition_tween.tween_property(spring_arm, "spring_length", _spring_length, time)
+	else:
+		
+		_transition_tween.tween_property(spring_arm, "spring_length", 0.0, time)
+		_transition_tween.tween_callback(body.set_visible.bind(false))
+		
+			
 
 @export_group("Walk", "walk")
 @export var walk_max_speed: float = 10
@@ -45,22 +67,24 @@ var _last_jump_input_ticks: int = -10000000000
 var _last_grounded_ticks: int = 0
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if event.is_action_pressed("jump"):
-		_last_jump_input_ticks = Time.get_ticks_msec()
-		if _can_jump():
-			state_machine.queue_state(_jump)
-	elif event.is_action_pressed("fly"):
+	if event.is_action_pressed("fly"):
 		if state_machine.get_current_state() == _fly:
 			state_machine.queue_state(_walk)
 		else:
 			state_machine.queue_state(_fly)
+	elif event.is_action_pressed("jump"):
+		if state_machine.get_current_state() == _fly:
+			return
+		_last_jump_input_ticks = Time.get_ticks_msec()
+		if _can_jump():
+			state_machine.queue_state(_jump)
 	elif event.is_action_pressed("toggle_mouse"):
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		else:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed("toggle_perspective"):
-		first_person = not first_person
+		third_person = not third_person
 	elif event.is_action_pressed("cycle_render_mode"):
 		var vp = get_viewport()
 		vp.debug_draw = (vp.debug_draw + 1 ) % 6
@@ -74,6 +98,8 @@ func _ready() -> void:
 	state_machine.add_state(_air)
 	state_machine.add_state(_fly)
 	state_machine.queue_state(_walk)
+	
+	_transition_perspective(true)
 
 func _physics_process(_delta: float) -> void:
 	if is_on_floor():

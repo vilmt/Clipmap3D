@@ -1,12 +1,11 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://sppic5ftnktj"]
 
-[ext_resource type="Shader" uid="uid://co8jxwmiyfqh3" path="res://demo/shaders/erosion_terrain.gdshader" id="1_xxpvx"]
+[ext_resource type="Shader" uid="uid://co8jxwmiyfqh3" path="res://demo/shaders/high_spec.gdshader" id="1_xxpvx"]
 
 [resource]
 render_priority = 0
 shader = ExtResource("1_xxpvx")
-shader_parameter/lod_blend_ratio = 0.150000007125
-shader_parameter/projection_threshold = 0.8
+shader_parameter/lod_blend_ratio = 0.2000000095
 shader_parameter/_normal_depths = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 shader_parameter/_uv_scales = PackedVector2Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 shader_parameter/_albedo_colors = PackedColorArray(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)

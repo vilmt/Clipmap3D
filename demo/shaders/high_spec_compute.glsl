@@ -193,7 +193,7 @@ void main() {
 	ivec3 coords = ivec3(local + params.region.xy, params.lod);
 	
 	vec2 size = vec2(imageSize(height_maps).xy);
-	vec2 texel = vec2(coords.xy + params.origin) - size / 2.0 + 1.5 * vec2(params.texels_per_vertex);
+	vec2 texel = vec2(coords.xy + params.origin) - size * 0.5 + 1.5 * vec2(params.texels_per_vertex);
 	vec2 scale = params.vertex_spacing * float(1 << params.lod) / vec2(params.texels_per_vertex);
 	
 	vec4 h = height_map(texel * scale);

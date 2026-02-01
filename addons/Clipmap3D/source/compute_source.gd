@@ -8,15 +8,14 @@ class_name Clipmap3DComputeSource extends Clipmap3DSource
 			return
 		_disconnect_shader()
 		compute_shader = value
-		if not _initialized:
-			return
-		_connect_shader()
+		if _built:
+			_connect_shader()
 
 ## The random number seed passed to your shader.
 @export var compute_seed: int = 0:
 	set(value):
 		compute_seed = value
-		emit_changed()
+		_mark_maps_dirty()
 
 var _rd := RenderingServer.get_rendering_device()
 
@@ -26,25 +25,14 @@ var _pipeline_rid: RID
 var _map_rd_rids: Dictionary[MapType, RID]
 var _map_rids: Dictionary[MapType, RID]
 
-var _initialized: bool = false
-var _size: Vector2i
-var _lod_count: int
-var _vertex_spacing: Vector2
-var _world_origin: Vector2
+# TODO: use the same dirty update paradigm here
 
-var _origins: Array[Vector2i]
+var _texel_origins: Array[Vector2i]
+var _world_origins: Array[Vector2]
+
 var _deltas: Array[Vector2i]
 
-var _cpu_data: PackedByteArray
-
-func get_lod_0_data() -> PackedByteArray:
-	return _cpu_data
-
-func get_lod_0_size():
-	return _size
-
-func get_lod_0_origin() -> Vector2i:
-	return _origins[0]
+var _collision_data: PackedByteArray
 
 func has_maps() -> bool:
 	return not _map_rids.is_empty()
@@ -52,64 +40,82 @@ func has_maps() -> bool:
 func get_map_rids() -> Dictionary[MapType, RID]:
 	return _map_rids
 
-func get_world_origin() -> Vector2:
-	return _world_origin
-
-## Get the height from the LOD 0 map.
-func get_height_world(world_xz: Vector2) -> float:
-	return 0.0
+func get_world_origin(lod: int) -> Vector2:
+	if clampi(lod, 0, lod_count) != lod:
+		return Vector2.ZERO
+	return _world_origins[lod]
 	
-	#if not _cpu_height_image:
-		#return 0.0
-	#var inv_scale := Vector2.ONE / _vertex_spacing
-	#var origin := Vector2i((_world_origin * inv_scale).floor()) * texels_per_vertex
-	#var lod_cell := Vector2i((world_xz * inv_scale).floor()) - origin
-	#@warning_ignore("integer_division")
-	#var texel := lod_cell + _size / 2;
-	#if not Rect2i(Vector2i.ZERO, _size).has_point(texel):
-		#return 0.0
-	#return _cpu_height_image.get_pixelv(texel).r
+func get_texel_origin(lod: int) -> Vector2i:
+	if clampi(lod, 0, lod_count) != lod:
+		return Vector2i.ZERO
+	return _texel_origins[lod]
+
+func get_heightmap_data(mesh_radius: Vector2i) -> Dictionary:
+	var data: Dictionary = {}
+	if _collision_data.is_empty():
+		return data
+	
+	var heights := PackedFloat32Array()
+	
+	var texel_origin := _texel_origins[0]
+	
+	var full_size := size * texels_per_vertex
+	var step := texels_per_vertex
+	
+	var vertices := 2 * mesh_radius + Vector2i.ONE
+	var half: Vector2i = (size - vertices) / 2 * texels_per_vertex
+	
+	data["width"] = vertices.x
+	data["depth"] = vertices.y
+	
+	for y: int in range(half.y, full_size.y - half.y, step.y):
+		for x: int in range(half.x, full_size.x - half.x, step.x):
+			# exact calculation from compute shader
+			var texel = Vector2(Vector2i(x, y) + texel_origin) - Vector2(full_size) * 0.5 + Vector2(1.5, 1.5) * Vector2(texels_per_vertex)
+			var tx = posmod(floori(texel.x), full_size.x)
+			var ty = posmod(floori(texel.y), full_size.y)
+			var index = (tx + ty * full_size.x) * 4
+			var h = _collision_data.decode_float(index)
+			heights.append(h)
+	
+	data["heights"] = heights
+	
+	return data
 
 func _update_cpu_data(data: PackedByteArray):
-	_cpu_data = data
-	lod_0_data_changed.emit()
-	
-func create_maps(world_origin: Vector2, size: Vector2i, lod_count: int, vertex_spacing: Vector2) -> void:
+	_collision_data = data
+	collision_data_changed.emit()
+
+func _build_maps() -> void:
 	if not _rd:
 		push_error("RenderingDevice not initialized. Compatibility renderer is not supported.")
 		return
-	
-	_initialized = true
-	_world_origin = world_origin
-	_size = size * texels_per_vertex
-	_lod_count = lod_count
-	_vertex_spacing = vertex_spacing
-	
-	if not compute_shader:
-		return
-	
 	_connect_shader()
 
-func shift_maps(world_origin: Vector2) -> void:
-	if not _rd:
+func _try_shift_maps():
+	if not _rd or not _built:
 		return
-	_world_origin = world_origin
 	
 	var snap := 2.0 * Vector2.ONE
-	var unscaled_origin: Vector2 = _world_origin / _vertex_spacing / snap
-	
-	for lod: int in _lod_count:
-		var origin := Vector2i((unscaled_origin / float(1 << lod)).floor() * snap) * texels_per_vertex
-		var delta := origin - _origins[lod]
+
+	for lod: int in lod_count:
+		var scale := vertex_spacing * float(1 << lod)
+		
+		var vertex_origin := Vector2i((world_origin / scale / snap).floor() * snap)
+		var texel_origin := vertex_origin * texels_per_vertex
+		
+		var delta := texel_origin - _texel_origins[lod]
+		
 		if delta == Vector2i.ZERO:
 			continue
-		_deltas[lod] = delta
-		_origins[lod] = origin
+		
+		_deltas[lod] += delta
+		_texel_origins[lod] = texel_origin
+		_world_origins[lod] = Vector2(vertex_origin) * scale
 	
 	RenderingServer.call_on_render_thread(_compute_threaded)
-
-func clear_maps() -> void:
-	_initialized = false
+	
+func _free_maps() -> void:
 	_disconnect_shader()
 
 func _initialize_threaded():
@@ -126,20 +132,27 @@ func _initialize_threaded():
 	_uniform_set_rid = _rd.uniform_set_create(uniforms, _shader_rid, 0)
 	_pipeline_rid = _rd.compute_pipeline_create(_shader_rid)
 	
-	_deltas.resize(_lod_count)
+	_deltas.resize(lod_count)
 	_deltas.fill(Vector2i(1000000, 1000000))
 
-	_origins.resize(_lod_count)
-	var unscaled_origin: Vector2 = _world_origin / _vertex_spacing
-	for lod: int in _lod_count:
-		var snap := 2.0 * Vector2.ONE
-		_origins[lod] = Vector2i((unscaled_origin / float(1 << lod) / snap).floor() * snap) * texels_per_vertex
+	_texel_origins.resize(lod_count)
+	_world_origins.resize(lod_count)
 	
-	_compute_threaded(false)
-	maps_created.emit()
+	var snap := 2.0 * Vector2.ONE
 
-func _compute_threaded(use_signal: bool = true) -> void:
-	for lod: int in _lod_count:
+	for lod: int in lod_count:
+		var scale := vertex_spacing * float(1 << lod)
+		
+		var vertex_origin := Vector2i((world_origin / scale / snap).floor() * snap)
+		var texel_origin := vertex_origin * texels_per_vertex
+		
+		_texel_origins[lod] = texel_origin
+		_world_origins[lod] = Vector2(vertex_origin) * scale
+	
+	_compute_threaded()
+
+func _compute_threaded() -> void:
+	for lod: int in lod_count:
 		var delta := _deltas[lod]
 		
 		if delta == Vector2i.ZERO:
@@ -147,29 +160,29 @@ func _compute_threaded(use_signal: bool = true) -> void:
 		
 		var delta_abs := delta.abs()
 		
-		if delta_abs.x >= _size.x or delta_abs.y >= _size.y:
+		var full_size := size * texels_per_vertex
+		
+		if delta_abs.x >= full_size.x or delta_abs.y >= full_size.y:
 			_generate_region_threaded(lod)
 		else:
 			if delta.x != 0:
-				var x := _size.x - delta.x if delta.x > 0 else 0.0
-				var region := Rect2i(x, 0, delta_abs.x, _size.y)
+				var x := full_size.x - delta.x if delta.x > 0 else 0.0
+				var region := Rect2i(x, 0, delta_abs.x, full_size.y)
 				_generate_region_threaded(lod, region)
 			if delta.y != 0:
-				var y := _size.y - delta.y if delta.y > 0 else 0.0
-				var region := Rect2i(0, y, _size.x, delta_abs.y)
+				var y := full_size.y - delta.y if delta.y > 0 else 0.0
+				var region := Rect2i(0, y, full_size.x, delta_abs.y)
 				_generate_region_threaded(lod, region)
 		
 		_deltas[lod] = Vector2i.ZERO
 		
-		if lod == 0:
+		if collision_enabled and lod == 0:
+			# NOTE: this is currently the cause of all runtime lag
 			_rd.texture_get_data_async(_map_rd_rids[MapType.HEIGHT], 0, _update_cpu_data)
-		#if lod == 0:
-			#_cpu_height_image = RenderingServer.texture_2d_layer_get(_map_rids[MapType.HEIGHT], 0)
 	
-	if use_signal:
-		maps_shifted.emit()
+	emit_changed()
 
-func _generate_region_threaded(lod: int, region := Rect2i(Vector2i.ZERO, _size)):
+func _generate_region_threaded(lod: int, region := Rect2i(Vector2i.ZERO, size * texels_per_vertex)):
 	var groups_x := ceili(region.size.x / 16.0)
 	var groups_y := ceili(region.size.y / 16.0)
 	
@@ -186,12 +199,12 @@ func _generate_region_threaded(lod: int, region := Rect2i(Vector2i.ZERO, _size))
 	push.encode_s32(12, region.size.y)
 	push.encode_s32(16, lod)
 	push.encode_s32(20, compute_seed)
-	push.encode_s32(24, _origins[lod].x)
-	push.encode_s32(28, _origins[lod].y)
+	push.encode_s32(24, _texel_origins[lod].x)
+	push.encode_s32(28, _texel_origins[lod].y)
 	push.encode_s32(32, texels_per_vertex.x)
 	push.encode_s32(36, texels_per_vertex.y)
-	push.encode_float(40, _vertex_spacing.x)
-	push.encode_float(44, _vertex_spacing.y)
+	push.encode_float(40, vertex_spacing.x)
+	push.encode_float(44, vertex_spacing.y)
 	push.encode_float(48, height_amplitude)
 	
 	_rd.compute_list_set_push_constant(compute_list, push, push.size())
@@ -203,9 +216,9 @@ func _create_texture_uniform_threaded(type: MapType, binding: int) -> RDUniform:
 	var format := RDTextureFormat.new()
 	format.format = FORMATS[type]
 	format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
-	format.width = _size.x
-	format.height = _size.y
-	format.array_layers = _lod_count
+	format.width = size.x * texels_per_vertex.x
+	format.height = size.y * texels_per_vertex.y
+	format.array_layers = lod_count
 	format.usage_bits = \
 		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
 		_rd.TEXTURE_USAGE_STORAGE_BIT | \
