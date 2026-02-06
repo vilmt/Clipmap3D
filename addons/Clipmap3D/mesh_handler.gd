@@ -333,12 +333,15 @@ func _apply_material_state():
 		RenderingServer.material_set_param(material_rid, &"_albedo_textures", texture_rids.get(Clipmap3DSource.TextureType.ALBEDO, RID()))
 		RenderingServer.material_set_param(material_rid, &"_normal_textures", texture_rids.get(Clipmap3DSource.TextureType.NORMAL, RID()))
 		
-		var normal_depths := source.get_normal_depths()
-		var uv_scales := source.get_uv_scales()
-		var albedo_colors := source.get_albedo_colors()
-		RenderingServer.material_set_param(material_rid, &"_normal_depths", normal_depths)
-		RenderingServer.material_set_param(material_rid, &"_uv_scales", uv_scales)
-		RenderingServer.material_set_param(material_rid, &"_albedo_colors", albedo_colors)
+		var texture_remaps := source.get_texture_remaps()
+		RenderingServer.material_set_param(material_rid, &"_albedo_remap", texture_remaps.get(Clipmap3DSource.TextureType.ALBEDO, PackedInt32Array()))
+		RenderingServer.material_set_param(material_rid, &"_normal_remap", texture_remaps.get(Clipmap3DSource.TextureType.NORMAL, PackedInt32Array()))
+		
+		RenderingServer.material_set_param(material_rid, &"_uv_scales", source.get_uv_scales())
+		RenderingServer.material_set_param(material_rid, &"_albedo_modulates", source.get_albedo_modulates())
+		RenderingServer.material_set_param(material_rid, &"_roughness_offsets", source.get_roughness_offsets())
+		RenderingServer.material_set_param(material_rid, &"_normal_depths", source.get_normal_depths())
+		RenderingServer.material_set_param(material_rid, &"_flags", source.get_flags())
 	else:
 		RenderingServer.material_set_param(material_rid, &"_texels_per_vertex", Vector2i.ONE)
 		
@@ -349,9 +352,14 @@ func _apply_material_state():
 		RenderingServer.material_set_param(material_rid, &"_albedo_textures", RID())
 		RenderingServer.material_set_param(material_rid, &"_normal_textures", RID())
 		
-		RenderingServer.material_set_param(material_rid, &"_normal_depths", PackedFloat32Array())
+		RenderingServer.material_set_param(material_rid, &"_albedo_remap", PackedInt32Array())
+		RenderingServer.material_set_param(material_rid, &"_normal_remap", PackedInt32Array())
+		
 		RenderingServer.material_set_param(material_rid, &"_uv_scales", PackedVector2Array())
-		RenderingServer.material_set_param(material_rid, &"_albedo_colors", PackedColorArray())
+		RenderingServer.material_set_param(material_rid, &"_albedo_modulates", PackedColorArray())
+		RenderingServer.material_set_param(material_rid, &"_roughness_offsets", PackedFloat32Array())
+		RenderingServer.material_set_param(material_rid, &"_normal_depths", PackedFloat32Array())
+		RenderingServer.material_set_param(material_rid, &"_flags", PackedInt32Array())
 
 func _apply_instance_state():
 	if not _built:

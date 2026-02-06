@@ -28,7 +28,7 @@ class_name Clipmap3D extends Node3D
 @export_group("Mesh", "mesh")
 
 ## World spacing between vertices. Power-of-two values are recommended.
-@export var mesh_vertex_spacing := Vector2.ONE:
+@export_custom(PROPERTY_HINT_LINK, "suffix:m") var mesh_vertex_spacing := Vector2.ONE:
 	set(value):
 		if mesh_vertex_spacing == value:
 			return
@@ -44,6 +44,7 @@ class_name Clipmap3D extends Node3D
 ## The base tile size used to build the clipmap.
 @export var mesh_tile_size := Vector2i(32, 32):
 	set(value):
+		value = value.clampi(1, 128)
 		if mesh_tile_size == value:
 			return
 		mesh_tile_size = value
@@ -180,7 +181,7 @@ func _ready():
 			_collision_handler.vertex_spacing = mesh_vertex_spacing
 			
 		_collision_handler.space = get_world_3d().space
-		_collision_handler.build(self)
+		_collision_handler.build()
 			
 	_update_position()
 	

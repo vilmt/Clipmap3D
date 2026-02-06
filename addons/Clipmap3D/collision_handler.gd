@@ -60,7 +60,7 @@ var _shape_rid: RID
 
 var _template_faces: PackedVector3Array
 
-func build(temp_clipmap: Clipmap3D):
+func build():
 	_built = true
 	
 	_body_rid = PhysicsServer3D.body_create()

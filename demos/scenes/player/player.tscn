@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://drr32a4jrntnf"]
+
+[ext_resource type="Script" uid="uid://cpstqsjk2jo0l" path="res://demos/scenes/player/player.gd" id="1_8afob"]
+[ext_resource type="Script" uid="uid://dc378wgjo7yag" path="res://demos/scenes/player/fps_label.gd" id="2_dovo2"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_dovo2"]
+radius = 0.4
+height = 1.3925781
+
+[sub_resource type="SeparationRayShape3D" id="SeparationRayShape3D_dgd3q"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_gmlin"]
+radius = 0.4
+
+[node name="Player" type="CharacterBody3D" unique_id=917553470]
+floor_max_angle = 1.0471976
+script = ExtResource("1_8afob")
+fly_max_speed = 1000.0
+fly_acceleration = 1000.0
+fly_friction = 600.0
+
+[node name="SpringArm3D" type="SpringArm3D" parent="." unique_id=1895840787]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6616194, 0)
+spring_length = 8.0
+
+[node name="Camera3D" type="Camera3D" parent="SpringArm3D" unique_id=880548590]
+far = 30000.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1994699561]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3037109, 0)
+shape = SubResource("CapsuleShape3D_dovo2")
+
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="." unique_id=360898288]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 1, 0)
+shape = SubResource("SeparationRayShape3D_dgd3q")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1383782786]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+mesh = SubResource("CapsuleMesh_gmlin")
+
+[node name="FPSLabel" type="Label" parent="." unique_id=351731806 node_paths=PackedStringArray("p_target")]
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_constants/outline_size = 4
+text = "FPS"
+script = ExtResource("2_dovo2")
+p_target = NodePath("..")

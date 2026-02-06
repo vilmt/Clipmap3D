@@ -54,6 +54,7 @@ var collision_enabled: bool = true
 
 const MAX_TEXTURE_COUNT: int = 32
 
+# TODO: remove this, simple enough to write in loop
 class ImageParams:
 	var format: Image.Format
 	var size: Vector2i
@@ -82,33 +83,21 @@ class ImageParams:
 			push_error("Texture mipmap enable mismatch.")
 			return false
 		return true
-	
-	func create_placeholder() -> Image:
-		if not size:
-			return
-		placeholder = Image.create_empty(size.x, size.y, has_mipmaps, format)
-		return placeholder
 
 var _maps_dirty: bool = true
 var _textures_dirty: bool = true
 
 var _texture_rids: Dictionary[TextureType, RID]
+var _texture_remaps: Dictionary[TextureType, PackedInt32Array]
 
-var _albedos: PackedColorArray
 var _uv_scales: PackedVector2Array
+var _albedo_modulates: PackedColorArray
+var _roughness_offsets: PackedFloat32Array
 var _normal_depths: PackedFloat32Array
+var _flags: PackedInt32Array
 
 @warning_ignore_start("unused_signal")
 signal collision_data_changed
-
-func get_albedo_colors() -> PackedColorArray:
-	return _albedos
-
-func get_uv_scales() -> PackedVector2Array:
-	return _uv_scales
-
-func get_normal_depths() -> PackedFloat32Array:
-	return _normal_depths
 
 enum TextureType {
 	ALBEDO,
@@ -147,6 +136,24 @@ func get_texture_rids() -> Dictionary[TextureType, RID]:
 func has_textures() -> bool:
 	return not _texture_rids.is_empty()
 
+func get_texture_remaps() -> Dictionary[TextureType, PackedInt32Array]:
+	return _texture_remaps
+
+func get_uv_scales() -> PackedVector2Array:
+	return _uv_scales
+	
+func get_albedo_modulates() -> PackedColorArray:
+	return _albedo_modulates
+	
+func get_roughness_offsets() -> PackedFloat32Array:
+	return _roughness_offsets
+
+func get_normal_depths() -> PackedFloat32Array:
+	return _normal_depths
+
+func get_flags() -> PackedInt32Array:
+	return _flags
+
 @abstract
 func get_map_rids() -> Dictionary[MapType, RID]
 
@@ -184,69 +191,87 @@ func _try_shift_maps() -> void
 func _free_maps() -> void
 
 func _build_textures() -> void:
-	_textures_dirty = false
-	if texture_assets.is_empty():
+	if not _textures_dirty:
 		return
-	
+	_textures_dirty = false
 	_free_textures()
 	
 	_create_texture_layered(TextureType.ALBEDO)
 	_create_texture_layered(TextureType.NORMAL)
 	
-	for asset in texture_assets:
-		if not asset:
-			_normal_depths.append(1.0)
-			_uv_scales.append(Vector2.ONE)
-			_albedos.append(Color(1.0, 1.0, 1.0))
-			continue
-		_normal_depths.append(asset.normal_depth)
-		_uv_scales.append(asset.uv_scale)
-		_albedos.append(asset.albedo_color)
+	_uv_scales.resize(MAX_TEXTURE_COUNT)
+	_albedo_modulates.resize(MAX_TEXTURE_COUNT)
+	_roughness_offsets.resize(MAX_TEXTURE_COUNT)
+	_normal_depths.resize(MAX_TEXTURE_COUNT)
+	_flags.resize(MAX_TEXTURE_COUNT)
 	
-	if has_textures():
-		emit_changed()
+	_uv_scales.fill(Clipmap3DTextureAsset.UV_SCALE_DEFAULT)
+	_albedo_modulates.fill(Clipmap3DTextureAsset.ALBEDO_MODULATE_DEFAULT)
+	_roughness_offsets.fill(Clipmap3DTextureAsset.ROUGHNESS_OFFSET_DEFAULT)
+	_normal_depths.fill(Clipmap3DTextureAsset.NORMAL_DEPTH_DEFAULT)
+	_flags.fill(Clipmap3DTextureAsset.FLAGS_DEFAULT)
+	
+	for i: int in texture_assets.size():
+		var asset := texture_assets[i]
+		if not asset:
+			continue
+		
+		_uv_scales[i] = asset.uv_scale
+		_albedo_modulates[i] = asset.albedo_modulate
+		_roughness_offsets[i] = asset.roughness_offset
+		_normal_depths[i] = asset.normal_depth
+		_flags[i] = asset.flags
+	
+	emit_changed()
 
 func _free_textures() -> void:
 	for rid in _texture_rids.values():
 		RenderingServer.free_rid(rid)
 	_texture_rids.clear()
+	_texture_remaps.clear()
 	
-	_albedos.clear()
 	_uv_scales.clear()
+	_albedo_modulates.clear()
+	_roughness_offsets.clear()
 	_normal_depths.clear()
+	_flags.clear()
 
 func _create_texture_layered(type: TextureType):
 	var images: Array[Image] = []
 	var params: ImageParams = null
 	
-	for asset in texture_assets:
+	var remap := PackedInt32Array()
+	remap.resize(MAX_TEXTURE_COUNT)
+	remap.fill(-1)
+	
+	var packed_index := 0
+	
+	for i: int in texture_assets.size():
+		var asset := texture_assets[i]
 		if not asset:
-			images.append(null)
 			continue
 		
 		var texture := asset.get_texture(type)
 		
 		if not texture:
-			images.append(null)
 			continue
 		
 		var image := texture.get_image()
 		
 		if params:
 			if not params.is_image_valid(image):
-				images.append(null)
 				continue
 		else:
 			params = ImageParams.create_from_image(image)
 			
 		images.append(image)
-		
-	var null_count: int = images.count(null)
-	if null_count == images.size():
-		return
-	if null_count != 0:
-		var placeholder := params.create_placeholder()
-		for i: int in images.size():
-			if images[i] == null:
-				images[i] = placeholder
-	_texture_rids[type] = RenderingServer.texture_2d_layered_create(images, RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
+		remap[i] = packed_index
+		packed_index += 1
+	
+	_texture_remaps[type] = remap
+	
+	if images.is_empty():
+		_texture_rids[type] = RID()
+	else:
+		_texture_rids[type] = RenderingServer.texture_2d_layered_create(images, RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
+	

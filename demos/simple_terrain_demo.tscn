@@ -1,0 +1,126 @@
+[gd_scene format=3 uid="uid://c0v817c8j4vwx"]
+
+[ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://addons/Clipmap3D/clipmap_3d.gd" id="1_p5xlv"]
+[ext_resource type="RDShaderFile" uid="uid://cer7mh4h503mo" path="res://demos/compute_shaders/simple_terrain.glsl" id="2_5k2h1"]
+[ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://addons/Clipmap3D/source/compute_source.gd" id="3_osrlj"]
+[ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="4_dahjc"]
+[ext_resource type="Texture2D" uid="uid://bhbpr6beflngp" path="res://demos/assets/textures/grass/grass_albedo_roughness.png" id="5_m0uf8"]
+[ext_resource type="Texture2D" uid="uid://cmjr0ahqaito3" path="res://demos/assets/textures/grass/grass_normal_height_ao.png" id="6_2d4im"]
+[ext_resource type="Texture2D" uid="uid://tffov2a3ri4h" path="res://demos/assets/textures/cliff/cliff_albedo_roughness.png" id="7_663nj"]
+[ext_resource type="Texture2D" uid="uid://cx1exp18lt4c2" path="res://demos/assets/textures/cliff/cliff_normal_height_ao.png" id="8_wvkfh"]
+[ext_resource type="Texture2D" uid="uid://dmcwfi8452i8k" path="res://demos/assets/textures/snow/snow_albedo_roughness.png" id="9_8h0rb"]
+[ext_resource type="Texture2D" uid="uid://bo1j3e7fo31mo" path="res://demos/assets/textures/snow/snow_normal_height_ao.png" id="10_fo2pk"]
+[ext_resource type="Shader" uid="uid://co8jxwmiyfqh3" path="res://demos/shaders/full.gdshader" id="11_rd6fq"]
+[ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://demos/scenes/player/player.tscn" id="12_188d0"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_e3by6"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_cwqvt"]
+sky_material = SubResource("ProceduralSkyMaterial_e3by6")
+
+[sub_resource type="Environment" id="Environment_hvj7h"]
+background_mode = 2
+sky = SubResource("Sky_cwqvt")
+tonemap_mode = 3
+fog_mode = 1
+fog_light_color = Color(0.45593044, 0.48717862, 0.53744763, 1)
+fog_sun_scatter = 0.19
+fog_density = 1.0
+fog_aerial_perspective = 0.818
+fog_sky_affect = 0.321
+fog_height = 900.0
+fog_height_density = 0.003
+fog_depth_curve = 1.231135
+fog_depth_begin = 7065.0
+fog_depth_end = 15000.0
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_bags2"]
+dof_blur_far_distance = 2805.19
+dof_blur_far_transition = 765.43
+
+[sub_resource type="Resource" id="Resource_p5xlv"]
+script = ExtResource("4_dahjc")
+uv_scale = Vector2(0.1, 0.1)
+albedo_texture = ExtResource("5_m0uf8")
+normal_texture = ExtResource("6_2d4im")
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"
+
+[sub_resource type="Resource" id="Resource_5k2h1"]
+script = ExtResource("4_dahjc")
+uv_scale = Vector2(0.1, 0.1)
+albedo_texture = ExtResource("7_663nj")
+normal_texture = ExtResource("8_wvkfh")
+flags = 1
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"
+
+[sub_resource type="Resource" id="Resource_osrlj"]
+script = ExtResource("4_dahjc")
+uv_scale = Vector2(0.1, 0.1)
+albedo_texture = ExtResource("9_8h0rb")
+normal_texture = ExtResource("10_fo2pk")
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"
+
+[sub_resource type="Resource" id="Resource_jb2h6"]
+script = ExtResource("3_osrlj")
+compute_shader = ExtResource("2_5k2h1")
+compute_seed = 1
+texels_per_vertex = Vector2i(3, 3)
+height_amplitude = 1500.0
+texture_assets = Array[ExtResource("4_dahjc")]([SubResource("Resource_p5xlv"), SubResource("Resource_5k2h1"), SubResource("Resource_osrlj")])
+metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_6yiir"]
+render_priority = 0
+shader = ExtResource("11_rd6fq")
+shader_parameter/lod_blend_ratio = 0.2
+shader_parameter/_albedo_remap = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_normal_remap = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_uv_scales = PackedVector2Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_albedo_modulates = PackedColorArray(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)
+shader_parameter/_roughness_offsets = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_normal_depths = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_flags = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_texels_per_vertex = Vector2i(0, 0)
+shader_parameter/_vertex_spacing = Vector2(0, 0)
+shader_parameter/_target_position = Vector3(0, 0, 0)
+
+[node name="SimpleTerrainDemo" type="Node3D" unique_id=205329486]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=925173799]
+environment = SubResource("Environment_hvj7h")
+camera_attributes = SubResource("CameraAttributesPractical_bags2")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1188461837]
+transform = Transform3D(-0.5054548, -0.18700778, 0.8423441, 0.73968905, 0.40873513, 0.5345987, -0.44426972, 0.8932882, -0.068269506, 0, 496.4257, 306.4474)
+light_intensity_lux = 65176.9
+light_temperature = 2989.0
+light_energy = 2.0
+shadow_enabled = true
+directional_shadow_split_1 = 0.01
+directional_shadow_split_2 = 0.07
+directional_shadow_split_3 = 0.261
+directional_shadow_blend_splits = true
+directional_shadow_max_distance = 4000.0
+
+[node name="Clipmap3D" type="Node3D" parent="." unique_id=1925282491 node_paths=PackedStringArray("follow_target", "collision_targets")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1689.6536, 0, 1177.2903)
+script = ExtResource("1_p5xlv")
+follow_target = NodePath("../Player")
+source = SubResource("Resource_jb2h6")
+mesh_lod_count = 7
+material = SubResource("ShaderMaterial_6yiir")
+collision_targets = [NodePath("../Player")]
+metadata/_custom_type_script = "uid://wudkpxu6xggb"
+
+[node name="Player" parent="." unique_id=917553470 instance=ExtResource("12_188d0")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1689.6536, 1085.7325, 1177.2903)
+
+[node name="ZoomOutWarningLabel" type="Label3D" parent="." unique_id=110088131]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.225605, 0)
+pixel_size = 0.1
+billboard = 1
+outline_modulate = Color(0, 0, 0, 0)
+text = "Zoom out to see the terrain.
+Increase view -> settings -> z-far to 16000"

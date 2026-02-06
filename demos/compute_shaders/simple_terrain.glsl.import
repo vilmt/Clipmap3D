@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://cer7mh4h503mo"
+path="res://.godot/imported/simple_terrain.glsl-bca54bebe3ae440a24e1f2facdf2d42b.res"
+
+[deps]
+
+source_file="res://demos/compute_shaders/simple_terrain.glsl"
+dest_files=["res://.godot/imported/simple_terrain.glsl-bca54bebe3ae440a24e1f2facdf2d42b.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://xjxu5li6gpx"
+path="res://.godot/imported/erosion_terrain.glsl-eb9c90e50b65a112731b1340743b19ac.res"
+
+[deps]
+
+source_file="res://demos/compute_shaders/erosion_terrain.glsl"
+dest_files=["res://.godot/imported/erosion_terrain.glsl-eb9c90e50b65a112731b1340743b19ac.res"]
+
+[params]
+
