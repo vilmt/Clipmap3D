@@ -13,7 +13,7 @@ A lightweight infinite procedural terrain system for Godot 4.6
 * Supports blending up to 32 albedo + normal textures
 
 ## Roadmap
-* Texture projection and stochastic sampling
+* Stochastic sampling
 * Floating-point origin shifting
 * Foliage instancing (scatter system)
 * Heightmap image imports and streaming
@@ -24,8 +24,9 @@ A lightweight infinite procedural terrain system for Godot 4.6
 * Image imports are not yet supported
 
 ## Trying the demos (4.6)
-* This repository contains a demo folder with two example scenes
-	* High-spec demo
-	* Low-spec demo
+* This repository contains a demo folder with example scenes and compute shaders
+	* Erosion terrain demo
+	* Simple terrain demo
+	* NoLerp demo (For debugging and learning how the clipmap works)
 * After loading a scene, set View -> Settings... -> View Z-Far to 16000
 * Make edits to the compute shaders in a text editor such as Notepad++ and see changes immediately!
