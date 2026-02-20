@@ -4,7 +4,7 @@
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 layout(r32f, binding = 0) restrict uniform image2DArray height_maps;
-layout(rg16f, binding = 1) restrict uniform image2DArray normal_maps;
+layout(rg16f, binding = 1) restrict uniform image2DArray gradient_maps;
 layout(r32f, binding = 2) restrict uniform image2DArray control_maps;
 
 layout(push_constant, std430) uniform Params {
@@ -24,6 +24,11 @@ layout(push_constant, std430) uniform Params {
 
 #define EPSILON 1e-6
 #define TAU 6.28318530717958
+
+ivec2 imod(ivec2 x, ivec2 s) {
+	ivec2 m = min(sign(x), 0);
+	return x-s*((x-m)/s+m);
+}
 
 float hash1(float n) {
 	return fract( n*17.0*fract( n*0.3183099 ) );
@@ -129,10 +134,8 @@ void main() {
 		return; // skip if texel is outside requested region
 	}
 	
-	ivec3 coords = ivec3(local + params.region.xy, params.lod);
-	
-	vec2 size = vec2(imageSize(height_maps).xy);
-	vec2 texel = vec2(coords.xy + params.origin) - size * 0.5 + 1.5 * vec2(params.texels_per_vertex);
+	ivec2 size = imageSize(height_maps).xy;
+	ivec2 texel = local + params.region.xy + params.origin - (size / 2 - params.texels_per_vertex); // half size
 	vec2 scale = params.vertex_spacing * float(1 << params.lod) / vec2(params.texels_per_vertex);
 	
 	vec2 uv = texel * scale;
@@ -149,10 +152,10 @@ void main() {
 		(h_py - h_ny) * (0.5 / scale.y)
 	};
 	
-	coords.xy = ivec2(mod(texel.xy, size)); // toroidal wrapping
+	ivec3 coords = ivec3(imod(texel.xy, size), params.lod); // toroidal wrapping
 	
 	imageStore(height_maps, coords, vec4(h * params.height_amplitude, 0.0, 0.0, 0.0));
-	imageStore(normal_maps, coords, vec4(gradient * params.height_amplitude, 0.0, 0.0)); // normal maps expect world-space texel spacing
+	imageStore(gradient_maps, coords, vec4(gradient * params.height_amplitude, 0.0, 0.0)); // gradient maps expect world-space texel spacing
 	
 	// material parameters
 	float height = h;

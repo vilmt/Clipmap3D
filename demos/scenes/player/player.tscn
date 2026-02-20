@@ -5,9 +5,6 @@
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_dovo2"]
 radius = 0.4
-height = 1.3925781
-
-[sub_resource type="SeparationRayShape3D" id="SeparationRayShape3D_dgd3q"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_gmlin"]
 radius = 0.4
@@ -27,12 +24,8 @@ spring_length = 8.0
 far = 30000.0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1994699561]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3037109, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 shape = SubResource("CapsuleShape3D_dovo2")
-
-[node name="CollisionShape3D2" type="CollisionShape3D" parent="." unique_id=360898288]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 1, 0)
-shape = SubResource("SeparationRayShape3D_dgd3q")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1383782786]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cq6vicc6yy7nc"]
 
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://addons/Clipmap3D/clipmap_3d.gd" id="1_e348m"]
-[ext_resource type="RDShaderFile" uid="uid://xjxu5li6gpx" path="res://demos/compute_shaders/erosion_terrain.glsl" id="2_ob4lt"]
+[ext_resource type="RDShaderFile" uid="uid://xjxu5li6gpx" path="res://demos/compute_shaders/erosion_terrain.glsl" id="2_6b21n"]
 [ext_resource type="Script" uid="uid://d1d0g7aqimxsa" path="res://addons/Clipmap3D/source/compute_source.gd" id="3_oorvl"]
 [ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="4_nj7a2"]
 [ext_resource type="Texture2D" uid="uid://bhbpr6beflngp" path="res://demos/assets/textures/grass/grass_albedo_roughness.png" id="5_cdklt"]
@@ -49,6 +49,7 @@ albedo_modulate = Color(0.74017334, 0.86, 0.5332, 1)
 roughness_offset = 0.29800000000000004
 normal_texture = ExtResource("6_1ry0p")
 normal_depth = 2.948
+flags = 1
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 
 [sub_resource type="Resource" id="Resource_bdhvs"]
@@ -82,7 +83,7 @@ metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 
 [sub_resource type="Resource" id="Resource_vn06u"]
 script = ExtResource("3_oorvl")
-compute_shader = ExtResource("2_ob4lt")
+compute_shader = ExtResource("2_6b21n")
 compute_seed = 6
 texels_per_vertex = Vector2i(4, 4)
 height_amplitude = 2500.0
@@ -92,6 +93,7 @@ metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_n7lgi"]
 render_priority = 0
 shader = ExtResource("13_2tnjh")
+shader_parameter/projection_threshold = 0.81600003876
 shader_parameter/lod_blend_ratio = 0.2
 shader_parameter/_albedo_remap = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 shader_parameter/_normal_remap = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -111,7 +113,7 @@ environment = SubResource("Environment_thxwv")
 camera_attributes = SubResource("CameraAttributesPractical_wujal")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1953520136]
-transform = Transform3D(-0.5054548, -0.18700778, 0.8423441, 0.73968905, 0.40873513, 0.5345987, -0.44426972, 0.8932882, -0.068269506, 0, 496.4257, 306.4474)
+transform = Transform3D(0.7129746, -0.4579059, 0.53102666, -0.68400013, -0.28752723, 0.67042655, -0.15430762, -0.84121966, -0.51820725, 0, 496.4257, 306.4474)
 light_intensity_lux = 65176.9
 light_temperature = 2989.0
 light_energy = 2.0
@@ -123,17 +125,17 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1853.3622, 0, -1294.742)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 580.89624, 0, -646.2832)
 script = ExtResource("1_e348m")
 follow_target = NodePath("../Player")
 source = SubResource("Resource_vn06u")
 mesh_tile_size = Vector2i(64, 64)
-mesh_lod_count = 9
+mesh_lod_count = 8
 material = SubResource("ShaderMaterial_n7lgi")
 collision_targets = [NodePath("../Player")]
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(0.9999951, -0.0022845198, 0.0021289405, 0.0022847196, 0.9999974, -9.1355825e-05, -0.0021287259, 9.6226846e-05, 0.99999774, 1853.3622, 1702.2477, -1294.742)
+transform = Transform3D(0.9999951, -0.0022845198, 0.0021289405, 0.0022847196, 0.9999974, -9.1355825e-05, -0.0021287259, 9.6226846e-05, 0.99999774, 580.89624, 2799.0515, -646.2832)
 
 [node name="ZoomOutWarningLabel" type="Label3D" parent="." unique_id=1827955459]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.225605, 0)

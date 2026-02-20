@@ -144,6 +144,10 @@ class_name Clipmap3D extends Node3D
 		if _collision_handler:
 			_collision_handler.collision_mask = collision_mask
 
+@export_group("Debug")
+
+@export var generate_debug_canvas_items: bool = false
+
 var _mesh_handler: Clipmap3DMeshHandler
 var _collision_handler: Clipmap3DCollisionHandler
 var _last_p := Vector3(INF, INF, INF)
@@ -191,6 +195,10 @@ func _ready():
 		source.lod_count = mesh_lod_count
 		source.collision_enabled = collision_enabled # HACK
 		source.build()
+		if generate_debug_canvas_items and not Engine.is_editor_hint():
+			var node_2d := Node2D.new()
+			add_child(node_2d)
+			source.create_debug_canvas_items(node_2d)
 	
 func _exit_tree() -> void:
 	_mesh_handler.clear()
@@ -223,16 +231,3 @@ func _notification(what: int) -> void:
 			_mesh_handler.scenario_rid = RID()
 		NOTIFICATION_VISIBILITY_CHANGED:
 			_mesh_handler.visible = is_visible_in_tree()
-
-## TODO: clean up spaghetti connections
-#func _on_source_maps_created():
-	#_mesh_handler.update_map_rids(source.get_map_rids())
-#
-#func _on_source_textures_changed():
-	#_mesh_handler.update_texture_rids(source.get_texture_rids())
-	#_mesh_handler.update_texture_data_arrays(source.get_texture_data_arrays())
-	
-#func _on_source_changed():
-	#_mesh_handler.update_height_amplitude(source.height_amplitude)
-	#_mesh_handler.update_texels_per_vertex(source.texels_per_vertex)
-	#_mark_source_dirty()

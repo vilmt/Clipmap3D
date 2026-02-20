@@ -83,6 +83,8 @@ metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tqabi"]
 render_priority = 0
 shader = ExtResource("13_bjcvq")
+shader_parameter/projection_threshold = 0.6910000328225
+shader_parameter/lod_blend_ratio = 0.1990000094525
 shader_parameter/_albedo_remap = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 shader_parameter/_normal_remap = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 shader_parameter/_uv_scales = PackedVector2Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -93,6 +95,9 @@ shader_parameter/_flags = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 shader_parameter/_texels_per_vertex = Vector2i(0, 0)
 shader_parameter/_vertex_spacing = Vector2(0, 0)
 shader_parameter/_target_position = Vector3(0, 0, 0)
+
+[sub_resource type="BoxMesh" id="BoxMesh_bjcvq"]
+size = Vector3(51.62, 0.02, 0.035)
 
 [node name="NoLerpDemo" type="Node3D" unique_id=932743419]
 
@@ -113,17 +118,17 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 4000.0
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=1286659521 node_paths=PackedStringArray("follow_target", "collision_targets")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 640.0944, 0, -614.9633)
+transform = Transform3D(0.83640933, -0.094343506, 0.53992456, 0.16660279, 0.9822262, -0.08645919, -0.52217126, 0.16226824, 0.8372611, 874.5721, 0, -249.66267)
 script = ExtResource("1_bjcvq")
 follow_target = NodePath("../Player")
 source = SubResource("Resource_vn06u")
-mesh_tile_size = Vector2i(64, 64)
 mesh_lod_count = 8
 material = SubResource("ShaderMaterial_tqabi")
 collision_targets = [NodePath("../Player")]
+generate_debug_canvas_items = true
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_vdtyg")]
-transform = Transform3D(0.9999951, -0.0022845198, 0.0021289405, 0.0022847196, 0.9999974, -9.1355825e-05, -0.0021287259, 9.6226846e-05, 0.99999774, 640.0944, 2026.5725, -614.9633)
+transform = Transform3D(0.9999951, -0.0022845198, 0.0021289405, 0.0022847196, 0.9999974, -9.1355825e-05, -0.0021287259, 9.6226846e-05, 0.99999774, 874.5721, 2024.7535, -249.66267)
 
 [node name="ZoomOutWarningLabel" type="Label3D" parent="." unique_id=1827955459]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.225605, 0)
@@ -132,3 +137,8 @@ billboard = 1
 outline_modulate = Color(0, 0, 0, 0)
 text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1562637395]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 903.71643, 1939.3463, -518.0119)
+visible = false
+mesh = SubResource("BoxMesh_bjcvq")

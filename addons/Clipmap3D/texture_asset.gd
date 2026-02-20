@@ -25,7 +25,7 @@ const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 
 @export_range(0.0, 20.0) var normal_depth := NORMAL_DEPTH_DEFAULT
 
-@export_flags("Projected", "Randomize Translation", "Randomize Rotation") var flags := FLAGS_DEFAULT
+@export_flags("Randomize Translation", "Randomize Rotation") var flags := FLAGS_DEFAULT
 
 func get_texture(type: Clipmap3DSource.TextureType) -> Texture2D:
 	match type:

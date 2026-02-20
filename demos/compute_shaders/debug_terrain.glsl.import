@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://bv14jok4ld7ix"
+path="res://.godot/imported/debug_terrain.glsl-c66bd93cf626319c25ad939151f76fcb.res"
+
+[deps]
+
+source_file="res://demos/compute_shaders/debug_terrain.glsl"
+dest_files=["res://.godot/imported/debug_terrain.glsl-c66bd93cf626319c25ad939151f76fcb.res"]
+
+[params]
+

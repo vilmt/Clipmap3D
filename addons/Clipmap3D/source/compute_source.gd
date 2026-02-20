@@ -25,14 +25,42 @@ var _pipeline_rid: RID
 var _map_rd_rids: Dictionary[MapType, RID]
 var _map_rids: Dictionary[MapType, RID]
 
-# TODO: use the same dirty update paradigm here
-
 var _texel_origins: Array[Vector2i]
 var _world_origins: Array[Vector2]
 
 var _deltas: Array[Vector2i]
 
 var _collision_data: PackedByteArray
+
+const DEBUG_MATERIAL: ShaderMaterial = preload("debug.tres")
+
+var _debug_rids: Array[RID]
+
+func create_debug_canvas_items(parent_node: CanvasItem):
+	if not has_maps():
+		if _built:
+			await maps_created
+		else:
+			return
+	
+	var rid := RenderingServer.canvas_item_create()
+	
+	var material_rid := DEBUG_MATERIAL.get_rid()
+	RenderingServer.material_set_param(material_rid, &"_height_maps", _map_rids.get(MapType.HEIGHT, RID()))
+	RenderingServer.material_set_param(material_rid, &"_gradient_maps", _map_rids.get(MapType.GRADIENT, RID()))
+	RenderingServer.material_set_param(material_rid, &"_control_maps", _map_rids.get(MapType.CONTROL, RID()))
+	
+	RenderingServer.canvas_item_set_parent(rid, parent_node.get_canvas_item())
+	RenderingServer.canvas_item_set_material(rid, DEBUG_MATERIAL.get_rid())
+	
+	const DEBUG_IMAGE_SIZE := Vector2(200, 200)
+	RenderingServer.canvas_item_add_rect(rid, Rect2(Vector2.ZERO, DEBUG_IMAGE_SIZE * Vector2(lod_count, 1.0)), Color.WHITE)
+	RenderingServer.canvas_item_set_transform(rid, Transform2D(0.0, Vector2(10.0, 130.0)))
+	_debug_rids.append(rid)
+
+func clear_debug_canvas_items():
+	for rid: RID in _debug_rids:
+		RenderingServer.free_rid(rid)
 
 func has_maps() -> bool:
 	return not _map_rids.is_empty()
@@ -70,7 +98,8 @@ func get_heightmap_data(mesh_radius: Vector2i) -> Dictionary:
 	
 	for y: int in range(half.y, full_size.y - half.y, step.y):
 		for x: int in range(half.x, full_size.x - half.x, step.x):
-			# exact calculation from compute shader
+			# TODO: math is wrong. ideally we would not fetch the entire image from the gpu
+			# TODO: allow selecting which lod to use for collision mesh
 			var texel = Vector2(Vector2i(x, y) + texel_origin) - Vector2(full_size) * 0.5 + Vector2(1.5, 1.5) * Vector2(texels_per_vertex)
 			var tx = posmod(floori(texel.x), full_size.x)
 			var ty = posmod(floori(texel.y), full_size.y)
@@ -125,7 +154,7 @@ func _initialize_threaded():
 	
 	var uniforms: Array[RDUniform] = [
 		_create_texture_uniform_threaded(MapType.HEIGHT, 0),
-		_create_texture_uniform_threaded(MapType.NORMAL, 1),
+		_create_texture_uniform_threaded(MapType.GRADIENT, 1),
 		_create_texture_uniform_threaded(MapType.CONTROL, 2)
 	]
 	
@@ -149,9 +178,10 @@ func _initialize_threaded():
 		_texel_origins[lod] = texel_origin
 		_world_origins[lod] = Vector2(vertex_origin) * scale
 	
-	_compute_threaded()
+	_compute_threaded(false)
+	maps_created.emit()
 
-func _compute_threaded() -> void:
+func _compute_threaded(use_signal: bool = true) -> void:
 	for lod: int in lod_count:
 		var delta := _deltas[lod]
 		
@@ -180,6 +210,8 @@ func _compute_threaded() -> void:
 			# NOTE: this is currently the cause of all runtime lag
 			_rd.texture_get_data_async(_map_rd_rids[MapType.HEIGHT], 0, _update_cpu_data)
 	
+	if use_signal:
+		maps_updated.emit()
 	emit_changed()
 
 func _generate_region_threaded(lod: int, region := Rect2i(Vector2i.ZERO, size * texels_per_vertex)):

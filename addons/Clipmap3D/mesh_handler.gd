@@ -326,7 +326,7 @@ func _apply_material_state():
 		
 		var map_rids := source.get_map_rids()
 		RenderingServer.material_set_param(material_rid, &"_height_maps", map_rids.get(Clipmap3DSource.MapType.HEIGHT, RID()))
-		RenderingServer.material_set_param(material_rid, &"_normal_maps", map_rids.get(Clipmap3DSource.MapType.NORMAL, RID()))
+		RenderingServer.material_set_param(material_rid, &"_gradient_maps", map_rids.get(Clipmap3DSource.MapType.GRADIENT, RID()))
 		RenderingServer.material_set_param(material_rid, &"_control_maps", map_rids.get(Clipmap3DSource.MapType.CONTROL, RID()))
 		
 		var texture_rids := source.get_texture_rids()
@@ -346,7 +346,7 @@ func _apply_material_state():
 		RenderingServer.material_set_param(material_rid, &"_texels_per_vertex", Vector2i.ONE)
 		
 		RenderingServer.material_set_param(material_rid, &"_height_maps", RID())
-		RenderingServer.material_set_param(material_rid, &"_normal_maps", RID())
+		RenderingServer.material_set_param(material_rid, &"_gradient_maps", RID())
 		RenderingServer.material_set_param(material_rid, &"_control_maps", RID())
 		
 		RenderingServer.material_set_param(material_rid, &"_albedo_textures", RID())

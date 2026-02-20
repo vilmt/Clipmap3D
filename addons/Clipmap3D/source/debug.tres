@@ -1,0 +1,6 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://gux0vjty1iw5"]
+
+[ext_resource type="Shader" uid="uid://cr0cs1xrfrb6" path="res://addons/Clipmap3D/source/debug.gdshader" id="1_hdeqo"]
+
+[resource]
+shader = ExtResource("1_hdeqo")

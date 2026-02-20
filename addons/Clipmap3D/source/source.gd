@@ -96,7 +96,13 @@ var _roughness_offsets: PackedFloat32Array
 var _normal_depths: PackedFloat32Array
 var _flags: PackedInt32Array
 
+signal textures_created
+signal textures_updated
+
 @warning_ignore_start("unused_signal")
+signal maps_created
+signal maps_updated
+
 signal collision_data_changed
 
 enum TextureType {
@@ -106,13 +112,13 @@ enum TextureType {
 
 enum MapType {
 	HEIGHT,
-	NORMAL,
+	GRADIENT,
 	CONTROL
 }
 
 const FORMATS: Dictionary[MapType, RenderingDevice.DataFormat] = {
 	MapType.HEIGHT: RenderingDevice.DATA_FORMAT_R32_SFLOAT,
-	MapType.NORMAL: RenderingDevice.DATA_FORMAT_R16G16_SFLOAT,
+	MapType.GRADIENT: RenderingDevice.DATA_FORMAT_R16G16_SFLOAT,
 	MapType.CONTROL: RenderingDevice.DATA_FORMAT_R32_SFLOAT
 }
 
@@ -129,6 +135,7 @@ func clear() -> void:
 	_maps_dirty = false
 	_free_textures()
 	_free_maps()
+	clear_debug_canvas_items()
 
 func get_texture_rids() -> Dictionary[TextureType, RID]:
 	return _texture_rids
@@ -190,6 +197,12 @@ func _try_shift_maps() -> void
 @abstract
 func _free_maps() -> void
 
+@abstract
+func create_debug_canvas_items(parent_node: CanvasItem)
+
+@abstract
+func clear_debug_canvas_items()
+
 func _build_textures() -> void:
 	if not _textures_dirty:
 		return
@@ -222,6 +235,7 @@ func _build_textures() -> void:
 		_normal_depths[i] = asset.normal_depth
 		_flags[i] = asset.flags
 	
+	textures_created.emit()
 	emit_changed()
 
 func _free_textures() -> void:
