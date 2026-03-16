@@ -83,9 +83,7 @@ void brush_add(inout Material mat, uint id, float strength) {
 void main() {
 	ivec2 local = ivec2(gl_GlobalInvocationID.xy);
 	
-	if (any(greaterThanEqual(local, params.region.zw))) {
-		return; // skip if texel is outside requested region
-	}
+	if (any(greaterThanEqual(local, params.region.zw))) return; // skip if texel is outside requested region
 	
 	ivec2 size = imageSize(height_maps).xy;
 	ivec2 texel = local + params.region.xy + params.origin - (size / 2 - params.texels_per_vertex); // half size

@@ -1,13 +1,10 @@
 shader_type spatial;
 render_mode blend_mix;
 
-// BUG: -1300, y, -1300 with texels_per_vertex 7, 7
-// BUG: geomorph overlaps strip on positive coords
-
 /*
 Clipmap3D Full Shader
 
-* All maps (height, normal, and control) are built in the compute shader and passed to this shader
+* All maps (height, gradient, and control) are built in the compute shader and passed to this shader
 * Per texel, the control map packs 2 texture IDs and a float to blend between them
 
 Techniques used:
@@ -20,7 +17,7 @@ Techniques used:
 
 // Options
 #define USE_PROJECTION
-//#define USE_CIRCLE_MASK
+#define USE_CIRCLE_MASK
 #define ALBEDO_DEFAULT vec4(0.8, 0.8, 0.8, 1.0)
 #define NORMAL_DEFAULT vec4(0.5, 0.5, 1.0, 1.0)
 
@@ -117,7 +114,6 @@ void vertex() {
 	#endif
 	lod_blend_mask = smoothstep(1.0 - lod_blend_ratio, 1.0, blend_mask);
 	
-	
 	lod_blend_mask *= float((vertex_lod + 1) < textureSize(_height_maps, 0).z);
 	
 	// geo-morphing offset
@@ -135,7 +131,7 @@ void vertex() {
 	
 	vec3 s = vec3(1.0 / size, 0.0);
 	
-	// cant use textureGather here since samples may be separated
+	// cant use textureGather here since samples are separated
 	vec4 heights = vec4(
 		texture(_height_maps, coords + s.zzz).r,
 		texture(_height_maps, coords + s.xzz).r,
@@ -145,17 +141,18 @@ void vertex() {
 	
 	VERTEX.y = dot(heights, weights);
 	world_position.y = VERTEX.y;
+	
+	//debug_albedo.r = lod_blend_mask;
 }
 
 // texture accumulation largely based on Terrain3D's main shader
 void accumulate(inout material mat, mat3 TNB, vec3 normal, uint control, vec2 id_weights, uvec2 ids, inout int samples) {
 	vec3 p = world_position;
-	vec3 dPdx = dFdxCoarse(p);
-	vec3 dPdy = dFdyCoarse(p);
-	
+	vec3 dpdx = dFdxCoarse(p), dpdy = dFdyCoarse(p);;
+
 	vec2 uv = p.xz;
-	vec2 ddx = dPdx.xz;
-	vec2 ddy = dPdy.xz;
+	vec2 duvdx = dpdx.xz, duvdy = dpdy.xz;
+	
 	mat2 align = mat2(1.0);
 	
 	#ifdef USE_PROJECTION
@@ -167,8 +164,8 @@ void accumulate(inout material mat, mat3 TNB, vec3 normal, uint control, vec2 id
 		
 		uv = vec2(dot(p.xz, xz), -p.y);
 		
-		ddx = vec2(dot(ddx, xz), -dPdx.y);
-		ddy = vec2(dot(ddy, xz), -dPdy.y);
+		duvdx = vec2(dot(duvdx, xz), -dpdx.y);
+		duvdy = vec2(dot(duvdy, xz), -dpdy.y);
 		
 		// Projected normal map alignment matrix
 		align = mat2(vec2(normal.z, -normal.x), vec2(normal.x, normal.z));
@@ -187,23 +184,19 @@ void accumulate(inout material mat, mat3 TNB, vec3 normal, uint control, vec2 id
 		
 		vec2 scale = _uv_scales[id];
 		
-		//ivec3 h = ivec3(ivec2(floor(world_position.xz * scale)), id);
-		//
-		//float hash = fract(float(h.x * 12321 ^ h.y * 30213 + h.z * 73017) / 2061.13296);
-		//
 		uint flags = _flags[id];
 		bool randomize_rotation = bool(flags & BIT_RANDOMIZE_ROTATION);
 		bool randomize_translation = bool(flags & BIT_RANDOMIZE_TRANSLATION);
 		
 		vec2 id_uv = uv * scale;
-		vec2 id_ddx = ddx * scale;
-		vec2 id_ddy = ddy * scale;
+		vec2 id_duvdx = duvdx * scale;
+		vec2 id_duvdy = duvdy * scale;
 		
 		int albedo_id = _albedo_remap[id];
 		int normal_id = _normal_remap[id];
 		
-		vec4 albedo_r = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(id_uv, float(albedo_id)), id_ddx, id_ddy);
-		vec4 normal_h_ao = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(id_uv, float(normal_id)), id_ddx, id_ddy);
+		vec4 albedo_r = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(id_uv, float(albedo_id)), id_duvdx, id_duvdy);
+		vec4 normal_h_ao = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(id_uv, float(normal_id)), id_duvdx, id_duvdy);
 		
 		mat.albedo += albedo_r.rgb * _albedo_modulates[id] * id_weight;
 		mat.roughness += clamp(albedo_r.a + _roughness_offsets[id], 0.0, 1.0) * id_weight;
@@ -212,7 +205,6 @@ void accumulate(inout material mat, mat3 TNB, vec3 normal, uint control, vec2 id
 		vec3 n = vec3(normal_h_ao.r, 0.0, normal_h_ao.g) * 2.0 - 1.0;
 		n.xz = n.xz * align;
 		n.y = sqrt(1.0 - dot(n.xz, n.xz));
-		
 		
 		mat.normal += n * id_weight;
 		
@@ -232,14 +224,14 @@ void accumulate(inout material mat, mat3 TNB, vec3 normal, uint control, vec2 id
 		vec2 scale = _uv_scales[id];
 		
 		vec2 id_uv = uv * scale;
-		vec2 id_ddx = ddx * scale;
-		vec2 id_ddy = ddy * scale;
+		vec2 id_duvdx = duvdx * scale;
+		vec2 id_duvdy = duvdy * scale;
 		
 		int albedo_id = _albedo_remap[id];
 		int normal_id = _normal_remap[id];
 		
-		vec4 albedo_r = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(id_uv, float(albedo_id)), id_ddx, id_ddy);
-		vec4 normal_h_ao = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(id_uv, float(normal_id)), id_ddx, id_ddy);
+		vec4 albedo_r = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(id_uv, float(albedo_id)), id_duvdx, id_duvdy);
+		vec4 normal_h_ao = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(id_uv, float(normal_id)), id_duvdx, id_duvdy);
 		
 		mat.albedo += albedo_r.rgb * _albedo_modulates[id] * id_weight;
 		mat.roughness += clamp(albedo_r.a + _roughness_offsets[id], 0.0, 1.0) * id_weight;
@@ -248,8 +240,6 @@ void accumulate(inout material mat, mat3 TNB, vec3 normal, uint control, vec2 id
 		vec3 n = vec3(normal_h_ao.r, 0.0, normal_h_ao.g) * 2.0 - 1.0;
 		n.xz = n.xz * align;
 		n.y = sqrt(1.0 - dot(n.xz, n.xz));
-		
-		
 		
 		mat.normal += n * id_weight;
 		
@@ -347,7 +337,7 @@ void fragment() {
 	material mat = material(vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0);
 	
 	for (int i = 0; i < 4; i++) {
-		// TODO: figure out why bilinear weights are multiplied twice
+		// TODO: simplify blending (weights multiplied twice)
 		accumulate(mat, TNB, normals[i], controls[i], t_weights[i] * weights[i], texture_ids[i], samples);
 	}
 	
@@ -363,7 +353,4 @@ void fragment() {
 	NORMAL_MAP = fma(mat.normal.xzy, vec3(0.5), vec3(0.5));
 	NORMAL_MAP_DEPTH = mat.normal_depth;
 	AO = mat.ao;
-	
-	//ALBEDO = debug_albedo;
-	//ALBEDO = vec3(float(samples == 8));
 }

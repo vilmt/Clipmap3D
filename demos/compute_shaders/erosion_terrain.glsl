@@ -74,22 +74,21 @@ vec3 erosion(vec2 p, vec2 curl) {
 	
 	vec3 r = vec3(0.0);
 	
-	for (int j = -1; j <= 1; j++) {
-		for (int i = -1; i <= 1; i++) {
-			vec2 o = vec2(float(i), float(j));
-			vec2 d = o - p_f + hash22(p_i + o);
-			
-			float dd = min(1.0, dot(d, d));
-			
-			float w = dd * (dd - 2.0) + 1.0; // quartic interpolant weight
-			vec2 w_d = 4.0 * (1.0 - dd) * d; // derivative
-			
-			float phase = dot(d, curl) * TAU;
-			float c = cos(phase);
-			float s = sin(phase);
-			
-			r += vec3(c * w, TAU * s * curl * w + c * w_d);
-		}
+	for (int j = -1; j <= 1; j++)
+	for (int i = -1; i <= 1; i++) {
+		vec2 o = vec2(float(i), float(j));
+		vec2 d = o - p_f + hash22(p_i + o);
+		
+		float dd = min(1.0, dot(d, d)); // squared distance from center of cell
+		
+		float w = dd * (dd - 2.0) + 1.0; // quartic interpolant weight
+		vec2 w_d = 4.0 * (1.0 - dd) * d; // derivative
+		
+		float phase = dot(d, curl) * TAU;
+		float c = cos(phase);
+		float s = sin(phase);
+		
+		r += vec3(c * w, TAU * s * curl * w + c * w_d);
 	}
 	
 	return r;
@@ -179,9 +178,7 @@ void brush_add(inout Material mat, uint id, float strength) {
 void main() {
 	ivec2 local = ivec2(gl_GlobalInvocationID.xy);
 	
-	if (any(greaterThanEqual(local, params.region.zw))) {
-		return; // skip if texel is outside requested region
-	}
+	if (any(greaterThanEqual(local, params.region.zw))) return; // skip if texel is outside requested region
 	
 	ivec2 size = imageSize(height_maps).xy;
 	ivec2 texel = local + params.region.xy + params.origin - (size / 2 - params.texels_per_vertex); // half size
