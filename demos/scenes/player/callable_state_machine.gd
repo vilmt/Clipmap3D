@@ -1,55 +1,57 @@
 class_name CallableStateMachine
 
-var states: Dictionary[StringName, Dictionary]
+var _states: Dictionary[StringName, Dictionary]
+var _current_state_name: StringName
+var _queued_state_name: StringName
+var _silent: bool
 
-var current_state_name: StringName
-var queued_state_name: StringName
-
-var _queued_silent: bool
+const STATE := 0
+const ENTER := 1
+const EXIT := 2
 
 func add_state(state: Callable, enter := Callable(), exit := Callable()) -> void:
 	var state_name := state.get_method()
-	states[state_name] = {}
-	states[state_name]["state"] = state
+	_states[state_name] = {}
+	_states[state_name][STATE] = state
 	if enter:
-		states[state_name]["enter"] = enter
+		_states[state_name][ENTER] = enter
 	if exit:
-		states[state_name]["exit"] = exit
+		_states[state_name][EXIT] = exit
 
 func remove_state(state: Callable) -> void:
 	var state_name := state.get_method()
-	states.erase(state_name)
+	_states.erase(state_name)
 
 func queue_state(state: Callable, silent: bool = false) -> void:
 	var state_name := state.get_method()
-	if not states.has(state_name):
-		push_error("[CallableStateMachine] Attempted changing to undeclared state " + str(state_name))
+	if not _states.has(state_name):
+		push_error("Unrecognized state %s was queued." % state_name)
 		return
-	_queued_silent = silent
-	queued_state_name = state_name
+	_silent = silent
+	_queued_state_name = state_name
 
 func update() -> void:
-	if queued_state_name:
-		_set_state(queued_state_name)
-		queued_state_name = &""
-	if current_state_name:
-		states[current_state_name]["state"].call()
+	if _queued_state_name:
+		_set_state(_queued_state_name)
+		_queued_state_name = &""
+	if _current_state_name:
+		_states[_current_state_name][STATE].call()
 
 func get_current_state() -> Callable:
-	if current_state_name:
-		return states[current_state_name]["state"]
+	if _current_state_name:
+		return _states[_current_state_name][STATE]
 	return Callable()
 
 func get_queued_state() -> Callable:
-	if queued_state_name:
-		return states[queued_state_name]["state"]
+	if _queued_state_name:
+		return _states[_queued_state_name][STATE]
 	return Callable()
 
 func _set_state(state_name: StringName):
-	if current_state_name and not _queued_silent:
-		if states[current_state_name].has("exit"):
-			states[current_state_name]["exit"].call()
-	current_state_name = state_name
+	if _current_state_name and not _silent:
+		if _states[_current_state_name].has(EXIT):
+			_states[_current_state_name][EXIT].call()
+	_current_state_name = state_name
 	
-	if states[current_state_name].has("enter") and not _queued_silent:
-		states[current_state_name]["enter"].call()
+	if _states[_current_state_name].has(ENTER) and not _silent:
+		_states[_current_state_name][ENTER].call()

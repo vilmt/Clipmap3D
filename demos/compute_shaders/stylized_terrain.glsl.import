@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://do1d5v1cdaq44"
+path="res://.godot/imported/stylized_terrain.glsl-3c99aa3dbe9ec1a84b975699172b9a04.res"
+
+[deps]
+
+source_file="res://demos/compute_shaders/stylized_terrain.glsl"
+dest_files=["res://.godot/imported/stylized_terrain.glsl-3c99aa3dbe9ec1a84b975699172b9a04.res"]
+
+[params]
+

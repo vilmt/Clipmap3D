@@ -85,8 +85,8 @@ metadata/_custom_type_script = "uid://bt3djwqnt64i8"
 script = ExtResource("3_oorvl")
 compute_shader = ExtResource("2_6b21n")
 compute_seed = 6
-texels_per_vertex = Vector2i(4, 4)
-height_amplitude = 1800.0
+texels_per_vertex = Vector2i(6, 6)
+height_amplitude = 3198.2909999999997
 texture_assets = Array[ExtResource("4_nj7a2")]([SubResource("Resource_hp380"), SubResource("Resource_bdhvs"), SubResource("Resource_lhras"), SubResource("Resource_svvho")])
 metadata/_custom_type_script = "uid://d1d0g7aqimxsa"
 
@@ -129,12 +129,13 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 972.26416, 0, -917.1402)
 script = ExtResource("1_e348m")
 follow_target = NodePath("../Player")
 source = SubResource("Resource_vn06u")
-mesh_lod_count = 9
+mesh_tile_size = Vector2i(64, 64)
+mesh_lod_count = 8
 material = SubResource("ShaderMaterial_n7lgi")
 collision_targets = [NodePath("../Player")]
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(0.9999951, -0.0022845198, 0.0021289405, 0.0022847196, 0.9999974, -9.1355825e-05, -0.0021287259, 9.6226846e-05, 0.99999774, 972.26416, 1625.4354, -917.1402)
+transform = Transform3D(0.9999951, -0.0022845198, 0.0021289405, 0.0022847196, 0.9999974, -9.1355825e-05, -0.0021287259, 9.6226846e-05, 0.99999774, 972.26416, 2637.399, -917.1402)
 
 [node name="ZoomOutWarningLabel" type="Label3D" parent="." unique_id=1827955459]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.225605, 0)
