@@ -3,6 +3,10 @@
 # Clipmap3D
 A lightweight infinite procedural terrain system for Godot 4.6
 
+> [!IMPORTANT]
+> Clipmap3D is not currently under active development. If you are looking
+> forward to seeing a new feature/bugfix in Clipmap3D, make an issue or contact me! I am always happy to work collaboratively.
+
 ## Overview
 * Written in GDScript, GDShader, and GLSL
 * Supports Forward+ and Mobile renderers
