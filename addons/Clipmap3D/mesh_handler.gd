@@ -39,7 +39,7 @@ var scenario_rid: RID:
 var visible: bool:
 	set(value):
 		visible = value
-		_apply_mesh_state()
+		_apply_instance_state()
 			
 var cast_shadows: RenderingServer.ShadowCastingSetting:
 	set(value):

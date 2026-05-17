@@ -44,7 +44,7 @@ vec2 hash22(vec2 p) {
 }
 
 // gradient noise and derivative by iq https://www.shadertoy.com/view/XdXBRH
-vec3 noised(vec2 p) {
+vec3 noise(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
 
@@ -68,7 +68,7 @@ vec3 noised(vec2 p) {
 
 // erosion ridges and derivative by vilmt
 // based on smooth voronoi by iq https://iquilezles.org/articles/smoothvoronoi/
-vec3 erosion(vec2 p, vec2 curl) {
+vec3 ridges(vec2 p, vec2 curl) {
 	vec2 p_i = floor(p);
 	vec2 p_f = fract(p);
 	
@@ -91,42 +91,44 @@ vec3 erosion(vec2 p, vec2 curl) {
 }
 
 
-// height, derivative, and erosion parameter
-vec4 height_map(vec2 p) {
+// height, derivative
+vec3 height_map(vec2 position, out float erosion_factor) {
 	float scale = 0.0005; // master scale value
 	
     // FBM terrain
-	vec3 h = vec3(0.0);
-	float h_a = 0.5; // amplitude (don't change this)
-	float h_f = 1.0 * scale; // frequency
+	vec3 height = vec3(0.0);
+	float height_amplitude = 0.5; // don't change this
+	float height_frequency = 1.0 * scale;
 	
 	for (int i = 0; i < 6; i++) {
-		vec3 n = noised(p * h_f) * h_a;
-		h += n * vec3(1.0, h_f, h_f);
+		vec3 layer = noise(position * height_frequency) * height_amplitude;
+		height += layer * vec3(1.0, vec2(height_frequency));
 		
-		h_a *= 0.4; // gain
-		h_f *= 1.8; // lacunarity
+		height_amplitude *= 0.4; // gain
+		height_frequency *= 1.8; // lacunarity
 	}
 	
-	h.x += 0.5; // map terrain to [0, 1]
+	height.x += 0.5; // map terrain to [0, 1]
 	
 	// FBM erosion
-	vec3 e = vec3(0.0);
-	float e_a = 0.005; // erosion amplitude
-	float e_f = 20.0 * scale; // erosion frequency
+	vec3 erosion = vec3(0.0);
+	float erosion_amplitude = 0.005; // erosion amplitude
+	float erosion_frequency = 20.0 * scale; // erosion frequency
 	
-	float e_w = e_a; // erosion weight, used for normalizing
+	float initial_erosion_amplitude = erosion_amplitude;
 	
 	for (int i = 0; i < 7; i++) {
-		vec2 curl = (h.zy + e.zy) * vec2(1.0, -1.0) / scale; // scale-invariant curl direction
-		vec3 n = erosion(p * e_f, curl) * e_a;
-		e += n * vec3(1.0, e_f, e_f);
+		vec2 curl = (height.zy + erosion.zy) * vec2(1.0, -1.0) / scale; // scale-invariant curl
+		vec3 layer = ridges(position * erosion_frequency, curl) * erosion_amplitude;
+		erosion += layer * vec3(1.0, vec2(erosion_frequency));
 		
-		e_a *= 0.5;
-		e_f *= 1.8;
+		erosion_amplitude *= 0.5;
+		erosion_frequency *= 1.8;
 	}
 	
-	return vec4(h + e, e.x / e_w);
+	erosion_factor = erosion.x / initial_erosion_amplitude;
+	
+	return height + erosion;
 }
 
 struct Material {
@@ -181,34 +183,34 @@ void main() {
 	ivec2 texel = local + params.region.xy + params.origin - (size / 2 - params.texels_per_vertex); // half size
 	vec2 scale = params.vertex_spacing * float(1 << params.lod) / vec2(params.texels_per_vertex);
 	
-	vec4 h = height_map(texel * scale);
+	float erosion_factor;
+	vec3 height = height_map(texel * scale, erosion_factor);
 	
 	ivec3 coords = ivec3(imod(texel.xy, size), params.lod); // toroidal wrapping
 	
 	// NOTE: The simple terrain compute shader uses central differences.
 	// No need to derive analytical derivatives like it's done here.
-	imageStore(height_maps, coords, vec4(h.x * params.height_amplitude, 0.0, 0.0, 0.0));
-	imageStore(gradient_maps, coords, vec4(h.yz * params.height_amplitude, 0.0, 0.0)); // gradient maps expect world-space texel spacing
+	imageStore(height_maps, coords, vec4(height.x * params.height_amplitude, 0.0, 0.0, 0.0));
+	imageStore(gradient_maps, coords, vec4(height.yz * params.height_amplitude, 0.0, 0.0)); // gradient maps expect world-space texel spacing
 	
 	// arbitrary parameters for painting (independent of world scaling)
-	float height = h.x;
-	float slope = 1.0 - normalize(vec3(-h.y, 0.0001, -h.z)).y;
-	float ridge = max(h.w, 0.0);
-	float occlusion = max(-h.w, 0.0);
+	float height_factor = height.x;
+	float slope_factor = 1.0 - normalize(vec3(-height.y, 0.0001, -height.z)).y;
+	float ridge_factor = max(erosion_factor, 0.0);
 	
 	// material painting
 	Material mat = Material(0u, 0u, 0.0);
 	
 	brush_replace(mat, CLIFF_ID); // initialize with cliff
 
-	float w_moss = smoothstep(1.0, 0.9, height + slope * 0.8);
-	brush_add(mat, MOSS_ID, w_moss); // paint moss around grass
+	float moss_weight = smoothstep(1.0, 0.9, height_factor + slope_factor * 0.8);
+	brush_add(mat, MOSS_ID, moss_weight); // paint moss around grass
 	
-	float w_grass = smoothstep(1.0, 0.9, height + slope);
-	brush_add(mat, GRASS_ID, w_grass); // disincentivize grass growth in high and steep areas
+	float grass_weight = smoothstep(1.0, 0.9, height_factor + slope_factor);
+	brush_add(mat, GRASS_ID, grass_weight); // disincentivize grass growth in high and steep areas
 	
-	float w_snow = smoothstep(0.98, 1.0, height * 1.2 + ridge * 0.2) * smoothstep(0.6, 0.605, height);
-	brush_add(mat, SNOW_ID, w_snow); // incentivize snow in high and ridged areas
+	float snow_weight = smoothstep(0.98, 1.0, height_factor * 1.2 + ridge_factor * 0.2) * smoothstep(0.6, 0.605, height_factor);
+	brush_add(mat, SNOW_ID, snow_weight); // incentivize snow in high and ridged areas
 	
 	// encode control
 	uint control = 0u;
