@@ -3,9 +3,16 @@ class_name Clipmap3DMeshHandler
 
 var source: Clipmap3DSource:
 	set(value):
-		_disconnect_source()
+		if source and source.changed.is_connected(_apply_mesh_state):
+			source.changed.disconnect(_apply_mesh_state)
+			source.changed.disconnect(_apply_material_state)
 		source = value
-		_connect_source()
+		if source and not source.changed.is_connected(_apply_mesh_state):
+			source.changed.connect(_apply_mesh_state)
+			source.changed.connect(_apply_material_state)
+		
+		_apply_mesh_state()
+		_apply_material_state()
 
 var lod_count: int:
 	set(value):
@@ -40,7 +47,7 @@ var visible: bool:
 	set(value):
 		visible = value
 		_apply_instance_state()
-			
+
 var cast_shadows: RenderingServer.ShadowCastingSetting:
 	set(value):
 		cast_shadows = value
@@ -66,18 +73,19 @@ enum MeshType {
 	EDGE_Z
 }
 
-const MAX_LOD_COUNT: int = 10
-const LOD_0_INSTANCES: int = 19
-const LOD_X_INSTANCES: int = 18
+const LOD_0_INSTANCE_COUNT: int = 19
+const LOD_X_INSTANCE_COUNT: int = 18
 
 var _instance_rids: Array[RID]
 var _instance_mesh_types: Array[MeshType]
 
 var _mesh_rids: Dictionary[MeshType, RID]
 var _mesh_aabbs: Dictionary[MeshType, AABB]
-var _mesh_xzs: Dictionary[MeshType, PackedVector2Array] # XZ offsets are fixed per mesh
-var _edge_x_xzs: Dictionary[Vector2i, Vector2] # XZ offsets vary for edges
-var _edge_z_xzs: Dictionary[Vector2i, Vector2]
+var _mesh_offsets: Dictionary[MeshType, PackedVector2Array]
+
+# Edges have specific offsets depending on the parity of the target position
+var _edge_x_offsets: Dictionary[Vector2i, Vector2]
+var _edge_z_offsets: Dictionary[Vector2i, Vector2]
 
 var _built: bool = false
 var _meshes_dirty: bool = false
@@ -112,39 +120,38 @@ func _mark_meshes_dirty():
 	_meshes_dirty = true
 	_rebuild.call_deferred()
 
+# NOTE: XZ-only positions are collapsed to 2D for clean vector operations
 func _snap() -> void:
 	if not _built or _instance_rids.is_empty():
 		return
-	var world_xz := Vector2(target_position.x, target_position.z)
+	var world_position := Vector2(target_position.x, target_position.z)
 	
-	var starting_i: int = 0
-	var ending_i: int = LOD_0_INSTANCES
+	var instance_index_start: int = 0
+	var instance_index_end: int = LOD_0_INSTANCE_COUNT
 	
 	for lod: int in lod_count:
-		var scale: Vector2 = vertex_spacing * float(1 << lod)
-		var vertex_xz := Vector2i((world_xz / scale).floor())
-		var edge := vertex_xz.abs() % 2
-		var world_xz_snapped := Vector2(vertex_xz) * scale
+		var lod_scale := vertex_spacing * float(1 << lod)
+		var lod_position := (world_position / lod_scale).floor()
+		var edge_parity := Vector2i(lod_position).abs() % 2
 		
 		var instance_count: Dictionary[MeshType, int] = {}
 		
-		for i: int in range(starting_i, ending_i):
-			var instance_rid := _instance_rids[i]
-			var type := _instance_mesh_types[i]
+		for instance_index: int in range(instance_index_start, instance_index_end):
+			var instance_rid := _instance_rids[instance_index]
+			var type := _instance_mesh_types[instance_index]
 			var count: int = instance_count.get(type, 0)
-			var xz: Vector2
+			var offset: Vector2
 			match type:
 				MeshType.EDGE_X:
-					xz = _edge_x_xzs[edge]
+					offset = _edge_x_offsets[edge_parity]
 				MeshType.EDGE_Z:
-					xz = _edge_z_xzs[edge]
+					offset = _edge_z_offsets[edge_parity]
 				_:
-					xz = _mesh_xzs[type][count]
+					offset = _mesh_offsets[type][count]
 			
-			var t := Transform3D(Basis(), Vector3(xz.x, 0.0, xz.y))
-			t = t.scaled(Vector3(scale.x, 1.0, scale.y))
-			t.origin += Vector3(world_xz_snapped.x, target_position.y, world_xz_snapped.y)
-			RenderingServer.instance_set_transform(instance_rid, t)
+			var instance_position := Vector3(lod_position.x + offset.x, target_position.y, lod_position.y + offset.y)
+			var instance_transform := Transform3D(Basis.IDENTITY, instance_position).scaled(Vector3(lod_scale.x, 1.0, lod_scale.y))
+			RenderingServer.instance_set_transform(instance_rid, instance_transform)
 			RenderingServer.instance_teleport(instance_rid)
 			
 			if count == 0:
@@ -152,8 +159,8 @@ func _snap() -> void:
 			else:
 				instance_count[type] += 1
 		
-		starting_i = ending_i
-		ending_i += LOD_X_INSTANCES
+		instance_index_start = instance_index_end
+		instance_index_end += LOD_X_INSTANCE_COUNT
 	
 func build():
 	_built = true
@@ -191,7 +198,7 @@ func _generate_mesh(type: MeshType, size: Vector2i) -> void:
 	var vertices := PackedVector3Array()
 	for z: int in size.y + 1:
 		for x: int in size.x + 1:
-			vertices.append(Vector3(float(x) - size.x / 2.0, 0.0, float(z) - size.y / 2.0))
+			vertices.append(Vector3(float(x) - size.x * 0.5, 0.0, float(z) - size.y * 0.5))
 	mesh_arrays[RenderingServer.ARRAY_VERTEX] = vertices
 	
 	var indices := PackedInt32Array()
@@ -241,13 +248,13 @@ func _generate_meshes():
 	_generate_mesh(MeshType.EDGE_Z, Vector2i(tile_size.x * 4 + 1, 1))
 
 func _generate_offsets():
-	_mesh_xzs.clear()
-	_edge_x_xzs.clear()
-	_edge_z_xzs.clear()
+	_mesh_offsets.clear()
+	_edge_x_offsets.clear()
+	_edge_z_offsets.clear()
 
-	_mesh_xzs[MeshType.CORE] = PackedVector2Array([Vector2(0.5, 0.5)])
+	_mesh_offsets[MeshType.CORE] = PackedVector2Array([Vector2(0.5, 0.5)])
 	
-	_mesh_xzs[MeshType.TILE] = PackedVector2Array([
+	_mesh_offsets[MeshType.TILE] = PackedVector2Array([
 		Vector2(tile_size.x * +1.5 + 1.0, tile_size.y * +1.5 + 1.0),
 		Vector2(tile_size.x * +0.5 + 1.0, tile_size.y * +1.5 + 1.0),
 		Vector2(tile_size.x * -0.5, tile_size.y * +1.5 + 1.0),
@@ -262,24 +269,24 @@ func _generate_offsets():
 		Vector2(tile_size.x * +1.5 + 1.0, tile_size.y * +0.5 + 1.0),
 	])
 	
-	_mesh_xzs[MeshType.FILL_X] = PackedVector2Array([
+	_mesh_offsets[MeshType.FILL_X] = PackedVector2Array([
 		Vector2(0.5, tile_size.y * 1.5 + 1.0),
 		Vector2(0.5, tile_size.y * -1.5)
 	])
 	
-	_mesh_xzs[MeshType.FILL_Z] = PackedVector2Array([
+	_mesh_offsets[MeshType.FILL_Z] = PackedVector2Array([
 		Vector2(tile_size.x * 1.5 + 1.0, 0.5),
 		Vector2(tile_size.x * -1.5, 0.5)
 	])
 	
-	_edge_x_xzs = {
+	_edge_x_offsets = {
 		Vector2i(0, 0): Vector2(tile_size.x * 2.0 + 1.5, 1.0),
 		Vector2i(1, 0): Vector2(tile_size.x * -2.0 - 0.5, 1.0),
 		Vector2i(0, 1): Vector2(tile_size.x * 2.0 + 1.5, 0.0),
 		Vector2i(1, 1): Vector2(tile_size.x * -2.0 - 0.5, 0.0)
 	}
 	
-	_edge_z_xzs = {
+	_edge_z_offsets = {
 		Vector2i(0, 0): Vector2(0.5, tile_size.y * 2.0 + 1.5),
 		Vector2i(1, 0): Vector2(0.5, tile_size.y * 2.0 + 1.5),
 		Vector2i(0, 1): Vector2(0.5, tile_size.y * -2.0 - 0.5),
@@ -288,30 +295,18 @@ func _generate_offsets():
 
 func _clear_instances():
 	for instance_rid: RID in _instance_rids:
-		RenderingServer.free_rid(instance_rid)
+		if instance_rid.is_valid():
+			RenderingServer.free_rid(instance_rid)
 	_instance_rids.clear()
 	_instance_mesh_types.clear()
 
 func _clear_meshes():
 	for mesh_rid: RID in _mesh_rids.values():
-		RenderingServer.free_rid(mesh_rid)
+		if mesh_rid.is_valid():
+			RenderingServer.free_rid(mesh_rid)
 	_mesh_rids.clear()
 	_mesh_aabbs.clear()
-
-func _connect_source():
-	if not source or source.changed.is_connected(_apply_material_state):
-		return
-	source.changed.connect(_apply_material_state)
-	source.changed.connect(_apply_mesh_state)
-	_apply_material_state()
-	_apply_mesh_state()
 	
-func _disconnect_source():
-	if not source or not source.changed.is_connected(_apply_material_state):
-		return
-	source.changed.disconnect(_apply_material_state)
-	source.changed.disconnect(_apply_mesh_state)
-
 func _apply_material_state():
 	if not _built or not material_rid:
 		return

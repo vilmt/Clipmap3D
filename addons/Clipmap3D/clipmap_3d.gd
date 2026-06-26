@@ -1,3 +1,4 @@
+@icon("icons/clipmap_3d_icon.svg")
 @tool
 class_name Clipmap3D extends Node3D
 
@@ -7,8 +8,6 @@ class_name Clipmap3D extends Node3D
 ## The source to use for generation and texturing.
 @export var source: Clipmap3DSource:
 	set(value):
-		if source == value:
-			return
 		if source:
 			source.clear()
 		source = value
@@ -30,8 +29,6 @@ class_name Clipmap3D extends Node3D
 ## World spacing between vertices. Power-of-two values are recommended.
 @export_custom(PROPERTY_HINT_LINK, "suffix:m") var mesh_vertex_spacing := Vector2.ONE:
 	set(value):
-		if mesh_vertex_spacing == value:
-			return
 		mesh_vertex_spacing = value
 		if not is_node_ready():
 			return
@@ -45,8 +42,6 @@ class_name Clipmap3D extends Node3D
 @export var mesh_tile_size := Vector2i(32, 32):
 	set(value):
 		value = value.clampi(1, 128)
-		if mesh_tile_size == value:
-			return
 		mesh_tile_size = value
 		if not is_node_ready():
 			return
@@ -54,12 +49,11 @@ class_name Clipmap3D extends Node3D
 		if source:
 			source.size = _mesh_handler.get_vertices()
 
-# NOTE: arbitrary lower limit of 2 because of https://github.com/godotengine/godot/issues/115103
+# NOTE: lower limit of 2 because of https://github.com/godotengine/godot/issues/115103
+# NOTE: upper limit of 10 rings is arbitrary
 ## The amount of level of detail (LOD) rings that form this mesh.
-@export_range(2, Clipmap3DMeshHandler.MAX_LOD_COUNT, 1) var mesh_lod_count: int = 5:
+@export_range(2, 10, 1) var mesh_lod_count: int = 5:
 	set(value):
-		if mesh_lod_count == value:
-			return
 		mesh_lod_count = value
 		if not is_node_ready():
 			return
@@ -72,8 +66,6 @@ class_name Clipmap3D extends Node3D
 ## The ShaderMaterial assigned to all meshes in this clipmap.
 @export var material: ShaderMaterial:
 	set(value):
-		if material == value:
-			return
 		material = value
 		if not is_node_ready():
 			return
@@ -84,17 +76,14 @@ class_name Clipmap3D extends Node3D
 
 @export_flags_3d_render var render_layer: int = 1:
 	set(value):
-		if render_layer == value:
-			return
 		render_layer = value
 		if not is_node_ready():
 			return
 		_mesh_handler.render_layer = render_layer
 
+# NOTE: Manual enum is used since directly exporting looks different than other Godot editor properties of this type
 @export_enum("Off:0", "On:1", "Double-Sided:2", "Shadows Only:3") var cast_shadows: int = 1:
 	set(value):
-		if cast_shadows == value:
-			return
 		cast_shadows = value
 		if not is_node_ready():
 			return
@@ -103,8 +92,6 @@ class_name Clipmap3D extends Node3D
 @export_group("Collision", "collision")
 @export_custom(PROPERTY_HINT_GROUP_ENABLE, "") var collision_enabled: bool = true:
 	set(value):
-		if collision_enabled == value:
-			return
 		collision_enabled = value
 		if not is_node_ready():
 			return
@@ -113,8 +100,6 @@ class_name Clipmap3D extends Node3D
 
 @export var collision_mesh_radius := Vector2i(4, 4):
 	set(value):
-		if collision_mesh_radius == value:
-			return
 		collision_mesh_radius = value
 		if not is_node_ready():
 			return
@@ -126,8 +111,6 @@ class_name Clipmap3D extends Node3D
 
 @export_flags_3d_physics var collision_layer: int = 1:
 	set(value):
-		if collision_layer == value:
-			return
 		collision_layer = value
 		if not is_node_ready():
 			return
@@ -136,8 +119,6 @@ class_name Clipmap3D extends Node3D
 
 @export_flags_3d_physics var collision_mask: int = 1:
 	set(value):
-		if collision_mask == value:
-			return
 		collision_mask = value
 		if not is_node_ready():
 			return

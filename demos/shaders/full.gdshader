@@ -2,6 +2,13 @@ shader_type spatial;
 render_mode blend_mix;
 
 /*
+TODO:
+	1. Detail maps need mipmapping to prevent aliasing 
+	2. Simplify texture blending
+	3. Blend in fragment with next lod based on calculated MIP level
+*/
+
+/*
 Clipmap3D Full Shader
 
 * All maps (height, gradient, and control) are built in the compute shader and passed to this shader
@@ -26,6 +33,9 @@ Techniques used:
 #define INV_255 0.003921568627450
 #define EPSILON 1e-6
 
+#define BIT_RANDOMIZE_TRANSLATION (1u << 0u)
+#define BIT_RANDOMIZE_ROTATION (1u << 1u)
+
 #ifdef USE_PROJECTION
 uniform float projection_threshold: hint_range(0.0, 1.0) = 0.7;
 #endif
@@ -46,8 +56,7 @@ uniform int[MAX_TEXTURE_COUNT] _albedo_remap;
 uniform sampler2DArray _normal_textures: hint_normal, repeat_enable, filter_linear_mipmap_anisotropic;
 uniform int[MAX_TEXTURE_COUNT] _normal_remap;
 
-#define BIT_RANDOMIZE_TRANSLATION (1u << 0u)
-#define BIT_RANDOMIZE_ROTATION (1u << 1u)
+
 
 // fixed size, access using texture index
 uniform vec2[MAX_TEXTURE_COUNT] _uv_scales;
@@ -99,7 +108,7 @@ void vertex() {
 	vec2 inv_scale = 1.0 / scale;
 	vertex_lod = int(log2(scale.x / _vertex_spacing.x) + EPSILON);
 	
-	vec2 even_mask = mod(floor(world_position.xz * inv_scale + 0.5), 2.0);
+	vec2 parity_mask = mod(floor(world_position.xz * inv_scale + 0.5), 2.0);
 	
 	vec2 inv_texel_scale = inv_scale * vec2(_texels_per_vertex);
 	vec2 lod_origin = (world_position.xz - _target_position.xz) * inv_texel_scale;
@@ -117,7 +126,7 @@ void vertex() {
 	lod_blend_mask *= float((vertex_lod + 1) < textureSize(_height_maps, 0).z);
 	
 	// geo-morphing offset
-	vec2 offset = even_mask * lod_blend_mask;
+	vec2 offset = parity_mask * lod_blend_mask;
 	VERTEX.xz += offset;
 	world_position.xz += offset * scale;
 	
@@ -252,6 +261,7 @@ void accumulate(inout material mat, mat3 TNB, vec3 normal, uint control, vec2 id
 }
 
 void fragment() {
+	// NOTE: anything sampled here should be done based on MIP
 	vec2 size = vec2(textureSize(_height_maps, 0).xy);
 	
 	vec3 coords = gather_coords(UV, vertex_lod, size);
@@ -272,7 +282,6 @@ void fragment() {
 	vec3 coords_2;
 	vec4 weights_2;
 	
-	// blend normals with lod + 1
 	if (lod_blend_mask > EPSILON) {
 		coords_2 = gather_coords(UV2, vertex_lod + 1, size);
 		weights_2 = gather_weights(UV2);

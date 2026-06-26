@@ -159,13 +159,9 @@ void brush_add(inout Material mat, uint id, float strength) {
 		}
 	}
 	
-	if (mat.id_0 == id) {
-		mat.blend = max(mat.blend - strength, 0.0);
-	}
-
-	if (mat.id_1 == id) {
-		mat.blend = min(mat.blend + strength, 1.0);
-	}
+	if (mat.id_0 == id) mat.blend = max(mat.blend - strength, 0.0);
+	if (mat.id_1 == id) mat.blend = min(mat.blend + strength, 1.0);
+	
 }
 
 // should match Clipmap3DTextureAsset array indices in source
@@ -175,18 +171,18 @@ void brush_add(inout Material mat, uint id, float strength) {
 #define MOSS_ID 3
 
 void main() {
-	ivec2 local = ivec2(gl_GlobalInvocationID.xy);
+	uvec2 id = gl_GlobalInvocationID.xy;
 	
-	if (any(greaterThanEqual(local, params.region.zw))) return; // skip if texel is outside requested region
+	if (id.x >= params.region.z || id.y >= params.region.w) return; // Skip if invocation ID is greater than region size
 	
 	ivec2 size = imageSize(height_maps).xy;
-	ivec2 texel = local + params.region.xy + params.origin - (size / 2 - params.texels_per_vertex); // half size
+	ivec2 texel = ivec2(id) + params.region.xy + params.origin - (size / 2 - params.texels_per_vertex); // half size
 	vec2 scale = params.vertex_spacing * float(1 << params.lod) / vec2(params.texels_per_vertex);
 	
 	float erosion_factor;
 	vec3 height = height_map(texel * scale, erosion_factor);
 	
-	ivec3 coords = ivec3(imod(texel.xy, size), params.lod); // toroidal wrapping
+	ivec3 coords = ivec3(imod(texel, size), params.lod); // Toroidal wrapping using integer modulus
 	
 	// NOTE: The simple terrain compute shader uses central differences.
 	// No need to derive analytical derivatives like it's done here.
