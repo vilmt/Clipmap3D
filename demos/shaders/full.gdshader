@@ -56,8 +56,6 @@ uniform int[MAX_TEXTURE_COUNT] _albedo_remap;
 uniform sampler2DArray _normal_textures: hint_normal, repeat_enable, filter_linear_mipmap_anisotropic;
 uniform int[MAX_TEXTURE_COUNT] _normal_remap;
 
-
-
 // fixed size, access using texture index
 uniform vec2[MAX_TEXTURE_COUNT] _uv_scales;
 uniform vec3[MAX_TEXTURE_COUNT] _albedo_modulates: source_color;
@@ -154,7 +152,7 @@ void vertex() {
 	//debug_albedo.r = lod_blend_mask;
 }
 
-// texture accumulation largely based on Terrain3D's main shader
+//texture accumulation largely based on Terrain3D's main shader
 void accumulate(inout material mat, mat3 TNB, vec3 normal, uint control, vec2 id_weights, uvec2 ids, inout int samples) {
 	vec3 p = world_position;
 	vec3 dpdx = dFdxCoarse(p), dpdy = dFdyCoarse(p);;
@@ -322,13 +320,6 @@ void fragment() {
 		texture_ids[i] = uvec2(id_0[i], id_1[i]);
 		t_weights[i] = vec2(weights_id_0[i], weights_id_1[i]);
 	}
-	
-	//int samples = 0;
-	//material mat = material(vec3(0.0), 0.0, vec2(0.0), 0.0, 0.0, 0.0);
-	//
-	//for (int i = 0; i < 4; i++) {
-		//accumulate(mat, normals[i], controls[i], t_weights[i], texture_ids[i], samples);
-	//}
 	
 	t_weights = {vec2(0.0), vec2(0.0), vec2(0.0), vec2(0.0)};
 	

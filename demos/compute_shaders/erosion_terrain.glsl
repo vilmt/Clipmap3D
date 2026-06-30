@@ -3,28 +3,55 @@
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-layout(r32f, binding = 0) restrict uniform image2DArray height_maps;
-layout(rg16f, binding = 1) restrict uniform image2DArray gradient_maps;
-layout(r32f, binding = 2) restrict uniform image2DArray control_maps;
+layout(r32f, binding = 0) restrict uniform image2DArray height_buffers;
+layout(rg16f, binding = 1) restrict uniform image2DArray gradient_buffers;
+layout(r32f, binding = 2) restrict uniform image2DArray control_buffers;
 
-layout(push_constant, std430) uniform Params {
+layout(push_constant, std430) uniform Parameters {
 	ivec4 region;
-	int lod;
-	int seed;
-	ivec2 origin;
 	ivec2 texels_per_vertex;
+	int lod;
+	uint compute_seed;
 	vec2 vertex_spacing;
-	float height_amplitude;
-	
-	float _pad0;
-	float _pad1;
-	float _pad2;
-	
-} params;
+} parameters;
 
 #define EPSILON 1e-6
 #define INV_255 0.003921568627450
 #define TAU 6.28318530717958
+
+struct Material {
+	uint id_0;
+	uint id_1;
+	float blend;
+};
+
+// painting helpers
+
+void brush_replace(inout Material mat, uint id) {
+	mat.id_0 = id;
+	mat.id_1 = id;
+	mat.blend = 0.0;
+}
+
+void brush_add(inout Material mat, uint id, float strength) {
+	if (strength < EPSILON) return;
+	
+	strength = clamp(strength, 0.0, 1.0);
+	
+	if (id != mat.id_0 && id != mat.id_1) {
+		if (mat.blend > 0.5) {
+			mat.blend = min(mat.blend + strength, 1.0);
+			mat.id_0 = mat.blend > 1.0 - INV_255 ? id : mat.id_0;
+		} else {
+			mat.blend = max(mat.blend - strength, 0.0);
+			mat.id_1 = mat.blend < INV_255 ? id : mat.id_1;
+		}
+	}
+	
+	if (mat.id_0 == id) mat.blend = max(mat.blend - strength, 0.0);
+	if (mat.id_1 == id) mat.blend = min(mat.blend + strength, 1.0);
+	
+}
 
 ivec2 imod(ivec2 x, ivec2 s) {
 	ivec2 m = min(sign(x), 0);
@@ -32,7 +59,7 @@ ivec2 imod(ivec2 x, ivec2 s) {
 }
 
 vec2 hash21(vec2 p) {
-	vec3 p3 = vec3(p, float(params.seed));
+	vec3 p3 = vec3(p, float(parameters.compute_seed));
 	p3 = fract(p3 * vec3(.1031, .1030, .0973));
     p3 += dot(p3, p3.yzx+33.33);
     return -1.0 + 2.0 * fract((p3.xx+p3.yz)*p3.zy);
@@ -91,13 +118,13 @@ vec3 ridges(vec2 p, vec2 curl) {
 }
 
 
-// height, derivative
+// (height, dHeight_dx, dHeight_dy)
 vec3 height_map(vec2 position, out float erosion_factor) {
-	float scale = 0.0005; // master scale value
+	const float scale = 0.0005; // master scale value
 	
     // FBM terrain
 	vec3 height = vec3(0.0);
-	float height_amplitude = 0.5; // don't change this
+	float height_amplitude = 1500.0;
 	float height_frequency = 1.0 * scale;
 	
 	for (int i = 0; i < 6; i++) {
@@ -107,18 +134,20 @@ vec3 height_map(vec2 position, out float erosion_factor) {
 		height_amplitude *= 0.4; // gain
 		height_frequency *= 1.8; // lacunarity
 	}
-	
-	height.x += 0.5; // map terrain to [0, 1]
+
+	// map terrain to [0, amplitude]
+	// TODO: use noise in the range [0, 1]
+	height.x += 1500.0; 
 	
 	// FBM erosion
 	vec3 erosion = vec3(0.0);
-	float erosion_amplitude = 0.005; // erosion amplitude
-	float erosion_frequency = 20.0 * scale; // erosion frequency
+	float erosion_amplitude = 10.0;
+	float erosion_frequency = 10.0 * scale;
 	
 	float initial_erosion_amplitude = erosion_amplitude;
 	
-	for (int i = 0; i < 7; i++) {
-		vec2 curl = (height.zy + erosion.zy) * vec2(1.0, -1.0) / scale; // scale-invariant curl
+	for (int i = 0; i < 4; i++) {
+		vec2 curl = (height.zy + erosion.zy) * vec2(1.0, -1.0); // scale-invariant curl
 		vec3 layer = ridges(position * erosion_frequency, curl) * erosion_amplitude;
 		erosion += layer * vec3(1.0, vec2(erosion_frequency));
 		
@@ -131,63 +160,37 @@ vec3 height_map(vec2 position, out float erosion_factor) {
 	return height + erosion;
 }
 
-struct Material {
-	uint id_0;
-	uint id_1;
-	float blend;
-};
-
-// painting helpers
-void brush_replace(inout Material mat, uint id) {
-	mat.id_0 = id;
-	mat.id_1 = id;
-	mat.blend = 0.0;
-}
-
-void brush_add(inout Material mat, uint id, float strength) {
-	if (strength < EPSILON) return;
-	
-	strength = clamp(strength, 0.0, 1.0);
-	
-	if (id != mat.id_0 && id != mat.id_1) {
-		if (mat.blend > 0.5) {
-			mat.blend = min(mat.blend + strength, 1.0);
-			mat.id_0 = mat.blend > 1.0 - INV_255 ? id : mat.id_0;
-		} else {
-			mat.blend = max(mat.blend - strength, 0.0);
-			mat.id_1 = mat.blend < INV_255 ? id : mat.id_1;
-		}
-	}
-	
-	if (mat.id_0 == id) mat.blend = max(mat.blend - strength, 0.0);
-	if (mat.id_1 == id) mat.blend = min(mat.blend + strength, 1.0);
-	
-}
-
-// should match Clipmap3DTextureAsset array indices in source
-#define GRASS_ID 0
-#define CLIFF_ID 1
-#define SNOW_ID 2
-#define MOSS_ID 3
-
 void main() {
-	uvec2 id = gl_GlobalInvocationID.xy;
+	ivec2 id = ivec2(gl_GlobalInvocationID.xy);
 	
-	if (id.x >= params.region.z || id.y >= params.region.w) return; // Skip if invocation ID is greater than region size
+	if (id.x >= parameters.region.z || id.y >= parameters.region.w) return; // Skip if invocation ID is greater than region size
+
+	//ivec2 modthing = imod(id + parameters.region.xy, parameters.texels_per_vertex);
+
+	//bool write_height = (modthing.x == 0) && (modthing.y == 0);
 	
-	ivec2 size = imageSize(height_maps).xy;
-	ivec2 texel = ivec2(id) + params.region.xy + params.origin - (size / 2 - params.texels_per_vertex); // half size
-	vec2 scale = params.vertex_spacing * float(1 << params.lod) / vec2(params.texels_per_vertex);
+	ivec2 size = imageSize(gradient_buffers).xy;
+	ivec2 texel = id + parameters.region.xy - (size / 2 - parameters.texels_per_vertex); // half size
+
+	vec2 scale = parameters.vertex_spacing * float(1 << parameters.lod) / vec2(parameters.texels_per_vertex);
 	
 	float erosion_factor;
 	vec3 height = height_map(texel * scale, erosion_factor);
+
+	ivec2 wrapped_texel = imod(texel, size);
 	
-	ivec3 coords = ivec3(imod(texel, size), params.lod); // Toroidal wrapping using integer modulus
+	//if (write_height) {
+		//ivec2 height_texel = wrapped_texel / parameters.texels_per_vertex;
+		imageStore(height_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.x, 0.0, 0.0, 0.0));
+	//}
 	
-	// NOTE: The simple terrain compute shader uses central differences.
-	// No need to derive analytical derivatives like it's done here.
-	imageStore(height_maps, coords, vec4(height.x * params.height_amplitude, 0.0, 0.0, 0.0));
-	imageStore(gradient_maps, coords, vec4(height.yz * params.height_amplitude, 0.0, 0.0)); // gradient maps expect world-space texel spacing
+	imageStore(gradient_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.yz, 0.0, 0.0));
+
+	// Indices correspond to texture asset ordering
+	#define GRASS_ID 0
+	#define CLIFF_ID 1
+	#define SNOW_ID 2
+	#define MOSS_ID 3
 	
 	// arbitrary parameters for painting (independent of world scaling)
 	float height_factor = height.x;
@@ -217,5 +220,5 @@ void main() {
 	uint blend = uint(clamp(mat.blend * 255.0, 0.0, 255.0));
 	control |= (blend & 0xFF) << 14; // id 0 -> id 1 blend, bits 15-22
 	
-	imageStore(control_maps, coords, vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
+	imageStore(control_buffers, ivec3(wrapped_texel, parameters.lod), vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
 }
