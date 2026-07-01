@@ -33,10 +33,11 @@ dof_blur_far_transition = 765.43
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_237cg"]
 render_priority = 0
 shader = ExtResource("13_6b21n")
+shader_parameter/use_antialiasing = true
 shader_parameter/lod_blend_ratio = 0.2
-shader_parameter/_texels_per_vertex = Vector2i(1, 1)
+shader_parameter/_texels_per_vertex = Vector2i(4, 4)
 shader_parameter/_vertex_spacing = Vector2(1, 1)
-shader_parameter/_target_position = Vector3(-278.44955, 0, 107.38153)
+shader_parameter/_target_position = Vector3(2016.8604, 0, -207.42859)
 
 [node name="ErosionTerrainDemo" type="Node3D" unique_id=932743419]
 
@@ -65,13 +66,16 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073 node_paths=PackedStringArray("follow_target")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -278.44955, 0, 107.38153)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2016.8604, 0, -207.42859)
 script = ExtResource("1_e348m")
 follow_target = NodePath("../Player")
 compute_shader = ExtResource("2_237cg")
+texels_per_vertex = Vector2i(4, 4)
+mesh_tile_size = Vector2i(64, 64)
 mesh_lod_count = 8
 material = SubResource("ShaderMaterial_237cg")
+cast_shadows = 0
 metadata/_custom_type_script = "uid://wudkpxu6xggb"
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -278.44955, 2074.8337, 107.38153)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2016.8604, 918.12683, -207.42859)

@@ -164,26 +164,17 @@ void main() {
 	ivec2 id = ivec2(gl_GlobalInvocationID.xy);
 	
 	if (id.x >= parameters.region.z || id.y >= parameters.region.w) return; // Skip if invocation ID is greater than region size
-
-	//ivec2 modthing = imod(id + parameters.region.xy, parameters.texels_per_vertex);
-
-	//bool write_height = (modthing.x == 0) && (modthing.y == 0);
 	
 	ivec2 size = imageSize(gradient_buffers).xy;
 	ivec2 texel = id + parameters.region.xy - (size / 2 - parameters.texels_per_vertex); // half size
+	ivec2 wrapped_texel = imod(texel, size);
 
 	vec2 scale = parameters.vertex_spacing * float(1 << parameters.lod) / vec2(parameters.texels_per_vertex);
 	
 	float erosion_factor;
 	vec3 height = height_map(texel * scale, erosion_factor);
 
-	ivec2 wrapped_texel = imod(texel, size);
-	
-	//if (write_height) {
-		//ivec2 height_texel = wrapped_texel / parameters.texels_per_vertex;
-		imageStore(height_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.x, 0.0, 0.0, 0.0));
-	//}
-	
+	imageStore(height_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.x, 0.0, 0.0, 0.0));
 	imageStore(gradient_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.yz, 0.0, 0.0));
 
 	// Indices correspond to texture asset ordering

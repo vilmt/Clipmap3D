@@ -50,7 +50,7 @@ var lod_count: int:
 		_compute_needs_update = true
 		_schedule_update()
 
-# Used to calculate the number of vertices, which determines the buffer size
+# Used to calculate the vertex count which is equal to the buffer size
 var tile_size: Vector2i:
 	set(value):
 		tile_size = value
@@ -152,7 +152,7 @@ func _clear_threaded() -> void:
 
 func _ensure_device_threaded() -> bool:
 	if not _rd:
-		#NOTE: could use local rendering device
+		# NOTE: could use local rendering device
 		_rd = RenderingServer.get_rendering_device()
 		if not _rd:
 			push_error("RenderingDevice is not supported on Compatibility renderer.")
@@ -214,7 +214,6 @@ func _ensure_buffers_threaded() -> bool:
 	var height_format := RDTextureFormat.new()
 	height_format.format = HEIGHT_BUFFER_FORMAT
 	height_format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
-	# Height buffers are only sampled for every vertex, so it doesn't follow texels_per_vertex
 	height_format.width = vertex_count.x * texels_per_vertex.x
 	height_format.height = vertex_count.y * texels_per_vertex.y
 	height_format.array_layers = lod_count

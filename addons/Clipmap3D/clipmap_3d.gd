@@ -96,7 +96,8 @@ const MAX_TEXTURE_COUNT: int = 32
 @export_enum("Off:0", "On:1", "Double-Sided:2", "Shadows Only:3") var cast_shadows: int = 1:
 	set(value):
 		cast_shadows = value
-		_mesh_handler.cast_shadows = cast_shadows as RenderingServer.ShadowCastingSetting
+		if _mesh_handler:
+			_mesh_handler.cast_shadows = cast_shadows as RenderingServer.ShadowCastingSetting
 
 @export_group("Collision", "collision")
 @export_custom(PROPERTY_HINT_GROUP_ENABLE, "") var collision_enabled: bool = true:
@@ -209,6 +210,6 @@ func _update_material():
 	material.set_shader_parameter(&"_texels_per_vertex", texels_per_vertex)
 	
 	if _compute_handler:
-		material.set_shader_parameter(&"_height_maps", _compute_handler.get_height_buffer_rid())
-		material.set_shader_parameter(&"_gradient_maps", _compute_handler.get_gradient_buffer_rid())
-		material.set_shader_parameter(&"_control_maps", _compute_handler.get_control_buffer_rid())
+		material.set_shader_parameter(&"_height_buffer", _compute_handler.get_height_buffer_rid())
+		material.set_shader_parameter(&"_gradient_buffer", _compute_handler.get_gradient_buffer_rid())
+		material.set_shader_parameter(&"_control_buffer", _compute_handler.get_control_buffer_rid())
