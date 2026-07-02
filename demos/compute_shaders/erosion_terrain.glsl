@@ -15,7 +15,6 @@ layout(push_constant, std430) uniform Parameters {
 	vec2 vertex_spacing;
 } parameters;
 
-#define EPSILON 1e-6
 #define INV_255 0.003921568627450
 #define TAU 6.28318530717958
 
@@ -33,23 +32,23 @@ void brush_replace(inout Material mat, uint id) {
 	mat.blend = 0.0;
 }
 
-void brush_add(inout Material mat, uint id, float strength) {
-	if (strength < EPSILON) return;
+void brush_add(inout Material mat, uint id, float weight) {
+	if (weight < 1e-6) return;
 	
-	strength = clamp(strength, 0.0, 1.0);
+	weight = clamp(weight, 0.0, 1.0);
 	
 	if (id != mat.id_0 && id != mat.id_1) {
 		if (mat.blend > 0.5) {
-			mat.blend = min(mat.blend + strength, 1.0);
+			mat.blend = min(mat.blend + weight, 1.0);
 			mat.id_0 = mat.blend > 1.0 - INV_255 ? id : mat.id_0;
 		} else {
-			mat.blend = max(mat.blend - strength, 0.0);
+			mat.blend = max(mat.blend - weight, 0.0);
 			mat.id_1 = mat.blend < INV_255 ? id : mat.id_1;
 		}
 	}
 	
-	if (mat.id_0 == id) mat.blend = max(mat.blend - strength, 0.0);
-	if (mat.id_1 == id) mat.blend = min(mat.blend + strength, 1.0);
+	if (mat.id_0 == id) mat.blend = max(mat.blend - weight, 0.0);
+	if (mat.id_1 == id) mat.blend = min(mat.blend + weight, 1.0);
 	
 }
 
@@ -118,14 +117,12 @@ vec3 ridges(vec2 p, vec2 curl) {
 }
 
 
-// (height, dHeight_dx, dHeight_dy)
+// Returns (height, dHeight_dx, dHeight_dz), and some normalized painting parameters
 vec3 height_map(vec2 position, out float erosion_factor) {
-	const float scale = 0.0005; // master scale value
-	
     // FBM terrain
 	vec3 height = vec3(0.0);
 	float height_amplitude = 1500.0;
-	float height_frequency = 1.0 * scale;
+	float height_frequency = 0.0005;
 	
 	for (int i = 0; i < 6; i++) {
 		vec3 layer = noise(position * height_frequency) * height_amplitude;
@@ -141,18 +138,18 @@ vec3 height_map(vec2 position, out float erosion_factor) {
 	
 	// FBM erosion
 	vec3 erosion = vec3(0.0);
-	float erosion_amplitude = 10.0;
-	float erosion_frequency = 10.0 * scale;
+	float erosion_amplitude = 20.0;
+	float erosion_frequency = 0.005;
 	
 	float initial_erosion_amplitude = erosion_amplitude;
 	
-	for (int i = 0; i < 4; i++) {
-		vec2 curl = (height.zy + erosion.zy) * vec2(1.0, -1.0); // scale-invariant curl
+	for (int i = 0; i < 5; i++) {
+		vec2 curl = (height.zy + erosion.zy) * vec2(1.0, -1.0);
 		vec3 layer = ridges(position * erosion_frequency, curl) * erosion_amplitude;
 		erosion += layer * vec3(1.0, vec2(erosion_frequency));
 		
-		erosion_amplitude *= 0.5;
-		erosion_frequency *= 1.8;
+		erosion_amplitude *= 0.5; // gain
+		erosion_frequency *= 1.8; // lacunarity
 	}
 	
 	erosion_factor = erosion.x / initial_erosion_amplitude;
@@ -176,31 +173,43 @@ void main() {
 
 	imageStore(height_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.x, 0.0, 0.0, 0.0));
 	imageStore(gradient_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.yz, 0.0, 0.0));
+	
+	/*
+	Painting: we use painting helper functions and calculated painting parameters to decide two dominant materials.
+	These material IDs and a blending float are written into the control buffer, and later parsed by the fragment function.
+	*/
 
-	// Indices correspond to texture asset ordering
+	Material mat = Material(0u, 0u, 0.0);
+
+	// Material IDs: indices correspond to Clipmap3DTextureAsset ordering.
 	#define GRASS_ID 0
 	#define CLIFF_ID 1
 	#define SNOW_ID 2
 	#define MOSS_ID 3
-	
-	// arbitrary parameters for painting (independent of world scaling)
-	float height_factor = height.x;
-	float slope_factor = 1.0 - normalize(vec3(-height.y, 0.0001, -height.z)).y;
-	float ridge_factor = max(erosion_factor, 0.0);
-	
-	// material painting
-	Material mat = Material(0u, 0u, 0.0);
-	
-	brush_replace(mat, CLIFF_ID); // initialize with cliff
 
-	float moss_weight = smoothstep(1.0, 0.9, height_factor + slope_factor * 0.8);
-	brush_add(mat, MOSS_ID, moss_weight); // paint moss around grass
+	// "Factors" are normalized painting parameters
+	float slope_factor = 1.0 - normalize(vec3(-height.y, 1.0, -height.z)).y;
+	float ridge_factor = max(erosion_factor, 0.0);
+	float occlusion_factor = min(erosion_factor, 0.0);
+
+	// Initialize with cliff
+	brush_replace(mat, CLIFF_ID);
+
+	// Paint some moss before grass
+	float moss_height_factor = 1.0 - smoothstep(1200.0, 1210.0, height.x);
+	float moss_weight = moss_height_factor;
+	brush_add(mat, MOSS_ID, moss_weight);
 	
-	float grass_weight = smoothstep(1.0, 0.9, height_factor + slope_factor);
-	brush_add(mat, GRASS_ID, grass_weight); // disincentivize grass growth in high and steep areas
+	// Paint some grass on top of the moss
+	float grass_height_factor = 1.0 - smoothstep(1200.0, 1230.0, height.x);
+	float grass_weight = grass_height_factor;
+	grass_weight = 0.0;
+	brush_add(mat, GRASS_ID, grass_weight);
 	
-	float snow_weight = smoothstep(0.98, 1.0, height_factor * 1.2 + ridge_factor * 0.2) * smoothstep(0.6, 0.605, height_factor);
-	brush_add(mat, SNOW_ID, snow_weight); // incentivize snow in high and ridged areas
+	// Paint snow at high elevation
+	float snow_weight = 0.0; 								// Snow is guaranteed above 1700 m
+	snow_weight = max(snow_weight, smoothstep(1600.0, 1700.0, height.x) * smoothstep(0.4, 0.5, ridge_factor));	// Snow also appears on ridges above 1600 m
+	brush_add(mat, SNOW_ID, snow_weight);
 	
 	// encode control
 	uint control = 0u;

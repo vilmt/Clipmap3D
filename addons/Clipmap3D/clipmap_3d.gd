@@ -36,10 +36,22 @@ const MAX_TEXTURE_COUNT: int = 32
 		if _mesh_handler:
 			_mesh_handler.max_height = max_height
 
-#@export var texture_assets: Array[Clipmap3DTextureAsset]:
-	#set(value):
-		#texture_assets = value
-
+@export var texture_assets: Array[Clipmap3DTextureAsset]:
+	set(value):
+		if texture_assets:
+			for texture_asset: Clipmap3DTextureAsset in texture_assets:
+				if not texture_asset:
+					continue
+				if texture_asset.changed.is_connected(_on_texture_asset_changed):
+					texture_asset.changed.disconnect(_on_texture_asset_changed)
+		texture_assets = value
+		if texture_assets:
+			for texture_asset: Clipmap3DTextureAsset in texture_assets:
+				if not texture_asset:
+					continue
+				if not texture_asset.changed.is_connected(_on_texture_asset_changed):
+					texture_asset.changed.connect(_on_texture_asset_changed)
+		_on_texture_asset_changed()
 
 @export_group("Mesh", "mesh")
 
@@ -129,6 +141,19 @@ var _collision_handler: Clipmap3DCollisionHandler
 
 var _last_position := Vector3(INF, INF, INF)
 
+var _textures_need_rebuild: bool = true
+
+var _albedo_textures_rid: RID
+var _albedo_remap := PackedInt32Array()
+var _normal_textures_rid: RID
+var _normal_remap := PackedInt32Array()
+
+var _uv_scales := PackedVector2Array()
+var _albedo_modulates := PackedColorArray()
+var _roughness_offsets := PackedFloat32Array()
+var _normal_depths := PackedFloat32Array()
+var _flags := PackedInt32Array()
+
 func _enter_tree() -> void:
 	request_ready()
 
@@ -169,6 +194,7 @@ func _exit_tree() -> void:
 		_compute_handler.clear()
 	if _mesh_handler:
 		_mesh_handler.clear()
+	_clear_textures()
 
 func _process(_delta: float) -> void:
 	_update_position()
@@ -206,10 +232,137 @@ func _update_material():
 	material.set_shader_parameter(&"_lod_count", mesh_lod_count)
 	material.set_shader_parameter(&"_tile_size", mesh_tile_size)
 	material.set_shader_parameter(&"_target_position", _last_position)
-	
 	material.set_shader_parameter(&"_texels_per_vertex", texels_per_vertex)
+	
+	material.set_shader_parameter(&"_albedo_textures", _albedo_textures_rid)
+	material.set_shader_parameter(&"_albedo_remap", _albedo_remap)
+	
+	material.set_shader_parameter(&"_normal_textures", _normal_textures_rid)
+	material.set_shader_parameter(&"_normal_remap", _normal_remap)
+	
+	material.set_shader_parameter(&"_uv_scales", _uv_scales)
+	material.set_shader_parameter(&"_albedo_modulates", _albedo_modulates)
+	material.set_shader_parameter(&"_roughness_offsets", _roughness_offsets)
+	material.set_shader_parameter(&"_normal_depths", _normal_depths)
+	material.set_shader_parameter(&"_flags", _flags)
 	
 	if _compute_handler:
 		material.set_shader_parameter(&"_height_buffer", _compute_handler.get_height_buffer_rid())
 		material.set_shader_parameter(&"_gradient_buffer", _compute_handler.get_gradient_buffer_rid())
 		material.set_shader_parameter(&"_control_buffer", _compute_handler.get_control_buffer_rid())
+
+## Textures
+
+func _check_format(image: Image, format: Image.Format, size: Vector2i, has_mipmaps: bool) -> bool:
+	if not image:
+		return false
+	
+	if image.get_format() != format:
+		push_error("Texture asset format mismatch.")
+		return false
+	if image.get_size() != size:
+		push_error("Texture size mismatch.")
+		return false
+	if image.has_mipmaps() != has_mipmaps:
+		push_error("Texture mipmaps enabled mismatch.")
+		return false
+	
+	return true
+
+func _rebuild_textures():
+	_clear_textures()
+	
+	var albedo_images: Array[Image] = []
+	_albedo_remap.resize(MAX_TEXTURE_COUNT)
+	_albedo_remap.fill(-1)
+	var albedo_format := Image.Format.FORMAT_MAX
+	var albedo_size: Vector2i
+	var albedo_has_mipmaps: bool
+	
+	var normal_images: Array[Image] = []
+	_normal_remap.resize(MAX_TEXTURE_COUNT)
+	_normal_remap.fill(-1)
+	var normal_format := Image.Format.FORMAT_MAX
+	var normal_size: Vector2i
+	var normal_has_mipmaps: bool
+	
+	_uv_scales.resize(MAX_TEXTURE_COUNT)
+	_uv_scales.fill(Clipmap3DTextureAsset.UV_SCALE_DEFAULT)
+	
+	_albedo_modulates.resize(MAX_TEXTURE_COUNT)
+	_albedo_modulates.fill(Clipmap3DTextureAsset.ALBEDO_MODULATE_DEFAULT)
+	
+	_roughness_offsets.resize(MAX_TEXTURE_COUNT)
+	_roughness_offsets.fill(Clipmap3DTextureAsset.ROUGHNESS_OFFSET_DEFAULT)
+	
+	_normal_depths.resize(MAX_TEXTURE_COUNT)
+	_normal_depths.fill(Clipmap3DTextureAsset.NORMAL_DEPTH_DEFAULT)
+	
+	_flags.resize(MAX_TEXTURE_COUNT)
+	_flags.fill(Clipmap3DTextureAsset.FLAGS_DEFAULT)
+	
+	for i: int in texture_assets.size():
+		var texture_asset := texture_assets[i]
+		if not texture_asset:
+			continue
+		
+		_uv_scales[i] = texture_asset.uv_scale
+		_albedo_modulates[i] = texture_asset.albedo_modulate
+		_roughness_offsets[i] = texture_asset.roughness_offset
+		_normal_depths[i] = texture_asset.normal_depth
+		_flags[i] = texture_asset.flags
+		
+		if texture_asset.albedo_texture:
+			var albedo_image := texture_asset.albedo_texture.get_image()
+		
+			if albedo_format == Image.Format.FORMAT_MAX:
+				albedo_format = albedo_image.get_format()
+				albedo_size = albedo_image.get_size()
+				albedo_has_mipmaps = albedo_image.has_mipmaps()
+				
+				_albedo_remap[i] = albedo_images.size()
+				albedo_images.append(albedo_image)
+			else:
+				if _check_format(albedo_image, albedo_format, albedo_size, albedo_has_mipmaps):
+					_albedo_remap[i] = albedo_images.size()
+					albedo_images.append(albedo_image)
+		
+		if texture_asset.normal_texture:
+			var normal_image := texture_asset.normal_texture.get_image()
+		
+			if normal_format == Image.Format.FORMAT_MAX:
+				normal_format = normal_image.get_format()
+				normal_size = normal_image.get_size()
+				normal_has_mipmaps = normal_image.has_mipmaps()
+				
+				_normal_remap[i] = normal_images.size()
+				normal_images.append(normal_image)
+			else:
+				if _check_format(normal_image, normal_format, normal_size, normal_has_mipmaps):
+					_normal_remap[i] = normal_images.size()
+					normal_images.append(normal_image)
+	
+	if not albedo_images.is_empty():
+		_albedo_textures_rid = RenderingServer.texture_2d_layered_create(albedo_images, RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
+	if not normal_images.is_empty():
+		_normal_textures_rid = RenderingServer.texture_2d_layered_create(normal_images, RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
+	
+	_update_material()
+
+func _clear_textures():
+	if _albedo_textures_rid.is_valid():
+		RenderingServer.free_rid(_albedo_textures_rid)
+	_albedo_remap = PackedInt32Array()
+	if _normal_textures_rid.is_valid():
+		RenderingServer.free_rid(_normal_textures_rid)
+	_normal_remap = PackedInt32Array()
+	
+	_uv_scales = PackedVector2Array()
+	_albedo_modulates = PackedColorArray()
+	_roughness_offsets = PackedFloat32Array()
+	_normal_depths = PackedFloat32Array()
+	_flags = PackedInt32Array()
+
+func _on_texture_asset_changed():
+	_textures_need_rebuild = true
+	_rebuild_textures()
