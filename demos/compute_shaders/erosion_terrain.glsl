@@ -143,7 +143,7 @@ vec3 height_map(vec2 position, out float erosion_factor) {
 	
 	float initial_erosion_amplitude = erosion_amplitude;
 	
-	for (int i = 0; i < 5; i++) {
+	for (int i = 0; i < 0; i++) {
 		vec2 curl = (height.zy + erosion.zy) * vec2(1.0, -1.0);
 		vec3 layer = ridges(position * erosion_frequency, curl) * erosion_amplitude;
 		erosion += layer * vec3(1.0, vec2(erosion_frequency));
@@ -167,7 +167,7 @@ void main() {
 	ivec2 wrapped_texel = imod(texel, size);
 
 	vec2 scale = parameters.vertex_spacing * float(1 << parameters.lod) / vec2(parameters.texels_per_vertex);
-	
+
 	float erosion_factor;
 	vec3 height = height_map(texel * scale, erosion_factor);
 

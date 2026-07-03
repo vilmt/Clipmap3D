@@ -187,7 +187,6 @@ func _ready():
 	
 	_compute_handler.build()
 	_mesh_handler.build()
-	
 
 func _exit_tree() -> void:
 	if _compute_handler:

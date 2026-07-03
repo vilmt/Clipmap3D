@@ -3,6 +3,8 @@ render_mode blend_mix;
 
 // BUG: small seams everywhere, seems like precision issue
 
+// BUG: vertex spacing does not work. TODO: remove vertex spacing, and use scale property instead.
+
 #define MAX_TEXTURE_COUNT 32
 #define INV_255 0.003921568627450
 #define ALBEDO_DEFAULT vec4(0.8, 0.8, 0.8, 1.0)
@@ -44,16 +46,21 @@ varying vec3 world_position;
 varying float vertex_lod;
 varying vec3 debug_albedo;
 
-// Bilinear texture coordinates
-vec3 gather_coords(vec2 uv, float lod, vec2 sampler_size) {
-	vec2 i = floor(uv);
-	return vec3((i + 0.5) / sampler_size, lod);
+varying flat float value;
+
+vec2 get_bilinear_uv(vec2 texel, vec2 sampler_size) {
+	vec2 i = floor(texel);
+	return (i + 0.5) / sampler_size;
 }
 
-// Bilinear texture weights
-vec4 gather_weights(vec2 uv) {
-	vec2 w = fract(uv);
+vec4 get_bilinear_weights(vec2 texel) {
+	vec2 w = fract(texel);
 	return vec2(1.0 - w.x, w.x).xyxy * vec2(1.0 - w.y, w.y).xxyy;
+}
+
+ivec2 imod(ivec2 x, ivec2 s) {
+	ivec2 m = min(sign(x), 0);
+	return x-s*((x-m)/s+m);
 }
 
 void vertex() {
@@ -63,7 +70,7 @@ void vertex() {
 	vec2 scale = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[2].xyz));
 	vec2 inv_scale = 1.0 / scale;
 	vec2 inv_texel_scale = inv_scale * vec2(_texels_per_vertex);
-	float lod_floor = round(log2(scale.x / _vertex_spacing.x));
+	float lod_floor = log2(scale.x / _vertex_spacing.x);
 	
 	vec2 parity_mask = mod(floor(world_position.xz * inv_scale + 0.5), 2.0);
 	vec2 lod_origin = (world_position.xz - _target_position.xz) * inv_texel_scale;
@@ -74,27 +81,43 @@ void vertex() {
 	
 	float lod_fract = smoothstep(1.0 - lod_blend_ratio, 1.0, blend_mask);
 	lod_fract = int(lod_floor) >= full_size.z - 1 ? 0.0 : lod_fract; // ensure outer lod_floor does not blend
+	//lod_fract = min(1.0 - 1e-1, lod_fract);
 	
 	vertex_lod = lod_floor + lod_fract;
 	
+	value = lod_fract;
+	
 	// geo-morphing offset
+	// TODO: clamp lod_fract when it's very close to avoid degenerate triangles
 	vec2 offset = parity_mask * lod_fract;
 	VERTEX.xz += offset;
 	world_position.xz += offset * scale;
 	
-	vec2 uv = world_position.xz * inv_texel_scale;
+	vec2 texel = world_position.xz * inv_texel_scale;
 	
-	vec3 coords = gather_coords(uv, lod_floor, vec2(full_size.xy));
-	vec4 weights = gather_weights(uv);
+	vec2 uv = get_bilinear_uv(texel, vec2(full_size.xy));
+	vec4 weights = get_bilinear_weights(texel);
 	
 	// TODO: try texelFetch with imod
+	
+	// Why does this work? Samples are separated by texels_per_vertex / size, but using full size works. Why???
 	vec3 s = vec3(1.0 / vec2(full_size.xy), 0.0);
+	
 	vec4 heights = vec4(
-		texture(_height_buffer, coords + s.zzz).r,
-		texture(_height_buffer, coords + s.xzz).r,
-		texture(_height_buffer, coords + s.zyz).r,
-		texture(_height_buffer, coords + s.xyz).r
+		texture(_height_buffer, vec3(uv       , lod_floor)).r,
+		texture(_height_buffer, vec3(uv + s.xz, lod_floor)).r,
+		texture(_height_buffer, vec3(uv + s.zy, lod_floor)).r,
+		texture(_height_buffer, vec3(uv + s.xy, lod_floor)).r
 	);
+	
+	//ivec3 si = ivec3(_texels_per_vertex, 0);
+	//
+	//heights = vec4(
+		//texelFetch(_height_buffer, ivec3(imod(ivec2(floor(texel))        , full_size.xy), int(lod_floor + 1e-5)), 0).r,
+		//texelFetch(_height_buffer, ivec3(imod(ivec2(floor(texel)) + si.xz, full_size.xy), int(lod_floor + 1e-5)), 0).r,
+		//texelFetch(_height_buffer, ivec3(imod(ivec2(floor(texel)) + si.zy, full_size.xy), int(lod_floor + 1e-5)), 0).r,
+		//texelFetch(_height_buffer, ivec3(imod(ivec2(floor(texel)) + si.xy, full_size.xy), int(lod_floor + 1e-5)), 0).r
+	//);
 	
 	VERTEX.y = dot(heights, weights);
 	world_position.y = VERTEX.y;
@@ -110,23 +133,7 @@ struct Material {
 	float total_weight;
 };
 
-void combine_weights(uint id, float weight, inout uint ids[16], inout float weights[16], inout int count) {
-	// If ID is found, add to existing weight.
-	for (int i = 0; i < count; i++) {
-		if (ids[i] == id) {
-			weights[i] += weight;
-			return;
-		}
-	}
-	
-	// If ID is not found, add to list.
-	ids[count] = id;
-	weights[count] = weight;
-	count++;
-}
-
 void accumulate_material(inout Material mat, uint id, float weight) {
-	if (weight < 1e-4) return;
 	vec2 uv = world_position.xz * _uv_scales[id];
 	// TODO: stochastic sampler based directly on world position. Do not make it dependent on LOD.
 	
@@ -156,6 +163,9 @@ void accumulate_material(inout Material mat, uint id, float weight) {
 }
 
 void fragment() {
+	ALBEDO = vec3(value);
+	//ALBEDO = vec3(0.0);
+	
 	ivec3 buffer_size = textureSize(_gradient_buffer, 0);
 	
 	vec2 mip_uv = (world_position.xz * vec2(_texels_per_vertex) + 0.5) / vec2(buffer_size.xy);
@@ -168,8 +178,8 @@ void fragment() {
 	// Lod 0 gradient
 	float lod_0 = floor(lod);
 	vec2 uv_0 = world_position.xz * vec2(_texels_per_vertex) * exp2(-lod_0);
-	vec3 coords_0 = gather_coords(uv_0, lod_0, vec2(buffer_size.xy));
-	vec4 weights_0 = gather_weights(uv_0);
+	vec3 coords_0 = vec3(get_bilinear_uv(uv_0, vec2(buffer_size.xy)), lod_0);
+	vec4 weights_0 = get_bilinear_weights(uv_0);
 	vec2 gradient_0 = vec2(
 		dot(textureGather(_gradient_buffer, coords_0, 0).wzxy, weights_0),
 		dot(textureGather(_gradient_buffer, coords_0, 1).wzxy, weights_0)
@@ -178,8 +188,8 @@ void fragment() {
 	// Lod 1 gradient
 	float lod_1 = lod_0 + 1.0;
 	vec2 uv_1 = uv_0 * 0.5;
-	vec3 coords_1 = gather_coords(uv_1, lod_1, vec2(buffer_size.xy));
-	vec4 weights_1 = gather_weights(uv_1);
+	vec3 coords_1 = vec3(get_bilinear_uv(uv_1, vec2(buffer_size.xy)), lod_1);
+	vec4 weights_1 = get_bilinear_weights(uv_1);
 	vec2 gradient_1 = vec2(
 		dot(textureGather(_gradient_buffer, coords_1, 0).wzxy, weights_1),
 		dot(textureGather(_gradient_buffer, coords_1, 1).wzxy, weights_1)
@@ -201,9 +211,8 @@ void fragment() {
 	
 	Material mat = Material(vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0);
 	
-	uint ids[16];
-	float weights[16];
-	int count = 0;
+	float weights[32];
+	for (int i = 0; i < 32; i++) weights[i] = 0.0;
 	
 	// Lod 0 control
 	uvec4 controls_0 = floatBitsToUint(textureGather(_control_buffer, coords_0, 0).wzxy);
@@ -216,14 +225,14 @@ void fragment() {
 	weights_id_0_0 *= weights_0 * (1.0 - lod_fract);
 	weights_id_0_1 *= weights_0 * (1.0 - lod_fract);
 	
-	combine_weights(id_0_0.x, weights_id_0_0.x, ids, weights, count);
-	combine_weights(id_0_1.x, weights_id_0_1.x, ids, weights, count);
-	combine_weights(id_0_0.y, weights_id_0_0.y, ids, weights, count);
-	combine_weights(id_0_1.y, weights_id_0_1.y, ids, weights, count);
-	combine_weights(id_0_0.z, weights_id_0_0.z, ids, weights, count);
-	combine_weights(id_0_1.z, weights_id_0_1.z, ids, weights, count);
-	combine_weights(id_0_0.w, weights_id_0_0.w, ids, weights, count);
-	combine_weights(id_0_1.w, weights_id_0_1.w, ids, weights, count);
+	weights[id_0_0.x] += weights_id_0_0.x;
+	weights[id_0_1.x] += weights_id_0_1.x;
+	weights[id_0_0.y] += weights_id_0_0.y;
+	weights[id_0_1.y] += weights_id_0_1.y;
+	weights[id_0_0.z] += weights_id_0_0.z;
+	weights[id_0_1.z] += weights_id_0_1.z;
+	weights[id_0_0.w] += weights_id_0_0.w;
+	weights[id_0_1.w] += weights_id_0_1.w;
 	
 	// Lod 1 control
 	uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, coords_1, 0).wzxy);
@@ -236,17 +245,17 @@ void fragment() {
 	weights_id_1_0 *= weights_1 * lod_fract;
 	weights_id_1_1 *= weights_1 * lod_fract;
 	
-	combine_weights(id_1_0.x, weights_id_1_0.x, ids, weights, count);
-	combine_weights(id_1_1.x, weights_id_1_1.x, ids, weights, count);
-	combine_weights(id_1_0.y, weights_id_1_0.y, ids, weights, count);
-	combine_weights(id_1_1.y, weights_id_1_1.y, ids, weights, count);
-	combine_weights(id_1_0.z, weights_id_1_0.z, ids, weights, count);
-	combine_weights(id_1_1.z, weights_id_1_1.z, ids, weights, count);
-	combine_weights(id_1_0.w, weights_id_1_0.w, ids, weights, count);
-	combine_weights(id_1_1.w, weights_id_1_1.w, ids, weights, count);
+	weights[id_1_0.x] += weights_id_1_0.x;
+	weights[id_1_1.x] += weights_id_1_1.x;
+	weights[id_1_0.y] += weights_id_1_0.y;
+	weights[id_1_1.y] += weights_id_1_1.y;
+	weights[id_1_0.z] += weights_id_1_0.z;
+	weights[id_1_1.z] += weights_id_1_1.z;
+	weights[id_1_0.w] += weights_id_1_0.w;
+	weights[id_1_1.w] += weights_id_1_1.w;
 	
-	for (int i = 0; i < count; i++) {
-		accumulate_material(mat, ids[i], weights[i]);
+	for (uint id = 0u; id < 32u; id++) {
+		if (weights[id] > 1e-4) accumulate_material(mat, id, weights[id]);
 	}
 	
 	// Normalize all contributions
@@ -257,9 +266,9 @@ void fragment() {
 	mat.normal *= inv_total_weight;
 	mat.ao *= inv_total_weight;
 	
-	ALBEDO = mat.albedo;
-	ROUGHNESS = mat.roughness;
-	NORMAL_MAP = fma(mat.normal.xzy, vec3(0.5), vec3(0.5));
-	NORMAL_MAP_DEPTH = mat.normal_depth;
-	AO = mat.ao;
+	//ALBEDO = mat.albedo;
+	//ROUGHNESS = mat.roughness;
+	//NORMAL_MAP = fma(mat.normal.xzy, vec3(0.5), vec3(0.5));
+	//NORMAL_MAP_DEPTH = mat.normal_depth;
+	//AO = mat.ao;
 }
