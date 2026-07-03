@@ -1,8 +1,9 @@
 [gd_scene format=3 uid="uid://cq6vicc6yy7nc"]
 
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://addons/Clipmap3D/clipmap_3d.gd" id="1_e348m"]
-[ext_resource type="RDShaderFile" uid="uid://xjxu5li6gpx" path="res://demos/compute_shaders/erosion_terrain.glsl" id="2_237cg"]
+[ext_resource type="RDShaderFile" uid="uid://xjxu5li6gpx" path="res://demos/compute_shaders/erosion_terrain.glsl" id="2_p1oah"]
 [ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="3_4ispy"]
+[ext_resource type="Script" uid="uid://d20stuy1e0ig" path="res://addons/Clipmap3D/compute_data.gd" id="3_p1oah"]
 [ext_resource type="Resource" uid="uid://dw1xfupljk0rh" path="res://grass_asset.tres" id="4_ob4lt"]
 [ext_resource type="Resource" uid="uid://gmucl8qwvxxo" path="res://cliff_asset.tres" id="5_vsihy"]
 [ext_resource type="Resource" uid="uid://deandw8b7vm76" path="res://snow_asset.tres" id="6_p1oah"]
@@ -35,21 +36,27 @@ fog_depth_end = 15000.0
 dof_blur_far_distance = 2805.19
 dof_blur_far_transition = 765.43
 
+[sub_resource type="Resource" id="Resource_r2ioa"]
+script = ExtResource("3_p1oah")
+compute_shader = ExtResource("2_p1oah")
+texels_per_vertex = Vector2i(4, 4)
+metadata/_custom_type_script = "uid://d20stuy1e0ig"
+
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_237cg"]
 render_priority = 0
 shader = ExtResource("8_vsihy")
 shader_parameter/use_antialiasing = true
 shader_parameter/lod_blend_ratio = 0.10000000475
+shader_parameter/_texels_per_vertex = Vector2i(4, 4)
+shader_parameter/_vertex_spacing = Vector2(1, 1)
+shader_parameter/_target_position = Vector3(-126.321045, 0, -66.49136)
 shader_parameter/_albedo_remap = PackedInt32Array(0, 1, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
 shader_parameter/_normal_remap = PackedInt32Array(0, 1, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
 shader_parameter/_uv_scales = PackedVector2Array(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-shader_parameter/_albedo_modulates = PackedColorArray(1, 1, 1, 1, 0.851769, 0.8517689, 0.85176885, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+shader_parameter/_albedo_modulates = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 shader_parameter/_roughness_offsets = PackedFloat32Array(0.032, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 shader_parameter/_normal_depths = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 shader_parameter/_flags = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/_texels_per_vertex = Vector2i(4, 4)
-shader_parameter/_vertex_spacing = Vector2(1, 1)
-shader_parameter/_target_position = Vector3(-166.73706, 0, -2535.7212)
 
 [node name="ErosionTerrainDemo" type="Node3D" unique_id=932743419]
 
@@ -78,17 +85,17 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073 node_paths=PackedStringArray("follow_target")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -166.73706, 0, -2535.7212)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -126.321045, 0, -66.49136)
 script = ExtResource("1_e348m")
 follow_target = NodePath("../Player")
-compute_shader = ExtResource("2_237cg")
-texels_per_vertex = Vector2i(4, 4)
+compute_data = SubResource("Resource_r2ioa")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("4_ob4lt"), ExtResource("5_vsihy"), ExtResource("6_p1oah"), ExtResource("7_r2ioa")])
 mesh_tile_size = Vector2i(64, 64)
 mesh_lod_count = 8
 material = SubResource("ShaderMaterial_237cg")
 cast_shadows = 0
+aabb_height = 5000.0
 metadata/_custom_type_script = "uid://wudkpxu6xggb"
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -166.73706, 1224.0253, -2535.7212)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -126.321045, 1224.0253, -66.49136)

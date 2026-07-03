@@ -8,6 +8,5 @@
 script = ExtResource("1_h1lhm")
 uv_scale = Vector2(0.1, 0.1)
 albedo_texture = ExtResource("1_htnjj")
-albedo_modulate = Color(0.851769, 0.8517689, 0.85176885, 1)
 normal_texture = ExtResource("2_1jm24")
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"

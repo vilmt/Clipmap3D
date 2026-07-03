@@ -13,54 +13,46 @@ const HEIGHT_BUFFER_FORMAT := RenderingDevice.DATA_FORMAT_R32_SFLOAT
 const GRADIENT_BUFFER_FORMAT := RenderingDevice.DATA_FORMAT_R16G16_SFLOAT
 const CONTROL_BUFFER_FORMAT := RenderingDevice.DATA_FORMAT_R32_SFLOAT
 
-signal compute_finished
-
-var compute_shader: RDShaderFile:
+var compute_data: Clipmap3DComputeData:
 	set(value):
-		# Disconnect from old resource
-		if compute_shader and compute_shader.changed.is_connected(_on_shader_changed):
-			compute_shader.changed.disconnect(_on_shader_changed)
-		compute_shader = value
-		# Connect to new resource
-		if compute_shader and not compute_shader.changed.is_connected(_on_shader_changed):
-			compute_shader.changed.connect(_on_shader_changed)
+		if compute_data == value:
+			return
 		
-		_on_shader_changed()
-
-var compute_seed: int:
-	set(value):
-		compute_seed = value
+		if compute_data and compute_data.changed.is_connected(_on_compute_data_changed):
+			compute_data.changed.disconnect(_on_compute_data_changed)
+		compute_data = value
+		if compute_data and not compute_data.changed.is_connected(_on_compute_data_changed):
+			compute_data.changed.connect(_on_compute_data_changed)
 		
-		_compute_needs_update = true
-		_schedule_update()
-
-var texels_per_vertex: Vector2i:
-	set(value):
-		texels_per_vertex = value
-		
-		_buffers_need_rebuild = true
-		_compute_needs_update = true
-		_schedule_update()
+		_on_compute_data_changed()
 
 var lod_count: int:
 	set(value):
+		if lod_count == value:
+			return
 		lod_count = value
 		
 		_buffers_need_rebuild = true
 		_compute_needs_update = true
+		_material_needs_update = true
 		_schedule_update()
 
 # Used to calculate the vertex count which is equal to the buffer size
 var tile_size: Vector2i:
 	set(value):
+		if tile_size == value:
+			return
 		tile_size = value
 		
 		_buffers_need_rebuild = true
 		_compute_needs_update = true
+		_material_needs_update = true
 		_schedule_update()
 
 var vertex_spacing: Vector2:
 	set(value):
+		if vertex_spacing == value:
+			return
 		vertex_spacing = value
 		
 		_compute_needs_update = true
@@ -68,9 +60,54 @@ var vertex_spacing: Vector2:
 
 var world_origin: Vector2:
 	set(value):
+		if world_origin == value:
+			return
 		world_origin = value
 		
 		_compute_needs_update = true
+		_schedule_update()
+
+var material: ShaderMaterial:
+	set(value):
+		if material == value:
+			return
+		material = value
+		
+		_material_needs_update = true
+		_schedule_update()
+
+var _compute_shader: RDShaderFile:
+	set(value):
+		if _compute_shader == value:
+			return
+		# Disconnect from old resource
+		if _compute_shader and _compute_shader.changed.is_connected(_on_shader_changed):
+			_compute_shader.changed.disconnect(_on_shader_changed)
+		_compute_shader = value
+		# Connect to new resource
+		if _compute_shader and not _compute_shader.changed.is_connected(_on_shader_changed):
+			_compute_shader.changed.connect(_on_shader_changed)
+		
+		_on_shader_changed()
+
+var _compute_seed: int:
+	set(value):
+		if _compute_seed == value:
+			return
+		_compute_seed = value
+		
+		_compute_needs_update = true
+		_schedule_update()
+
+var _texels_per_vertex: Vector2i:
+	set(value):
+		if _texels_per_vertex == value:
+			return
+		_texels_per_vertex = value
+		
+		_buffers_need_rebuild = true
+		_compute_needs_update = true
+		_material_needs_update = true
 		_schedule_update()
 
 var _built: bool = false
@@ -78,6 +115,7 @@ var _built: bool = false
 var _shader_needs_rebuild: bool = true
 var _buffers_need_rebuild: bool = true
 var _compute_needs_update: bool = true
+var _material_needs_update: bool = true
 
 var _rd: RenderingDevice
 var _shader_rid: RID
@@ -103,6 +141,7 @@ func build():
 	_shader_needs_rebuild = true
 	_buffers_need_rebuild = true
 	_compute_needs_update = true
+	_material_needs_update = true
 	
 	_schedule_update()
 
@@ -113,17 +152,9 @@ func clear():
 	_shader_needs_rebuild = false
 	_buffers_need_rebuild = false
 	_compute_needs_update = false
+	_material_needs_update = false
 	
 	RenderingServer.call_on_render_thread(_clear_threaded)
-
-func get_height_buffer_rid() -> RID:
-	return _height_buffer_rid
-
-func get_gradient_buffer_rid() -> RID:
-	return _gradient_buffer_rid
-
-func get_control_buffer_rid() -> RID:
-	return _control_buffer_rid
 
 func _get_vertex_count() -> Vector2i:
 	return 4 * tile_size + 3 * Vector2i.ONE
@@ -136,13 +167,17 @@ func _update_threaded() -> void:
 		return
 	
 	if not _ensure_device_threaded():
+		_clear_threaded()
 		return
 	if not _ensure_shader_threaded():
+		_clear_threaded()
 		return
 	if not _ensure_buffers_threaded():
+		_clear_threaded()
 		return
 	
-	_compute_threaded()
+	_update_compute_threaded()
+	_update_material()
 
 func _clear_threaded() -> void:
 	_free_buffers_threaded()
@@ -169,10 +204,10 @@ func _ensure_shader_threaded() -> bool:
 	
 	_free_shader_threaded()
 	
-	if not compute_shader:
+	if not _compute_shader:
 		return false
 	
-	var spirv := compute_shader.get_spirv()
+	var spirv := _compute_shader.get_spirv()
 	
 	if not spirv.compile_error_compute.is_empty():
 		push_error("Compile error in compute shader: %s" % spirv.compile_error_compute)
@@ -187,13 +222,16 @@ func _ensure_shader_threaded() -> bool:
 func _free_shader_threaded() -> void:
 	if _pipeline_rid.is_valid():
 		_rd.free_rid(_pipeline_rid)
+		_pipeline_rid = RID()
 	if _shader_rid.is_valid():
 		_rd.free_rid(_shader_rid)
+		_shader_rid = RID()
 
 func _on_shader_changed():
 	_shader_needs_rebuild = true
 	_buffers_need_rebuild = true
 	_compute_needs_update = true
+	_material_needs_update = true
 	_schedule_update()
 
 #endregion
@@ -214,8 +252,8 @@ func _ensure_buffers_threaded() -> bool:
 	var height_format := RDTextureFormat.new()
 	height_format.format = HEIGHT_BUFFER_FORMAT
 	height_format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
-	height_format.width = vertex_count.x * texels_per_vertex.x
-	height_format.height = vertex_count.y * texels_per_vertex.y
+	height_format.width = vertex_count.x * _texels_per_vertex.x
+	height_format.height = vertex_count.y * _texels_per_vertex.y
 	height_format.array_layers = lod_count
 	height_format.usage_bits = \
 		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
@@ -236,8 +274,8 @@ func _ensure_buffers_threaded() -> bool:
 	var gradient_format := RDTextureFormat.new()
 	gradient_format.format = GRADIENT_BUFFER_FORMAT
 	gradient_format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
-	gradient_format.width = vertex_count.x * texels_per_vertex.x
-	gradient_format.height = vertex_count.y * texels_per_vertex.y
+	gradient_format.width = vertex_count.x * _texels_per_vertex.x
+	gradient_format.height = vertex_count.y * _texels_per_vertex.y
 	gradient_format.array_layers = lod_count
 	gradient_format.usage_bits = \
 		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
@@ -258,8 +296,8 @@ func _ensure_buffers_threaded() -> bool:
 	var control_format := RDTextureFormat.new()
 	control_format.format = CONTROL_BUFFER_FORMAT
 	control_format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
-	control_format.width = vertex_count.x * texels_per_vertex.x
-	control_format.height = vertex_count.y * texels_per_vertex.y
+	control_format.width = vertex_count.x * _texels_per_vertex.x
+	control_format.height = vertex_count.y * _texels_per_vertex.y
 	control_format.array_layers = lod_count
 	control_format.usage_bits = \
 		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
@@ -285,24 +323,34 @@ func _free_buffers_threaded() -> void:
 	# Uniform set must be checked explicitly since it may be freed with the shader
 	if _rd.uniform_set_is_valid(_uniform_set_rid):
 		_rd.free_rid(_uniform_set_rid)
+		_uniform_set_rid = RID()
 	
 	if _height_buffer_rid.is_valid():
 		RenderingServer.free_rid(_height_buffer_rid)
+		_height_buffer_rid = RID()
 	if _gradient_buffer_rid.is_valid():
 		RenderingServer.free_rid(_gradient_buffer_rid)
+		_gradient_buffer_rid = RID()
 	if _control_buffer_rid.is_valid():
 		RenderingServer.free_rid(_control_buffer_rid)
+		_control_buffer_rid = RID()
 	
 	if _height_buffer_rd_rid.is_valid():
 		_rd.free_rid(_height_buffer_rd_rid)
+		_height_buffer_rd_rid = RID()
 	if _gradient_buffer_rd_rid.is_valid():
 		_rd.free_rid(_gradient_buffer_rd_rid)
+		_gradient_buffer_rd_rid = RID()
 	if _control_buffer_rd_rid.is_valid():
 		_rd.free_rid(_control_buffer_rd_rid)
+		_control_buffer_rd_rid = RID()
 
 #endregion
 
-func _compute_threaded() -> void:
+func _update_compute_threaded() -> void:
+	if not _compute_needs_update:
+		return
+	
 	var current_origins: Array[Vector2i] = []
 	current_origins.resize(lod_count)
 	if _previous_origins.is_empty():
@@ -313,7 +361,7 @@ func _compute_threaded() -> void:
 	for lod: int in lod_count:
 		var scale := vertex_spacing * float(1 << lod)
 		var vertex_origin := Vector2i((world_origin / scale / snap).floor() * snap)
-		current_origins[lod] = vertex_origin * texels_per_vertex
+		current_origins[lod] = vertex_origin * _texels_per_vertex
 	
 	var size := _get_vertex_count()
 	
@@ -327,7 +375,7 @@ func _compute_threaded() -> void:
 		var delta_abs := delta.abs()
 		
 		if delta_abs.x >= size.x or delta_abs.y >= size.y:
-			var region := Rect2i(origin, size * texels_per_vertex)
+			var region := Rect2i(origin, size * _texels_per_vertex)
 			_generate_region_threaded(lod, region)
 		else:
 			if delta.x != 0:
@@ -340,7 +388,24 @@ func _compute_threaded() -> void:
 				_generate_region_threaded(lod, region)
 	
 	_compute_needs_update = false
-	compute_finished.emit()
+
+#region material lifecycle
+
+func _update_material():
+	if not material:
+		_material_needs_update = false
+		return
+	if not _material_needs_update:
+		return
+	print("stuff was set")
+	material.set_shader_parameter(&"_texels_per_vertex", _texels_per_vertex)
+	material.set_shader_parameter(&"_height_buffer", _height_buffer_rid)
+	material.set_shader_parameter(&"_gradient_buffer", _gradient_buffer_rid)
+	material.set_shader_parameter(&"_control_buffer", _control_buffer_rid)
+	
+	_material_needs_update = false
+
+#endregion
 
 func _generate_region_threaded(lod: int, region: Rect2i):
 	var compute_list := _rd.compute_list_begin()
@@ -354,10 +419,10 @@ func _generate_region_threaded(lod: int, region: Rect2i):
 	push.encode_s32(4, region.position.y)
 	push.encode_s32(8, region.size.x)
 	push.encode_s32(12, region.size.y)
-	push.encode_s32(16, texels_per_vertex.x)
-	push.encode_s32(20, texels_per_vertex.y)
+	push.encode_s32(16, _texels_per_vertex.x)
+	push.encode_s32(20, _texels_per_vertex.y)
 	push.encode_s32(24, lod)
-	push.encode_u32(28, compute_seed)
+	push.encode_u32(28, _compute_seed)
 	push.encode_float(32, vertex_spacing.x)
 	push.encode_float(36, vertex_spacing.y)
 	
@@ -368,3 +433,14 @@ func _generate_region_threaded(lod: int, region: Rect2i):
 	
 	_rd.compute_list_dispatch(compute_list, groups_x, groups_y, 1)
 	_rd.compute_list_end()
+
+func _on_compute_data_changed():
+	if compute_data:
+		_compute_shader = compute_data.compute_shader
+		_compute_seed = compute_data.compute_seed
+		_texels_per_vertex = compute_data.texels_per_vertex
+	else:
+		_compute_shader = null
+		_compute_seed = Clipmap3DComputeData.COMPUTE_SEED_DEFAULT
+		_texels_per_vertex = Clipmap3DComputeData.TEXELS_PER_VERTEX_DEFAULT
+	

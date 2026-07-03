@@ -18,6 +18,12 @@ uniform bool use_antialiasing = true;
 uniform float lod_blend_ratio: hint_range(0.0, 0.2928932188134525) = 0.2;
 
 group_uniforms private;
+
+uniform ivec2 _texels_per_vertex;
+// TODO: pass transform. Replaces these
+uniform vec2 _vertex_spacing;
+uniform vec3 _target_position;
+
 // densely packed, access using remap index
 // RGB: Albedo, A: Roughness
 uniform sampler2DArray _albedo_textures: source_color, repeat_enable, filter_linear_mipmap_anisotropic;
@@ -37,10 +43,6 @@ uniform uint[MAX_TEXTURE_COUNT] _flags;
 uniform highp sampler2DArray _height_buffer: hint_default_black, repeat_enable, filter_nearest;
 uniform highp sampler2DArray _gradient_buffer: hint_normal, repeat_enable, filter_nearest;
 uniform highp sampler2DArray _control_buffer: hint_default_black, repeat_enable, filter_nearest;
-
-uniform ivec2 _texels_per_vertex;
-uniform vec2 _vertex_spacing;
-uniform vec3 _target_position;
 
 varying vec3 world_position;
 varying float vertex_lod;
@@ -163,7 +165,7 @@ void accumulate_material(inout Material mat, uint id, float weight) {
 }
 
 void fragment() {
-	ALBEDO = vec3(value);
+	//ALBEDO = vec3(value);
 	//ALBEDO = vec3(0.0);
 	
 	ivec3 buffer_size = textureSize(_gradient_buffer, 0);
@@ -266,9 +268,9 @@ void fragment() {
 	mat.normal *= inv_total_weight;
 	mat.ao *= inv_total_weight;
 	
-	//ALBEDO = mat.albedo;
-	//ROUGHNESS = mat.roughness;
-	//NORMAL_MAP = fma(mat.normal.xzy, vec3(0.5), vec3(0.5));
-	//NORMAL_MAP_DEPTH = mat.normal_depth;
-	//AO = mat.ao;
+	ALBEDO = mat.albedo;
+	ROUGHNESS = mat.roughness;
+	NORMAL_MAP = fma(mat.normal.xzy, vec3(0.5), vec3(0.5));
+	NORMAL_MAP_DEPTH = mat.normal_depth;
+	AO = mat.ao;
 }
