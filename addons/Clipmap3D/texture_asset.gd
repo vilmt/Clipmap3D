@@ -7,8 +7,6 @@ const ROUGHNESS_OFFSET_DEFAULT: float = 0.0
 const NORMAL_DEPTH_DEFAULT: float = 1.0
 const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 
-## TODO: changed signals and live updating
-
 @export_custom(PROPERTY_HINT_LINK, "") var uv_scale := UV_SCALE_DEFAULT:
 	set(value):
 		uv_scale = value

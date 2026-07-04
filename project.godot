@@ -13,11 +13,14 @@ config_version=5
 config/name="Clipmap3D"
 run/main_scene="uid://cq6vicc6yy7nc"
 config/features=PackedStringArray("4.6", "Forward Plus")
-config/icon="res://demos/assets/textures/icon.svg"
 
 [debug]
 
 shapes/collision/shape_color=Color(0.89442784, 0, 0.25913548, 1)
+
+[display]
+
+window/vsync/vsync_mode=0
 
 [importer_defaults]
 
@@ -125,4 +128,4 @@ common/physics_interpolation=true
 rendering_device/driver.windows="d3d12"
 lights_and_shadows/use_physical_light_units=true
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
-anti_aliasing/quality/msaa_3d=1
+anti_aliasing/quality/msaa_3d=2

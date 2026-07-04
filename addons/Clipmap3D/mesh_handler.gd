@@ -17,14 +17,6 @@ var tile_size: Vector2i:
 		_meshes_need_rebuild = true
 		_schedule_update()
 
-var vertex_spacing: Vector2:
-	set(value):
-		if vertex_spacing == value:
-			return
-		vertex_spacing = value
-		_instances_need_update = true
-		_schedule_update()
-
 var material: ShaderMaterial:
 	set(value):
 		if material == value:
@@ -65,11 +57,11 @@ var render_layer: int:
 		_instances_need_update = true
 		_schedule_update()
 
-var target_position: Vector3:
+var target_transform: Transform3D:
 	set(value):
-		if target_position == value:
+		if target_transform == value:
 			return
-		target_position = value
+		target_transform = value
 		_instances_need_update = true
 		_schedule_update()
 
@@ -97,11 +89,11 @@ var _mesh_rids: Dictionary[MeshType, RID]
 
 var _instance_rids: Array[RID]
 var _instance_mesh_types: Array[MeshType]
-var _instance_offsets: Dictionary[MeshType, PackedVector2Array]
+var _instance_offsets: Dictionary[MeshType, PackedVector3Array]
 
 # NOTE: Edges have specific offsets depending on the parity of the target position
-var _edge_x_offsets: Dictionary[Vector2i, Vector2]
-var _edge_z_offsets: Dictionary[Vector2i, Vector2]
+var _edge_x_offsets: Dictionary[Vector2i, Vector3]
+var _edge_z_offsets: Dictionary[Vector2i, Vector3]
 
 var _built: bool = false
 var _meshes_need_rebuild: bool = false
@@ -133,23 +125,22 @@ func _update():
 	if _meshes_need_rebuild:
 		_clear_instances()
 		_clear_meshes()
-		
 		_create_meshes()
 		_create_instances()
 		
+		_meshes_need_rebuild = false
 		_meshes_need_update = true
 		_instances_need_update = true
+	
 	if _meshes_need_update:
 		_update_meshes()
+		_meshes_need_update = false
+	
 	if _instances_need_update:
 		_update_instances()
-	
-	_meshes_need_rebuild = false
-	_meshes_need_update = false
-	_instances_need_update = false
+		_instances_need_update = false
 
-#region Meshes
-
+#region meshes
 func _create_meshes():
 	_create_mesh(MeshType.CORE, tile_size * 2 + Vector2i.ONE)
 	_create_mesh(MeshType.TILE, tile_size)
@@ -174,10 +165,12 @@ func _create_mesh(type: MeshType, size: Vector2i) -> void:
 	var mesh_arrays: Array = []
 	mesh_arrays.resize(RenderingServer.ARRAY_MAX)
 	
+	var half_size := Vector3(float(size.x) * 0.5, 0.0, float(size.y) * 0.5)
+	
 	var vertices := PackedVector3Array()
 	for z: int in size.y + 1:
 		for x: int in size.x + 1:
-			vertices.append(Vector3(float(x) - size.x * 0.5, 0.0, float(z) - size.y * 0.5))
+			vertices.append(Vector3(float(x), 0.0, float(z)) - half_size)
 	mesh_arrays[RenderingServer.ARRAY_VERTEX] = vertices
 	
 	var indices := PackedInt32Array()
@@ -197,13 +190,11 @@ func _create_mesh(type: MeshType, size: Vector2i) -> void:
 			indices.append(t_r)
 	mesh_arrays[RenderingServer.ARRAY_INDEX] = indices
 	
-	# TODO: check if this is necessary. Normals are overwritten anyway.
 	var normals := PackedVector3Array()
 	normals.resize(vertices.size())
 	normals.fill(Vector3.UP)
 	mesh_arrays[RenderingServer.ARRAY_NORMAL] = normals
 	
-	# TODO: check if this is necessary
 	var tangents := PackedFloat32Array()
 	tangents.resize(vertices.size() * 4)
 	tangents.fill(0.0)
@@ -213,13 +204,11 @@ func _create_mesh(type: MeshType, size: Vector2i) -> void:
 	RenderingServer.mesh_add_surface_from_arrays(mesh, RenderingServer.PRIMITIVE_TRIANGLES, mesh_arrays)
 	_mesh_rids[type] = mesh
 	
-	var aabb := AABB(Vector3(-size.x, 0.0, -size.y) * 0.5, Vector3(size.x, aabb_height, size.y))
+	var aabb := AABB(-half_size, Vector3(float(size.x), aabb_height, float(size.y)))
 	RenderingServer.mesh_set_custom_aabb(mesh, aabb)
-
 #endregion
 
-#region Instances
-
+#region instances
 func _create_instances() -> void:
 	_create_instance(MeshType.CORE)
 	for lod: int in lod_count:
@@ -233,45 +222,45 @@ func _create_instances() -> void:
 	
 	# NOTE: Instance offsets are the same for each LOD.
 	
-	_instance_offsets[MeshType.CORE] = PackedVector2Array([Vector2(0.5, 0.5)])
+	_instance_offsets[MeshType.CORE] = PackedVector3Array([Vector3(0.5, 0.0, 0.5)])
 	
-	_instance_offsets[MeshType.TILE] = PackedVector2Array([
-		Vector2(tile_size.x * +1.5 + 1.0, tile_size.y * +1.5 + 1.0),
-		Vector2(tile_size.x * +0.5 + 1.0, tile_size.y * +1.5 + 1.0),
-		Vector2(tile_size.x * -0.5, tile_size.y * +1.5 + 1.0),
-		Vector2(tile_size.x * -1.5, tile_size.y * +1.5 + 1.0),
-		Vector2(tile_size.x * -1.5, tile_size.y * +0.5 + 1.0),
-		Vector2(tile_size.x * -1.5, tile_size.y * -0.5),
-		Vector2(tile_size.x * -1.5, tile_size.y * -1.5),
-		Vector2(tile_size.x * -0.5, tile_size.y * -1.5),
-		Vector2(tile_size.x * +0.5 + 1.0, tile_size.y * -1.5),
-		Vector2(tile_size.x * +1.5 + 1.0, tile_size.y * -1.5),
-		Vector2(tile_size.x * +1.5 + 1.0, tile_size.y * -0.5),
-		Vector2(tile_size.x * +1.5 + 1.0, tile_size.y * +0.5 + 1.0),
+	_instance_offsets[MeshType.TILE] = PackedVector3Array([
+		Vector3(tile_size.x * +1.5 + 1.0, 0.0, tile_size.y * +1.5 + 1.0),
+		Vector3(tile_size.x * +0.5 + 1.0, 0.0, tile_size.y * +1.5 + 1.0),
+		Vector3(tile_size.x * -0.5, 0.0, tile_size.y * +1.5 + 1.0),
+		Vector3(tile_size.x * -1.5, 0.0, tile_size.y * +1.5 + 1.0),
+		Vector3(tile_size.x * -1.5, 0.0, tile_size.y * +0.5 + 1.0),
+		Vector3(tile_size.x * -1.5, 0.0, tile_size.y * -0.5),
+		Vector3(tile_size.x * -1.5, 0.0, tile_size.y * -1.5),
+		Vector3(tile_size.x * -0.5, 0.0, tile_size.y * -1.5),
+		Vector3(tile_size.x * +0.5 + 1.0, 0.0, tile_size.y * -1.5),
+		Vector3(tile_size.x * +1.5 + 1.0, 0.0, tile_size.y * -1.5),
+		Vector3(tile_size.x * +1.5 + 1.0, 0.0, tile_size.y * -0.5),
+		Vector3(tile_size.x * +1.5 + 1.0, 0.0, tile_size.y * +0.5 + 1.0),
 	])
 	
-	_instance_offsets[MeshType.FILL_X] = PackedVector2Array([
-		Vector2(0.5, tile_size.y * 1.5 + 1.0),
-		Vector2(0.5, tile_size.y * -1.5)
+	_instance_offsets[MeshType.FILL_X] = PackedVector3Array([
+		Vector3(0.5, 0.0, tile_size.y * 1.5 + 1.0),
+		Vector3(0.5, 0.0, tile_size.y * -1.5)
 	])
 	
-	_instance_offsets[MeshType.FILL_Z] = PackedVector2Array([
-		Vector2(tile_size.x * 1.5 + 1.0, 0.5),
-		Vector2(tile_size.x * -1.5, 0.5)
+	_instance_offsets[MeshType.FILL_Z] = PackedVector3Array([
+		Vector3(tile_size.x * 1.5 + 1.0, 0.0, 0.5),
+		Vector3(tile_size.x * -1.5, 0.0, 0.5)
 	])
 	
 	_edge_x_offsets = {
-		Vector2i(0, 0): Vector2(tile_size.x * 2.0 + 1.5, 1.0),
-		Vector2i(1, 0): Vector2(tile_size.x * -2.0 - 0.5, 1.0),
-		Vector2i(0, 1): Vector2(tile_size.x * 2.0 + 1.5, 0.0),
-		Vector2i(1, 1): Vector2(tile_size.x * -2.0 - 0.5, 0.0)
+		Vector2i(0, 0): Vector3(tile_size.x * 2.0 + 1.5, 0.0, 1.0),
+		Vector2i(1, 0): Vector3(tile_size.x * -2.0 - 0.5, 0.0, 1.0),
+		Vector2i(0, 1): Vector3(tile_size.x * 2.0 + 1.5, 0.0, 0.0),
+		Vector2i(1, 1): Vector3(tile_size.x * -2.0 - 0.5, 0.0, 0.0)
 	}
 	
 	_edge_z_offsets = {
-		Vector2i(0, 0): Vector2(0.5, tile_size.y * 2.0 + 1.5),
-		Vector2i(1, 0): Vector2(0.5, tile_size.y * 2.0 + 1.5),
-		Vector2i(0, 1): Vector2(0.5, tile_size.y * -2.0 - 0.5),
-		Vector2i(1, 1): Vector2(0.5, tile_size.y * -2.0 - 0.5)
+		Vector2i(0, 0): Vector3(0.5, 0.0, tile_size.y * 2.0 + 1.5),
+		Vector2i(1, 0): Vector3(0.5, 0.0, tile_size.y * 2.0 + 1.5),
+		Vector2i(0, 1): Vector3(0.5, 0.0, tile_size.y * -2.0 - 0.5),
+		Vector2i(1, 1): Vector3(0.5, 0.0, tile_size.y * -2.0 - 0.5)
 	}
 
 func _update_instances() -> void:
@@ -282,40 +271,45 @@ func _update_instances() -> void:
 		RenderingServer.instance_set_layer_mask(instance_rid, render_layer)
 		
 	# NOTE: XZ-only positions are collapsed to 2D for clean vector operations
-	var world_position := Vector2(target_position.x, target_position.z)
+	var world_position := Vector2(target_transform.origin.x, target_transform.origin.z)
 	
 	var instance_index_start: int = 0
 	var instance_index_end: int = LOD_0_INSTANCE_COUNT
 	
 	for lod: int in lod_count:
-		var lod_scale := vertex_spacing * float(1 << lod)
+		var lod_scale := float(1 << lod)
 		var lod_position := (world_position / lod_scale).floor()
 		var edge_parity := Vector2i(lod_position).abs() % 2
 		
-		var instance_count: Dictionary[MeshType, int] = {}
+		var transform_snapped := target_transform
+		transform_snapped.origin.x = floorf(target_transform.origin.x / lod_scale) * lod_scale
+		transform_snapped.origin.z = floorf(target_transform.origin.z / lod_scale) * lod_scale
+		
+		var mesh_type_count: Dictionary[MeshType, int] = {}
 		
 		for instance_index: int in range(instance_index_start, instance_index_end):
 			var instance_rid := _instance_rids[instance_index]
-			var type := _instance_mesh_types[instance_index]
-			var count: int = instance_count.get(type, 0)
-			var offset: Vector2
-			match type:
+			var instance_mesh_type := _instance_mesh_types[instance_index]
+			var instance_count: int = mesh_type_count.get(instance_mesh_type, 0)
+			var offset: Vector3
+			match instance_mesh_type:
 				MeshType.EDGE_X:
 					offset = _edge_x_offsets[edge_parity]
 				MeshType.EDGE_Z:
 					offset = _edge_z_offsets[edge_parity]
 				_:
-					offset = _instance_offsets[type][count]
+					offset = _instance_offsets[instance_mesh_type][instance_count]
 			
-			var instance_position := Vector3(lod_position.x + offset.x, target_position.y, lod_position.y + offset.y)
-			var instance_transform := Transform3D(Basis.IDENTITY, instance_position).scaled(Vector3(lod_scale.x, 1.0, lod_scale.y))
+			var instance_transform := Transform3D(Basis.IDENTITY, offset).scaled(Vector3(lod_scale, 1.0, lod_scale))
+			instance_transform = transform_snapped * instance_transform
+			
 			RenderingServer.instance_set_transform(instance_rid, instance_transform)
 			RenderingServer.instance_teleport(instance_rid)
 			
-			if count == 0:
-				instance_count[type] = 1
+			if instance_count == 0:
+				mesh_type_count[instance_mesh_type] = 1
 			else:
-				instance_count[type] += 1
+				mesh_type_count[instance_mesh_type] += 1
 		
 		instance_index_start = instance_index_end
 		instance_index_end += LOD_X_INSTANCE_COUNT
@@ -335,5 +329,4 @@ func _create_instance(type: MeshType) -> void:
 	RenderingServer.instance_set_base(instance_rid, _mesh_rids[type])
 	_instance_rids.append(instance_rid)
 	_instance_mesh_types.append(type)
-
 #endregion

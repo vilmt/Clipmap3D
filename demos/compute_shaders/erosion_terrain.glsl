@@ -12,7 +12,6 @@ layout(push_constant, std430) uniform Parameters {
 	ivec2 texels_per_vertex;
 	int lod;
 	uint compute_seed;
-	vec2 vertex_spacing;
 } parameters;
 
 #define INV_255 0.003921568627450
@@ -160,13 +159,14 @@ vec3 height_map(vec2 position, out float erosion_factor) {
 void main() {
 	ivec2 id = ivec2(gl_GlobalInvocationID.xy);
 	
-	if (id.x >= parameters.region.z || id.y >= parameters.region.w) return; // Skip if invocation ID is greater than region size
+	// Skip if invocation ID is greater than region size
+	if (id.x >= parameters.region.z || id.y >= parameters.region.w) return;
 	
 	ivec2 size = imageSize(gradient_buffers).xy;
 	ivec2 texel = id + parameters.region.xy - (size / 2 - parameters.texels_per_vertex); // half size
 	ivec2 wrapped_texel = imod(texel, size);
 
-	vec2 scale = parameters.vertex_spacing * float(1 << parameters.lod) / vec2(parameters.texels_per_vertex);
+	vec2 scale = float(1 << parameters.lod) / vec2(parameters.texels_per_vertex);
 
 	float erosion_factor;
 	vec3 height = height_map(texel * scale, erosion_factor);

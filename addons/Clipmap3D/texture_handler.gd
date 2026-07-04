@@ -26,11 +26,15 @@ var material: ShaderMaterial:
 		_update_material_parameters()
 
 func build():
+	if _built:
+		return
 	_built = true
 	_textures_need_rebuild = true
 	_schedule_update()
 
 func clear():
+	if not _built:
+		return
 	_built = false
 	_textures_need_rebuild = false
 	_clear_textures()
@@ -63,15 +67,15 @@ func _rebuild_textures():
 	
 	_clear_textures()
 	
-	var albedo_format: TextureFormat
+	var albedo_parameters: ImageParameters
 	var albedo_images: Array[Image] = []
 	_albedo_remap.resize(MAX_TEXTURE_COUNT)
 	_albedo_remap.fill(-1)
 	
+	var normal_parameters: ImageParameters
 	var normal_images: Array[Image] = []
 	_normal_remap.resize(MAX_TEXTURE_COUNT)
 	_normal_remap.fill(-1)
-	var normal_format: TextureFormat
 	
 	_uv_scales.resize(MAX_TEXTURE_COUNT)
 	_uv_scales.fill(Clipmap3DTextureAsset.UV_SCALE_DEFAULT)
@@ -101,26 +105,29 @@ func _rebuild_textures():
 		
 		if texture_asset.albedo_texture:
 			var albedo_image := texture_asset.albedo_texture.get_image()
-			#RenderingServer.texture_get_format()
-		
-			if albedo_format:
-				if albedo_format.matches(albedo_image):
-					_albedo_remap[i] = albedo_images.size()
-					albedo_images.append(albedo_image)
+			var success: bool
+			
+			if albedo_parameters:
+				success = albedo_parameters.matches(albedo_image)
 			else:
-				albedo_format = TextureFormat.create(albedo_image)
+				albedo_parameters = ImageParameters.create(albedo_image)
+				success = true
+			
+			if success:
 				_albedo_remap[i] = albedo_images.size()
 				albedo_images.append(albedo_image)
 		
 		if texture_asset.normal_texture:
 			var normal_image := texture_asset.normal_texture.get_image()
-		
-			if normal_format:
-				if normal_format.matches(normal_image):
-					_normal_remap[i] = normal_images.size()
-					normal_images.append(normal_image)
+			var success: bool
+			
+			if normal_parameters:
+				success = normal_parameters.matches(normal_image)
 			else:
-				normal_format = TextureFormat.create(normal_image)
+				normal_parameters = ImageParameters.create(normal_image)
+				success = true
+			
+			if success:
 				_normal_remap[i] = normal_images.size()
 				normal_images.append(normal_image)
 	
@@ -160,35 +167,34 @@ func _clear_textures():
 
 func _on_texture_asset_changed():
 	_textures_need_rebuild = true
-	print("changed")
 	_schedule_update()
 
-#region TextureFormat
+#region ImageParameters
 
-class TextureFormat:
-	var _image_format: Image.Format
+class ImageParameters:
+	var _format: Image.Format
 	var _size: Vector2i
 	var _has_mipmaps: bool
 	
-	static func create(image: Image) -> TextureFormat:
-		var texture_format := TextureFormat.new()
-		texture_format._image_format = image.get_format()
-		texture_format._size = image.get_size()
-		texture_format._has_mipmaps = image.has_mipmaps()
-		return texture_format
+	static func create(image: Image) -> ImageParameters:
+		var parameters := ImageParameters.new()
+		parameters._format = image.get_format()
+		parameters._size = image.get_size()
+		parameters._has_mipmaps = image.has_mipmaps()
+		return parameters
 	
 	func matches(image: Image) -> bool:
 		if not image:
 			return false
 		
-		if image.get_format() != _image_format:
+		if image.get_format() != _format:
 			push_error("Texture asset format mismatch.")
 			return false
 		if image.get_size() != _size:
-			push_error("Texture size mismatch.")
+			push_error("Texture asset size mismatch.")
 			return false
 		if image.has_mipmaps() != _has_mipmaps:
-			push_error("Texture mipmaps enabled mismatch.")
+			push_error("Texture asset mipmaps enabled mismatch.")
 			return false
 		
 		return true
