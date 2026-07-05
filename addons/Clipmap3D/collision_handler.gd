@@ -1,14 +1,6 @@
 @tool
 class_name Clipmap3DCollisionHandler
 
-# TODO: should not query data when not built
-
-# NOTE: if adding holes to control map and mesh, will have to fetch that as well. Skip those triangles.
-# TODO: enforce that the physics mesh is much smaller than the buffer.
-
-# TODO: If built without compute handler, or if the data request fails, should just 
-# build a flat plane and wait for either the compute handler to be assigned or for a new region to be generated.
-
 var compute_handler: Clipmap3DComputeHandler:
 	set(value):
 		if compute_handler == value:
@@ -18,6 +10,8 @@ var compute_handler: Clipmap3DComputeHandler:
 		compute_handler = value
 		if compute_handler and not compute_handler.region_updated.is_connected(_on_region_updated):
 			compute_handler.region_updated.connect(_on_region_updated)
+		_data_invalid = true
+		
 		_schedule_update()
 
 var space_rid: RID:
@@ -36,12 +30,13 @@ var instance_id: int:
 		_body_needs_update = true
 		_schedule_update()
 
-# TODO: query
 var target_transform: Transform3D:
 	set(value):
 		if target_transform == value:
 			return
 		target_transform = value
+		_data_needs_update = true
+		_schedule_update()
 
 var mesh_radius: Vector2i:
 	set(value):
@@ -49,6 +44,7 @@ var mesh_radius: Vector2i:
 			return
 		mesh_radius = value
 		_shape_needs_rebuild = true
+		_data_needs_update = true
 		_schedule_update()
 
 var collision_layer: int:
@@ -83,10 +79,10 @@ var collision_lod: int:
 		if collision_lod == value:
 			return
 		collision_lod = value
-		# TODO: must fetch the entire lod again
-		# If does not exist, just build a flat plane and wait for region updates.
 		
 		_shape_needs_rebuild = true
+		_data_invalid = true
+		
 		_schedule_update()
 
 var collision_priority: int:
@@ -106,6 +102,12 @@ var debug_visible_collision_shapes: bool:
 		
 var _grid_to_face_indices: Array[PackedInt32Array]
 var _faces: PackedVector3Array
+
+var _desired_region: Rect2i
+var _available_region: Rect2i
+var _data_region: Rect2i
+var _data_request_pending: bool = false
+
 var _safe_region: Rect2i
 var _latest_data: PackedByteArray
 
@@ -114,6 +116,8 @@ var _body_needs_rebuild: bool = false
 var _body_needs_update: bool = false
 var _shape_needs_rebuild: bool = false
 var _shape_needs_update: bool = false
+var _data_needs_update: bool = false
+var _data_invalid: bool = false
 
 var _body_rid: RID
 var _debug_body: StaticBody3D
@@ -128,6 +132,7 @@ func build():
 	_body_needs_update = true
 	_shape_needs_rebuild = true
 	_shape_needs_update = true
+	_data_needs_update = true
 	
 	_schedule_update()
 
@@ -139,6 +144,7 @@ func clear():
 	_body_needs_update = false
 	_shape_needs_rebuild = false
 	_shape_needs_update = false
+	_data_needs_update = false
 	
 	_clear_shape()
 	_clear_body()
@@ -149,6 +155,8 @@ func _schedule_update():
 func _update():
 	if not _built:
 		return
+	
+	_update_data()
 	
 	if _shape_needs_rebuild:
 		_clear_shape()
@@ -218,8 +226,11 @@ func _create_shape():
 			_faces.append(grid[t_r])
 			_grid_to_face_indices[t_r].append(face_index + 5)
 
-# TODO: cannot just update shape once. Must keep monitoring player position and work based on that.
 func _update_shape():
+	if _data_request_pending:
+		return
+	
+	print("### Shape Updated!")
 	var grid_index: int = 0
 	var buffer_size := compute_handler.get_buffer_size()
 	var texels_per_vertex := compute_handler.get_texels_per_vertex()
@@ -318,27 +329,62 @@ func _clear_body():
 		_body_rid = RID()
 #endregion
 
-func _on_region_updated(lod: int, new_safe_region: Rect2i):
+func _update_data():
+	if not _data_needs_update:
+		return
+	
+	var new_desired_region := _get_desired_region()
+	
+	# If data is not invalid, return if the desired region has not changed.
+	if not _data_invalid:
+		if new_desired_region == _desired_region:
+			_data_needs_update = false
+			return
+	
+	_desired_region = new_desired_region
+	
+	# If the data is not invalid, return if the desired region can be fulfilled with existing data.
+	if not _data_invalid:
+		if _data_region.encloses(_desired_region):
+			_safe_region = _desired_region
+			_body_needs_update = true
+			_shape_needs_update = true
+			_data_needs_update = false
+			return
+	
+	# If the available data could fulfill the desired region, send a request.
+	if _available_region.encloses(_desired_region):
+		if _data_request_pending:
+			return
+	
+		_data_request_pending = true
+		compute_handler.request_height_data(collision_lod, _on_height_data_received)
+
+func _on_region_updated(lod: int, new_available_region: Rect2i):
 	if lod != collision_lod:
 		return
 	
-	if _safe_region:
-		if new_safe_region.encloses(_safe_region):
-			return
-	
-	var center_texel := compute_handler.world_to_texel(target_transform.origin, collision_lod)
-	var texels_per_vertex := compute_handler.get_texels_per_vertex()
-	# Should this be 2x + 1?
-	_safe_region = Rect2i(center_texel - mesh_radius * texels_per_vertex, 2 * mesh_radius * texels_per_vertex)
-	
-	compute_handler.request_height_data(lod, _on_height_data_received)
+	_available_region = new_available_region
 
 func _on_height_data_received(data: PackedByteArray):
+	if not _data_request_pending:
+		return
+	_data_request_pending = false
 	_latest_data = data
+	_data_invalid = false
+	_data_region = _available_region
+	
+	_safe_region = _desired_region
 	_shape_needs_update = true
 	_body_needs_update = true
 	_schedule_update()
-	print("data provided")
+
+func _get_desired_region() -> Rect2i:
+	if not compute_handler:
+		return Rect2i()
+	var texel := compute_handler.world_to_texel(target_transform.origin, collision_lod)
+	var radius_texels := mesh_radius * compute_handler.get_texels_per_vertex()
+	return Rect2i(texel - radius_texels, 2 * radius_texels)
 
 func _on_physics_material_changed():
 	_body_needs_update = true

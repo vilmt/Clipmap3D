@@ -121,33 +121,32 @@ func _enter_tree() -> void:
 	request_ready()
 
 func _ready():
-	# TODO: check if setting in ready is even necessary. Godot sets @export variables when adding to tree.
 	_compute_handler.compute_data = compute_data
 	_compute_handler.lod_count = mesh_lod_count
 	_compute_handler.tile_size = mesh_tile_size
 	_compute_handler.material = material
 
+	_mesh_handler.scenario_rid = get_world_3d().scenario
 	_mesh_handler.tile_size = mesh_tile_size
 	_mesh_handler.lod_count = mesh_lod_count
 	_mesh_handler.cast_shadows = cast_shadows
 	_mesh_handler.render_layer = render_layer
 	_mesh_handler.material = material
 	_mesh_handler.visible = is_visible_in_tree()
-	_mesh_handler.scenario_rid = get_world_3d().scenario
 	_mesh_handler.aabb_height = aabb_height
 	
+	_texture_handler.texture_assets = texture_assets
+	_texture_handler.material = material
+	
+	_collision_handler.space_rid = get_world_3d().space
 	_collision_handler.compute_handler = _compute_handler
 	_collision_handler.mesh_radius = collision_mesh_radius
 	_collision_handler.collision_layer = collision_layer
 	_collision_handler.collision_mask = collision_mask
 	_collision_handler.physics_material = collision_physics_material
 	_collision_handler.collision_lod = collision_lod
-	_collision_handler.space_rid = get_world_3d().space
 	_collision_handler.instance_id = get_instance_id()
 	_collision_handler.debug_visible_collision_shapes = debug_visible_collision_shapes
-	
-	_texture_handler.texture_assets = texture_assets
-	_texture_handler.material = material
 	
 	_update_position()
 	
