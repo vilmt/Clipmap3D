@@ -10,6 +10,7 @@ class_name Clipmap3D extends Node3D
 		compute_data = value
 		_compute_handler.compute_data = compute_data
 
+# TODO: enforce max size of 32 textures
 @export var texture_assets: Array[Clipmap3DTextureAsset]:
 	set(value):
 		texture_assets = value
@@ -108,10 +109,6 @@ class_name Clipmap3D extends Node3D
 		else:
 			_collision_handler.clear()
 
-@export var debug_visible_buffers: bool:
-	set(value):
-		debug_visible_buffers = value
-
 var _compute_handler := Clipmap3DComputeHandler.new()
 var _mesh_handler := Clipmap3DMeshHandler.new()
 var _texture_handler := Clipmap3DTextureHandler.new()
@@ -155,6 +152,11 @@ func _ready():
 	_texture_handler.build()
 	if (debug_visible_collision_shapes or not Engine.is_editor_hint()) and collision_enabled:
 		_collision_handler.build()
+	
+	_shit.call_deferred()
+
+func _shit():
+	_collision_handler.collision_lod = 1
 	
 func _exit_tree() -> void:
 	_compute_handler.clear()

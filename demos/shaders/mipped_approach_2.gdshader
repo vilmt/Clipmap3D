@@ -3,6 +3,8 @@ render_mode blend_mix;
 
 // BUG: small seams everywhere, seems like precision issue -> Fix noise first.
 
+
+
 #define MAX_TEXTURE_COUNT 32
 #define INV_255 0.003921568627450
 #define ALBEDO_DEFAULT vec4(0.8, 0.8, 0.8, 1.0)
@@ -12,7 +14,7 @@ render_mode blend_mix;
 #define BIT_RANDOMIZE_ROTATION (1u << 1u)
 
 uniform bool use_antialiasing = true;
-
+uniform float projection_threshold: hint_range(0.0, 1.0) = 0.6;
 uniform float lod_blend_ratio: hint_range(0.0, 0.2928932188134525) = 0.2;
 
 group_uniforms private;
@@ -129,14 +131,34 @@ struct Material {
 	float total_weight;
 };
 
-void accumulate_material(inout Material mat, uint id, float weight) {
+void accumulate_material(inout Material mat, uint id, float weight, vec3 normal) {
 	vec2 uv = world_position.xz * _uv_scales[id];
-	// TODO: stochastic sampler based directly on world position. Do not make it dependent on LOD.
-	
-	// Neighboring samples are already bilinearly interpolated. This would be very useful for texture bombing / projection.
-	// However, relying on this is a bad idea since LODs do not have consistent projection.
-	// Rather, should use some sort of global method based on the blended normal.
-	// Such a global coordinate space would also allow for a consistent stochastic sampler.
+	//vec3 p = world_position;
+	//vec3 dpdx = dFdxCoarse(p), dpdy = dFdyCoarse(p);;
+//
+	//vec2 uv = p.xz;
+	//vec2 duvdx = dpdx.xz, duvdy = dpdy.xz;
+	//
+	//mat2 align = mat2(1.0);
+	//
+	//if (normal.y < projection_threshold) {
+		//// Fast 45 degree snapping https://iquilezles.org/articles/noatan/
+		//vec2 xz = round(normalize(-normal.xz) * 1.3065629648763765); // sqrt(1.0 + sqrt(0.5))
+		//xz *= abs(xz.x) + abs(xz.y) > 1.5 ? 0.7071067811865475 : 1.0; // sqrt(0.5)
+		//xz = vec2(-xz.y, xz.x);
+		//
+		//uv = vec2(dot(p.xz, xz), -p.y);
+		//
+		//duvdx = vec2(dot(duvdx, xz), -dpdx.y);
+		//duvdy = vec2(dot(duvdy, xz), -dpdy.y);
+		//
+		//// Projected normal map alignment matrix
+		//align = mat2(vec2(normal.z, -normal.x), vec2(normal.x, normal.z));
+	//}
+	//
+	//uv *= _uv_scales[id];
+	//duvdx *= _uv_scales[id];
+	//duvdy *= _uv_scales[id];
 	
 	int albedo_id = _albedo_remap[id];
 	vec4 albedo_r = albedo_id == -1 ? ALBEDO_DEFAULT : texture(_albedo_textures, vec3(uv, float(albedo_id)));
@@ -149,6 +171,7 @@ void accumulate_material(inout Material mat, uint id, float weight) {
 	mat.normal_depth += _normal_depths[id] * weight;
 	
 	vec3 n = vec3(normal_h_ao.r, 0.0, normal_h_ao.g) * 2.0 - 1.0;
+	//n.xz = n.xz * align;
 	n.y = sqrt(1.0 - dot(n.xz, n.xz));
 	
 	mat.normal += n * weight;
@@ -258,7 +281,7 @@ void fragment() {
 	Material mat = Material(vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0);
 	
 	for (uint id = 0u; id < 32u; id++) {
-		if (weights[id] > 1e-4) accumulate_material(mat, id, weights[id]);
+		if (weights[id] > 1e-4) accumulate_material(mat, id, weights[id], normal);
 	}
 	
 	float inv_total_weight = 1.0 / max(mat.total_weight, 1e-5);

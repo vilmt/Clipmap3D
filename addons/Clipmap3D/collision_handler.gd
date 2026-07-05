@@ -1,6 +1,8 @@
 @tool
 class_name Clipmap3DCollisionHandler
 
+# TODO: fix errors when changing LOD
+
 var compute_handler: Clipmap3DComputeHandler:
 	set(value):
 		if compute_handler == value:
@@ -80,6 +82,7 @@ var collision_lod: int:
 			return
 		collision_lod = value
 		
+		_data_needs_update = true
 		_shape_needs_rebuild = true
 		_data_invalid = true
 		
@@ -103,13 +106,15 @@ var debug_visible_collision_shapes: bool:
 var _grid_to_face_indices: Array[PackedInt32Array]
 var _faces: PackedVector3Array
 
-var _desired_region: Rect2i
+var _requested_region: Rect2i
 var _available_region: Rect2i
-var _data_region: Rect2i
-var _data_request_pending: bool = false
 
-var _safe_region: Rect2i
-var _latest_data: PackedByteArray
+var _collision_region: Rect2i
+
+var _cached_region: Rect2i
+var _cached_data: PackedByteArray
+
+var _data_request_pending: bool = false
 
 var _built: bool = false
 var _body_needs_rebuild: bool = false
@@ -188,8 +193,6 @@ func _create_shape():
 	
 	var scale := float(1 << collision_lod)
 	
-	#var half_size := Vector3(float(mesh_radius.x), 0.0, float(mesh_radius.y))
-	
 	var grid_vertex_count: int = (2 * mesh_radius.x + 1) * (2 * mesh_radius.y + 1)
 	_grid_to_face_indices.resize(grid_vertex_count)
 	for i: int in grid_vertex_count:
@@ -229,18 +232,19 @@ func _create_shape():
 func _update_shape():
 	if _data_request_pending:
 		return
+	if _data_invalid:
+		return
 	
-	print("### Shape Updated!")
 	var grid_index: int = 0
 	var buffer_size := compute_handler.get_buffer_size()
 	var texels_per_vertex := compute_handler.get_texels_per_vertex()
 	
 	for z: int in (2 * mesh_radius.y + 1):
 		for x: int in (2 * mesh_radius.x + 1):
-			var texel := _safe_region.position + Vector2i(x, z) * texels_per_vertex
+			var texel := _collision_region.position + Vector2i(x, z) * texels_per_vertex
 			var texel_wrapped := Vector2i(posmod(texel.x, buffer_size.x), posmod(texel.y, buffer_size.y))
 			var buffer_index := (texel_wrapped.y * buffer_size.x + texel_wrapped.x) * 4
-			var height := _latest_data.decode_float(buffer_index)
+			var height := _cached_data.decode_float(buffer_index)
 			
 			for vertex_index: int in _grid_to_face_indices[grid_index]:
 				_faces[vertex_index].y = height
@@ -287,7 +291,7 @@ func _create_body():
 
 func _update_body():
 	var texels_per_vertex := compute_handler.get_texels_per_vertex()
-	var center := _safe_region.position + mesh_radius * texels_per_vertex
+	var center := _collision_region.position + mesh_radius * texels_per_vertex
 	var pos := compute_handler.texel_to_world(center, collision_lod)
 	var body_transform := Transform3D(Basis.IDENTITY, pos)
 	
@@ -333,30 +337,29 @@ func _update_data():
 	if not _data_needs_update:
 		return
 	
-	var new_desired_region := _get_desired_region()
+	var desired_region := _get_desired_region()
 	
 	# If data is not invalid, return if the desired region has not changed.
 	if not _data_invalid:
-		if new_desired_region == _desired_region:
+		if desired_region == _collision_region:
 			_data_needs_update = false
 			return
 	
-	_desired_region = new_desired_region
-	
 	# If the data is not invalid, return if the desired region can be fulfilled with existing data.
 	if not _data_invalid:
-		if _data_region.encloses(_desired_region):
-			_safe_region = _desired_region
+		if _cached_region.encloses(desired_region):
+			_collision_region = desired_region
 			_body_needs_update = true
 			_shape_needs_update = true
 			_data_needs_update = false
 			return
 	
 	# If the available data could fulfill the desired region, send a request.
-	if _available_region.encloses(_desired_region):
+	if _available_region.encloses(desired_region):
 		if _data_request_pending:
 			return
-	
+		
+		_requested_region = desired_region
 		_data_request_pending = true
 		compute_handler.request_height_data(collision_lod, _on_height_data_received)
 
@@ -370,11 +373,11 @@ func _on_height_data_received(data: PackedByteArray):
 	if not _data_request_pending:
 		return
 	_data_request_pending = false
-	_latest_data = data
+	_cached_data = data
 	_data_invalid = false
-	_data_region = _available_region
+	_cached_region = _available_region
 	
-	_safe_region = _desired_region
+	_collision_region = _requested_region
 	_shape_needs_update = true
 	_body_needs_update = true
 	_schedule_update()
