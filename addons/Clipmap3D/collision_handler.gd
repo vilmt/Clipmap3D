@@ -34,7 +34,7 @@ var instance_id: int:
 			return
 		instance_id = value
 		_body_needs_update = true
-		_schedule_update
+		_schedule_update()
 
 # TODO: query
 var target_transform: Transform3D:
@@ -78,10 +78,6 @@ var physics_material: PhysicsMaterial:
 			physics_material.changed.connect(_on_physics_material_changed)
 		_on_physics_material_changed()
 
-func _on_physics_material_changed():
-	_body_needs_update = true
-	_schedule_update()
-
 var collision_lod: int:
 	set(value):
 		if collision_lod == value:
@@ -90,7 +86,7 @@ var collision_lod: int:
 		# TODO: must fetch the entire lod again
 		# If does not exist, just build a flat plane and wait for region updates.
 		
-		#_meshes_need_rebuild = true
+		_shape_needs_rebuild = true
 		_schedule_update()
 
 var collision_priority: int:
@@ -105,9 +101,7 @@ var debug_visible_collision_shapes: bool:
 			return
 		debug_visible_collision_shapes = value
 		_body_needs_rebuild = true
-		_body_needs_update = true
 		_shape_needs_rebuild = true
-		_shape_needs_update = true
 		_schedule_update()
 		
 var _grid_to_face_indices: Array[PackedInt32Array]
@@ -156,17 +150,26 @@ func _update():
 	if not _built:
 		return
 	
-	_ensure_shape()
-	_ensure_body()
-	
-	_update_shape()
-	_update_body()
+	if _shape_needs_rebuild:
+		_clear_shape()
+		_create_shape()
+		_shape_needs_rebuild = false
+		_body_needs_rebuild = true
+		_shape_needs_update = true
+	if _body_needs_rebuild:
+		_clear_body()
+		_create_body()
+		_body_needs_rebuild = false
+		_body_needs_update = true
+	if _shape_needs_update:
+		_update_shape()
+		_shape_needs_update = false
+	if _body_needs_update:
+		_update_body()
+		_body_needs_update = false
 
 #region shape
-func _ensure_shape():
-	if not _shape_needs_rebuild:
-		return
-	
+func _create_shape():
 	if debug_visible_collision_shapes:
 		_debug_shape = ConcavePolygonShape3D.new()
 	else:
@@ -214,14 +217,9 @@ func _ensure_shape():
 			_grid_to_face_indices[b_r].append(face_index + 4)
 			_faces.append(grid[t_r])
 			_grid_to_face_indices[t_r].append(face_index + 5)
-	
-	_shape_needs_rebuild = false
 
 # TODO: cannot just update shape once. Must keep monitoring player position and work based on that.
 func _update_shape():
-	if not _shape_needs_update:
-		return
-	
 	var grid_index: int = 0
 	var buffer_size := compute_handler.get_buffer_size()
 	var texels_per_vertex := compute_handler.get_texels_per_vertex()
@@ -243,8 +241,6 @@ func _update_shape():
 		_debug_shape.backface_collision = false
 	else:
 		PhysicsServer3D.shape_set_data(_shape_rid, {"faces": _faces, "backface_collision": false})
-	
-	_shape_needs_update = false
 
 func _clear_shape():
 	if _debug_shape:
@@ -255,12 +251,7 @@ func _clear_shape():
 #endregion
 
 #region body
-func _ensure_body():
-	if not _body_needs_rebuild:
-		return
-	
-	_clear_body()
-	
+func _create_body():
 	if debug_visible_collision_shapes:
 		_debug_body = StaticBody3D.new()
 		_debug_body.top_level = true
@@ -282,14 +273,10 @@ func _ensure_body():
 		PhysicsServer3D.body_add_shape(_body_rid, _shape_rid)
 		PhysicsServer3D.body_set_mode(_body_rid, PhysicsServer3D.BODY_MODE_STATIC)
 		PhysicsServer3D.body_set_state(_body_rid, PhysicsServer3D.BODY_STATE_TRANSFORM, Transform3D.IDENTITY)
-	
-	_body_needs_rebuild = false
 
 func _update_body():
-	if not _body_needs_update:
-		return
-	
-	var center := _safe_region.position + mesh_radius
+	var texels_per_vertex := compute_handler.get_texels_per_vertex()
+	var center := _safe_region.position + mesh_radius * texels_per_vertex
 	var pos := compute_handler.texel_to_world(center, collision_lod)
 	var body_transform := Transform3D(Basis.IDENTITY, pos)
 	
@@ -321,9 +308,6 @@ func _update_body():
 		PhysicsServer3D.body_set_param(_body_rid, PhysicsServer3D.BODY_PARAM_FRICTION, friction)
 		
 		PhysicsServer3D.body_set_state(_body_rid, PhysicsServer3D.BODY_STATE_TRANSFORM, body_transform)
-	
-
-	_body_needs_update = false
 
 func _clear_body():
 	if _debug_body:
@@ -344,6 +328,7 @@ func _on_region_updated(lod: int, new_safe_region: Rect2i):
 	
 	var center_texel := compute_handler.world_to_texel(target_transform.origin, collision_lod)
 	var texels_per_vertex := compute_handler.get_texels_per_vertex()
+	# Should this be 2x + 1?
 	_safe_region = Rect2i(center_texel - mesh_radius * texels_per_vertex, 2 * mesh_radius * texels_per_vertex)
 	
 	compute_handler.request_height_data(lod, _on_height_data_received)
@@ -354,3 +339,7 @@ func _on_height_data_received(data: PackedByteArray):
 	_body_needs_update = true
 	_schedule_update()
 	print("data provided")
+
+func _on_physics_material_changed():
+	_body_needs_update = true
+	_schedule_update()

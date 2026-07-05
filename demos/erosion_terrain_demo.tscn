@@ -89,7 +89,7 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073 node_paths=PackedStringArray("follow_target")]
-transform = Transform3D(0.99999714, 0, 0, 0, 0.99999917, 0, 0, 0, 0.99999416, 328.94278, 0, 129.56073)
+transform = Transform3D(0.99999714, 0, 0, 0, 0.99999917, 0, 0, 0, 0.99999416, 328.94278, 0, -921.64374)
 script = ExtResource("1_e348m")
 follow_target = NodePath("../Player")
 compute_data = SubResource("Resource_r2ioa")
@@ -100,11 +100,10 @@ material = SubResource("ShaderMaterial_p1oah")
 aabb_height = 5000.0
 collision_mesh_radius = Vector2i(6, 6)
 collision_physics_material = SubResource("PhysicsMaterial_p1oah")
-debug_visible_collision_shapes = true
 metadata/_custom_type_script = "uid://wudkpxu6xggb"
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 328.94278, 1212.279, 129.56073)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 328.94278, 1212.279, -921.64374)
 
 [node name="StaticBody3D" type="StaticBody3D" parent="." unique_id=685868270]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4982295, 9.536743e-07, -2.5654354)

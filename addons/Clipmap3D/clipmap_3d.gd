@@ -74,7 +74,7 @@ class_name Clipmap3D extends Node3D
 
 @export var collision_mesh_radius := Vector2i(4, 4):
 	set(value):
-		collision_mesh_radius = value
+		collision_mesh_radius = value.maxi(1)
 		_collision_handler.mesh_radius = collision_mesh_radius
 	
 @export_flags_3d_physics var collision_layer: int = 1:
@@ -107,7 +107,6 @@ class_name Clipmap3D extends Node3D
 			_collision_handler.build()
 		else:
 			_collision_handler.clear()
-			print("Cleared.")
 
 @export var debug_visible_buffers: bool:
 	set(value):
