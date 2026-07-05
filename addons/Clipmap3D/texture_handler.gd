@@ -22,6 +22,8 @@ var texture_assets: Array[Clipmap3DTextureAsset]:
 
 var material: ShaderMaterial:
 	set(value):
+		if material == value:
+			return
 		material = value
 		_update_material_parameters()
 
@@ -141,6 +143,8 @@ func _rebuild_textures():
 	_textures_need_rebuild = false
 
 func _update_material_parameters():
+	if not material:
+		return
 	material.set_shader_parameter(&"_albedo_textures", _albedo_textures_rid)
 	material.set_shader_parameter(&"_albedo_remap", _albedo_remap)
 	material.set_shader_parameter(&"_normal_textures", _normal_textures_rid)

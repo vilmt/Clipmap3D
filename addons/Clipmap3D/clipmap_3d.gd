@@ -40,6 +40,7 @@ class_name Clipmap3D extends Node3D
 		material = value
 		_mesh_handler.material = material
 		_compute_handler.material = material
+		_texture_handler.material = material
 
 @export_flags_3d_render var render_layer: int = 1:
 	set(value):
@@ -61,7 +62,7 @@ class_name Clipmap3D extends Node3D
 @export_custom(PROPERTY_HINT_GROUP_ENABLE, "") var collision_enabled: bool = true:
 	set(value):
 		collision_enabled = value
-		if not Engine.is_editor_hint() and collision_enabled:
+		if (debug_visible_collision_shapes or not Engine.is_editor_hint()) and collision_enabled:
 			_collision_handler.build()
 		else:
 			_collision_handler.clear()
@@ -69,12 +70,12 @@ class_name Clipmap3D extends Node3D
 @export_range(0, 16) var collision_lod: int = 2:
 	set(value):
 		collision_lod = value
-		_collision_handler.lod = collision_lod
+		_collision_handler.collision_lod = collision_lod
 
 @export var collision_mesh_radius := Vector2i(4, 4):
 	set(value):
 		collision_mesh_radius = value
-		_collision_handler.collision_mesh_radius = collision_mesh_radius
+		_collision_handler.mesh_radius = collision_mesh_radius
 	
 @export_flags_3d_physics var collision_layer: int = 1:
 	set(value):
@@ -95,6 +96,22 @@ class_name Clipmap3D extends Node3D
 	set(value):
 		collision_priority = value
 		_collision_handler.collision_priority = collision_priority
+
+@export_group("Debug", "debug")
+
+@export var debug_visible_collision_shapes: bool:
+	set(value):
+		debug_visible_collision_shapes = value
+		_collision_handler.debug_visible_collision_shapes = debug_visible_collision_shapes
+		if (debug_visible_collision_shapes or not Engine.is_editor_hint()) and collision_enabled:
+			_collision_handler.build()
+		else:
+			_collision_handler.clear()
+			print("Cleared.")
+
+@export var debug_visible_buffers: bool:
+	set(value):
+		debug_visible_buffers = value
 
 var _compute_handler := Clipmap3DComputeHandler.new()
 var _mesh_handler := Clipmap3DMeshHandler.new()
@@ -126,8 +143,9 @@ func _ready():
 	_collision_handler.collision_mask = collision_mask
 	_collision_handler.physics_material = collision_physics_material
 	_collision_handler.collision_lod = collision_lod
-	_collision_handler.space = get_world_3d().space
+	_collision_handler.space_rid = get_world_3d().space
 	_collision_handler.instance_id = get_instance_id()
+	_collision_handler.debug_visible_collision_shapes = debug_visible_collision_shapes
 	
 	_texture_handler.texture_assets = texture_assets
 	_texture_handler.material = material
@@ -137,7 +155,7 @@ func _ready():
 	_compute_handler.build()
 	_mesh_handler.build()
 	_texture_handler.build()
-	if not Engine.is_editor_hint() and collision_enabled:
+	if (debug_visible_collision_shapes or not Engine.is_editor_hint()) and collision_enabled:
 		_collision_handler.build()
 	
 func _exit_tree() -> void:
@@ -150,6 +168,7 @@ func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_EXIT_WORLD:
 			_mesh_handler.scenario_rid = RID()
+			_collision_handler.space_rid = RID()
 		NOTIFICATION_VISIBILITY_CHANGED:
 			_mesh_handler.visible = is_visible_in_tree()
 
@@ -175,4 +194,5 @@ func _update_position():
 	_compute_handler.target_transform = global_transform
 	_mesh_handler.target_transform = global_transform
 	_collision_handler.target_transform = global_transform
-	material.set_shader_parameter(&"_target_transform", global_transform)
+	if material:
+		material.set_shader_parameter(&"_target_transform", global_transform)

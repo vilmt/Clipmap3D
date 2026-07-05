@@ -88,7 +88,7 @@ var _compute_seed: int:
 		if _compute_seed == value:
 			return
 		_compute_seed = value
-		
+		_previous_origins.clear()
 		_compute_needs_update = true
 		_schedule_update()
 
@@ -166,11 +166,15 @@ func get_texels_per_vertex() -> Vector2i:
 func get_buffer_size() -> Vector2i:
 	return get_vertex_count() * _texels_per_vertex
 
-func world_to_snapped_texel(world_position: Vector3, lod: int) -> Vector2i:
+func world_to_texel(world_position: Vector3, lod: int) -> Vector2i:
 	# TODO: document why the snap is 2 texels wide
 	var snap := 2.0 * Vector2.ONE
 	var vertex_position := Vector2(world_position.x, world_position.z) / float(1 << lod)
 	return Vector2i((vertex_position / snap).floor() * snap) * _texels_per_vertex
+
+func texel_to_world(texel_position: Vector2i, lod: int) -> Vector3:
+	var s = Vector2(texel_position) / Vector2(_texels_per_vertex) * float(1 << lod)
+	return Vector3(s.x, 0.0, s.y)
 
 func _schedule_update() -> void:
 	RenderingServer.call_on_render_thread(_update_threaded)
@@ -364,7 +368,7 @@ func _update_compute_threaded() -> void:
 		_previous_origins.fill(Vector2i(-1e10, -1e10))
 	
 	for lod: int in lod_count:
-		current_origins[lod] = world_to_snapped_texel(target_transform.origin, lod)
+		current_origins[lod] = world_to_texel(target_transform.origin, lod)
 	
 	var buffer_size := get_buffer_size()
 	
@@ -377,7 +381,10 @@ func _update_compute_threaded() -> void:
 		
 		var delta_abs := delta.abs()
 		
-		var full_region := Rect2i(origin, buffer_size)
+		# I don't understand this formula but it works perfectly for each LOD and texels_per_vertex, so don't touch it.
+		var top_corner := origin - (buffer_size / 2 - _texels_per_vertex)
+		
+		var full_region := Rect2i(top_corner, buffer_size)
 		
 		if delta_abs.x >= buffer_size.x or delta_abs.y >= buffer_size.y:
 			# Delta is greater than buffer size, generate whole thing again.
@@ -386,11 +393,11 @@ func _update_compute_threaded() -> void:
 			# Delta is smaller than buffer size, generate x and y strips.
 			if delta.x != 0:
 				var x := buffer_size.x - delta.x if delta.x > 0 else 0
-				var region := Rect2i(origin.x + x, origin.y, delta_abs.x, buffer_size.y)
+				var region := Rect2i(top_corner.x + x, top_corner.y, delta_abs.x, buffer_size.y)
 				_generate_region_threaded(lod, region)
 			if delta.y != 0:
 				var y := buffer_size.y - delta.y if delta.y > 0 else 0
-				var region := Rect2i(origin.x, origin.y + y, buffer_size.x, delta_abs.y)
+				var region := Rect2i(top_corner.x, top_corner.y + y, buffer_size.x, delta_abs.y)
 				_generate_region_threaded(lod, region)
 		
 		region_updated.emit(lod, full_region)

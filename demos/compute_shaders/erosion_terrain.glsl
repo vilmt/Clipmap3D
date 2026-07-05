@@ -142,7 +142,7 @@ vec3 height_map(vec2 position, out float erosion_factor) {
 	
 	float initial_erosion_amplitude = erosion_amplitude;
 	
-	for (int i = 0; i < 0; i++) {
+	for (int i = 0; i < 5; i++) {
 		vec2 curl = (height.zy + erosion.zy) * vec2(1.0, -1.0);
 		vec3 layer = ridges(position * erosion_frequency, curl) * erosion_amplitude;
 		erosion += layer * vec3(1.0, vec2(erosion_frequency));
@@ -163,7 +163,7 @@ void main() {
 	if (id.x >= parameters.region.z || id.y >= parameters.region.w) return;
 	
 	ivec2 size = imageSize(gradient_buffers).xy;
-	ivec2 texel = id + parameters.region.xy - (size / 2 - parameters.texels_per_vertex); // half size
+	ivec2 texel = parameters.region.xy + id;
 	ivec2 wrapped_texel = imod(texel, size);
 
 	vec2 scale = float(1 << parameters.lod) / vec2(parameters.texels_per_vertex);
@@ -207,7 +207,7 @@ void main() {
 	brush_add(mat, GRASS_ID, grass_weight);
 	
 	// Paint snow at high elevation
-	float snow_weight = 0.0; 								// Snow is guaranteed above 1700 m
+	float snow_weight = 0.0;
 	snow_weight = max(snow_weight, smoothstep(1600.0, 1700.0, height.x) * smoothstep(0.4, 0.5, ridge_factor));	// Snow also appears on ridges above 1600 m
 	brush_add(mat, SNOW_ID, snow_weight);
 	
