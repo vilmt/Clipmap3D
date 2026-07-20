@@ -1,7 +1,7 @@
 @tool
 class_name Clipmap3DTextureHandler
 
-const MAX_TEXTURE_COUNT: int = 32
+const MAX_TEXTURE_COUNT: int = 16
 
 var texture_assets: Array[Clipmap3DTextureAsset]:
 	set(value):

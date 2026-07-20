@@ -9,7 +9,7 @@ TODO:
 - Use coarse derivatives to pick mip
 */
 
-#define MAX_TEXTURE_COUNT 32
+#define MAX_TEXTURE_COUNT 16
 #define INV_255 0.003921568627450
 #define ALBEDO_DEFAULT vec4(0.8, 0.8, 0.8, 1.0)
 #define NORMAL_DEFAULT vec4(0.5, 0.5, 1.0, 1.0)
@@ -133,10 +133,10 @@ void vertex() {
 struct Material {
 	vec3 albedo;
 	float roughness;
-	
 	vec3 normal;
 	float normal_depth;
 	float ao;
+	
 	float total_weight;
 };
 
@@ -325,8 +325,8 @@ void fragment() {
 	
 	// Texture weight accumulation from control
 	
-	float weights[32];
-	for (int i = 0; i < 32; i++) weights[i] = 0.0;
+	float weights[MAX_TEXTURE_COUNT];
+	for (int i = 0; i < MAX_TEXTURE_COUNT; i++) weights[i] = 0.0;
 	
 	uvec4 id_0_0 = controls_0 >> uvec4(27u) & uvec4(0x1Fu);
 	uvec4 id_0_1 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
@@ -366,7 +366,7 @@ void fragment() {
 	
 	int samples = 0;
 	
-	for (uint id = 0u; id < 32u; id++) {
+	for (uint id = 0u; id < uint(MAX_TEXTURE_COUNT); id++) {
 		if (weights[id] > 1e-4) {
 			accumulate_material(mat, id, weights[id], normal);
 			samples += 1;

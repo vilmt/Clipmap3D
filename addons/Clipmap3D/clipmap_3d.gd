@@ -10,9 +10,11 @@ class_name Clipmap3D extends Node3D
 		compute_data = value
 		_compute_handler.compute_data = compute_data
 
-# TODO: enforce max size of 32 textures
+# TODO: enforce max size of 16 textures
 @export var texture_assets: Array[Clipmap3DTextureAsset]:
 	set(value):
+		if value and value.size() > Clipmap3DTextureHandler.MAX_TEXTURE_COUNT:
+			value.resize(Clipmap3DTextureHandler.MAX_TEXTURE_COUNT)
 		texture_assets = value
 		_texture_handler.texture_assets = texture_assets
 
