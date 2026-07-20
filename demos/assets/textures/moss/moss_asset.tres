@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Clipmap3DTextureAsset" format=3 uid="uid://di8rne3ikvw1g"]
+
+[ext_resource type="Texture2D" uid="uid://d2872ifncqg7x" path="res://demos/assets/textures/moss/moss_albedo_roughness.png" id="1_b1bnm"]
+[ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="1_fl65x"]
+[ext_resource type="Texture2D" uid="uid://tml154gmr8ty" path="res://demos/assets/textures/moss/moss_normal_height_ao.png" id="2_ci40l"]
+
+[resource]
+script = ExtResource("1_fl65x")
+uv_scale = Vector3(0.1, 0.1, 0.1)
+albedo_texture = ExtResource("1_b1bnm")
+albedo_modulate = Color(0.90359825, 0.90359825, 0.9035982, 1)
+normal_texture = ExtResource("2_ci40l")
+normal_depth = 2.866
+stochastic_rotation = 0.225
+flags = 1
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"

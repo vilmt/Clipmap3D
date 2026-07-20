@@ -1,30 +1,66 @@
 #[compute]
 #version 460
 
+/*
+TODO:
+
+- Floating-point origin shifting
+- Integer-based hashes (will fix seams due to precision issues)
+- More painting helpers (maybe use a shader include)
+- Color map? Could create new buffers or write to control.
+- A simple perlin noise parameter for painting
+
+*/
+
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-layout(r32f, binding = 0) restrict uniform image2DArray height_maps;
-layout(rg16f, binding = 1) restrict uniform image2DArray gradient_maps;
-layout(r32f, binding = 2) restrict uniform image2DArray control_maps;
+layout(r32f, binding = 0) restrict uniform image2DArray height_buffers;
+layout(rg16f, binding = 1) restrict uniform image2DArray gradient_buffers;
+layout(r32f, binding = 2) restrict uniform image2DArray control_buffers;
 
-layout(push_constant, std430) uniform Params {
+layout(push_constant, std430) uniform Parameters {
 	ivec4 region;
-	int lod;
-	int seed;
-	ivec2 origin;
 	ivec2 texels_per_vertex;
-	vec2 vertex_spacing;
-	float height_amplitude;
-	
-	float _pad0;
-	float _pad1;
-	float _pad2;
-	
-} params;
+	int lod;
+	uint compute_seed;
+} parameters;
 
-#define EPSILON 1e-6
 #define INV_255 0.003921568627450
 #define TAU 6.28318530717958
+
+// Painting helpers
+
+struct Material {
+	uint id_0;
+	uint id_1;
+	float blend;
+};
+
+void brush_replace(inout Material mat, uint id) {
+	mat.id_0 = id;
+	mat.id_1 = id;
+	mat.blend = 0.0;
+}
+
+void brush_add(inout Material mat, uint id, float weight) {
+	if (weight < 1e-6) return;
+	
+	weight = clamp(weight, 0.0, 1.0);
+	
+	if (id != mat.id_0 && id != mat.id_1) {
+		if (mat.blend > 0.5) {
+			mat.blend = min(mat.blend + weight, 1.0);
+			mat.id_0 = mat.blend > 1.0 - INV_255 ? id : mat.id_0;
+		} else {
+			mat.blend = max(mat.blend - weight, 0.0);
+			mat.id_1 = mat.blend < INV_255 ? id : mat.id_1;
+		}
+	}
+	
+	if (mat.id_0 == id) mat.blend = max(mat.blend - weight, 0.0);
+	if (mat.id_1 == id) mat.blend = min(mat.blend + weight, 1.0);
+	
+}
 
 ivec2 imod(ivec2 x, ivec2 s) {
 	ivec2 m = min(sign(x), 0);
@@ -32,7 +68,7 @@ ivec2 imod(ivec2 x, ivec2 s) {
 }
 
 vec2 hash21(vec2 p) {
-	vec3 p3 = vec3(p, float(params.seed));
+	vec3 p3 = vec3(p, float(parameters.compute_seed));
 	p3 = fract(p3 * vec3(.1031, .1030, .0973));
     p3 += dot(p3, p3.yzx+33.33);
     return -1.0 + 2.0 * fract((p3.xx+p3.yz)*p3.zy);
@@ -91,14 +127,12 @@ vec3 ridges(vec2 p, vec2 curl) {
 }
 
 
-// height, derivative
+// Returns (height, dHeight_dx, dHeight_dz), and some normalized painting parameters
 vec3 height_map(vec2 position, out float erosion_factor) {
-	float scale = 0.0005; // master scale value
-	
     // FBM terrain
 	vec3 height = vec3(0.0);
-	float height_amplitude = 0.5; // don't change this
-	float height_frequency = 1.0 * scale;
+	float height_amplitude = 1500.0;
+	float height_frequency = 0.0005;
 	
 	for (int i = 0; i < 6; i++) {
 		vec3 layer = noise(position * height_frequency) * height_amplitude;
@@ -107,23 +141,25 @@ vec3 height_map(vec2 position, out float erosion_factor) {
 		height_amplitude *= 0.4; // gain
 		height_frequency *= 1.8; // lacunarity
 	}
-	
-	height.x += 0.5; // map terrain to [0, 1]
+
+	// map terrain to [0, amplitude]
+	// TODO: use noise in the range [0, 1]
+	height.x += 1500.0; 
 	
 	// FBM erosion
 	vec3 erosion = vec3(0.0);
-	float erosion_amplitude = 0.005; // erosion amplitude
-	float erosion_frequency = 20.0 * scale; // erosion frequency
+	float erosion_amplitude = 20.0;
+	float erosion_frequency = 0.005;
 	
 	float initial_erosion_amplitude = erosion_amplitude;
 	
-	for (int i = 0; i < 7; i++) {
-		vec2 curl = (height.zy + erosion.zy) * vec2(1.0, -1.0) / scale; // scale-invariant curl
+	for (int i = 0; i < 5; i++) {
+		vec2 curl = (height.zy + erosion.zy) * vec2(1.0, -1.0);
 		vec3 layer = ridges(position * erosion_frequency, curl) * erosion_amplitude;
 		erosion += layer * vec3(1.0, vec2(erosion_frequency));
 		
-		erosion_amplitude *= 0.5;
-		erosion_frequency *= 1.8;
+		erosion_amplitude *= 0.5; // gain
+		erosion_frequency *= 1.8; // lacunarity
 	}
 	
 	erosion_factor = erosion.x / initial_erosion_amplitude;
@@ -131,84 +167,66 @@ vec3 height_map(vec2 position, out float erosion_factor) {
 	return height + erosion;
 }
 
-struct Material {
-	uint id_0;
-	uint id_1;
-	float blend;
-};
-
-// painting helpers
-void brush_replace(inout Material mat, uint id) {
-	mat.id_0 = id;
-	mat.id_1 = id;
-	mat.blend = 0.0;
-}
-
-void brush_add(inout Material mat, uint id, float strength) {
-	if (strength < EPSILON) return;
-	
-	strength = clamp(strength, 0.0, 1.0);
-	
-	if (id != mat.id_0 && id != mat.id_1) {
-		if (mat.blend > 0.5) {
-			mat.blend = min(mat.blend + strength, 1.0);
-			mat.id_0 = mat.blend > 1.0 - INV_255 ? id : mat.id_0;
-		} else {
-			mat.blend = max(mat.blend - strength, 0.0);
-			mat.id_1 = mat.blend < INV_255 ? id : mat.id_1;
-		}
-	}
-	
-	if (mat.id_0 == id) mat.blend = max(mat.blend - strength, 0.0);
-	if (mat.id_1 == id) mat.blend = min(mat.blend + strength, 1.0);
-	
-}
-
-// should match Clipmap3DTextureAsset array indices in source
-#define GRASS_ID 0
-#define CLIFF_ID 1
-#define SNOW_ID 2
-#define MOSS_ID 3
-
 void main() {
-	uvec2 id = gl_GlobalInvocationID.xy;
+	ivec2 id = ivec2(gl_GlobalInvocationID.xy);
 	
-	if (id.x >= params.region.z || id.y >= params.region.w) return; // Skip if invocation ID is greater than region size
+	if (id.x >= parameters.region.z || id.y >= parameters.region.w) return;
 	
-	ivec2 size = imageSize(height_maps).xy;
-	ivec2 texel = ivec2(id) + params.region.xy + params.origin - (size / 2 - params.texels_per_vertex); // half size
-	vec2 scale = params.vertex_spacing * float(1 << params.lod) / vec2(params.texels_per_vertex);
-	
+	ivec2 size = imageSize(gradient_buffers).xy;
+	ivec2 texel = parameters.region.xy + id;
+	ivec2 wrapped_texel = imod(texel, size);
+
+	vec2 scale = float(1 << parameters.lod) / vec2(parameters.texels_per_vertex);
+
 	float erosion_factor;
 	vec3 height = height_map(texel * scale, erosion_factor);
-	
-	ivec3 coords = ivec3(imod(texel, size), params.lod); // Toroidal wrapping using integer modulus
-	
-	// NOTE: The simple terrain compute shader uses central differences.
-	// No need to derive analytical derivatives like it's done here.
-	imageStore(height_maps, coords, vec4(height.x * params.height_amplitude, 0.0, 0.0, 0.0));
-	imageStore(gradient_maps, coords, vec4(height.yz * params.height_amplitude, 0.0, 0.0)); // gradient maps expect world-space texel spacing
-	
-	// arbitrary parameters for painting (independent of world scaling)
-	float height_factor = height.x;
-	float slope_factor = 1.0 - normalize(vec3(-height.y, 0.0001, -height.z)).y;
-	float ridge_factor = max(erosion_factor, 0.0);
-	
-	// material painting
-	Material mat = Material(0u, 0u, 0.0);
-	
-	brush_replace(mat, CLIFF_ID); // initialize with cliff
 
-	float moss_weight = smoothstep(1.0, 0.9, height_factor + slope_factor * 0.8);
-	brush_add(mat, MOSS_ID, moss_weight); // paint moss around grass
+	imageStore(height_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.x, 0.0, 0.0, 0.0));
+	imageStore(gradient_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.yz, 0.0, 0.0));
 	
-	float grass_weight = smoothstep(1.0, 0.9, height_factor + slope_factor);
-	brush_add(mat, GRASS_ID, grass_weight); // disincentivize grass growth in high and steep areas
+	/*
+	Painting: we use painting helper functions and calculated painting parameters to decide two dominant materials.
+	*/
+
+	Material mat = Material(0u, 0u, 0.0);
+
+	// Material IDs: values correspond to Clipmap3DTextureAsset array indices in the Clipmap3D node.
+	#define GRASS_ID 0
+	#define CLIFF_ID 1
+	#define SNOW_ID 2
+	#define MOSS_ID 3
+
+	// "Factors" are normalized painting parameters.
+	float slope_factor = 1.0 - normalize(vec3(-height.y, 1.0, -height.z)).y;
+	float ridge_factor = max(erosion_factor, 0.0);
+	float occlusion_factor = max(-erosion_factor, 0.0);
+
+	// Initialize with cliff.
+	brush_replace(mat, CLIFF_ID);
+
+	// Paint moss in low and flat areas. Also incentivize occluded areas.
+	float moss_weight = 1.6 * (1.0 - smoothstep(0.0, 1350.0, height.x)); // Inverse height factor
+	moss_weight += 1.0 * (1.0 - smoothstep(0.2, 0.3, slope_factor)); // Inverse slope factor
+	moss_weight += 0.7 * occlusion_factor;
+	moss_weight = smoothstep(0.85, 1.0, moss_weight); // Final threshold
+	brush_add(mat, MOSS_ID, moss_weight);
 	
-	float snow_weight = smoothstep(0.98, 1.0, height_factor * 1.2 + ridge_factor * 0.2) * smoothstep(0.6, 0.605, height_factor);
-	brush_add(mat, SNOW_ID, snow_weight); // incentivize snow in high and ridged areas
+	// Paint some grass on top of the moss.
+	float grass_weight = 1.6 * (1.0 - smoothstep(0.0, 1120.0, height.x)); // Inverse height factor
+	grass_weight += 1.0 * (1.0 - smoothstep(0.17, 0.2, slope_factor)); // Inverse slope factor
+	grass_weight = smoothstep(0.95, 1.0, grass_weight); // Final threshold
+	brush_add(mat, GRASS_ID, grass_weight);
 	
-	// encode control
+	// Paint snow in high, ridged areas.
+	float snow_weight = 0.9 * smoothstep(1500.0, 1720.0, height.x);
+	snow_weight += 0.4 * ridge_factor;
+	snow_weight = smoothstep(0.95, 1.0, snow_weight);
+	brush_add(mat, SNOW_ID, snow_weight);
+	
+	/*
+	Control encoding: The two dominant material IDs and a blending float are written into the control buffer, and later parsed by the fragment function.
+	*/
+	
 	uint control = 0u;
 	
 	control |= (mat.id_0 & 0x1F) << 27; // id 0, bits 28-32
@@ -217,5 +235,5 @@ void main() {
 	uint blend = uint(clamp(mat.blend * 255.0, 0.0, 255.0));
 	control |= (blend & 0xFF) << 14; // id 0 -> id 1 blend, bits 15-22
 	
-	imageStore(control_maps, coords, vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
+	imageStore(control_buffers, ivec3(wrapped_texel, parameters.lod), vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
 }

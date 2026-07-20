@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Clipmap3DTextureAsset" format=3 uid="uid://deandw8b7vm76"]
+
+[ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="1_8o8xd"]
+[ext_resource type="Texture2D" uid="uid://dmcwfi8452i8k" path="res://demos/assets/textures/snow/snow_albedo_roughness.png" id="1_a0e3s"]
+[ext_resource type="Texture2D" uid="uid://bo1j3e7fo31mo" path="res://demos/assets/textures/snow/snow_normal_height_ao.png" id="2_5aym7"]
+
+[resource]
+script = ExtResource("1_8o8xd")
+uv_scale = Vector3(0.1, 0.1, 0.1)
+albedo_texture = ExtResource("1_a0e3s")
+normal_texture = ExtResource("2_5aym7")
+stochastic_offset = Vector3(0.855, 1.6, 1.205)
+stochastic_rotation = 1.035
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"

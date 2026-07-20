@@ -2,64 +2,36 @@
 @tool
 class_name Clipmap3D extends Node3D
 
-## The Node3D which the terrain snaps to on the X and Z axes.
+## The Node3D which the terrain snaps to on the X and Z axes. If unassigned, camera is used.
 @export var follow_target: Node3D
 
-## The source to use for generation and texturing.
-@export var source: Clipmap3DSource:
+@export var compute_data: Clipmap3DComputeData:
 	set(value):
-		if source:
-			source.clear()
-		source = value
-		if not is_node_ready():
-			return
-		_mesh_handler.source = source
-		if _collision_handler:
-			_collision_handler.source = source
-		if source:
-			# TODO: move to func
-			source.size = _mesh_handler.get_vertices()
-			source.vertex_spacing = mesh_vertex_spacing
-			source.lod_count = mesh_lod_count
-			source.collision_enabled = collision_enabled # HACK
-			source.build()
+		compute_data = value
+		_compute_handler.compute_data = compute_data
+
+# TODO: enforce max size of 32 textures
+@export var texture_assets: Array[Clipmap3DTextureAsset]:
+	set(value):
+		texture_assets = value
+		_texture_handler.texture_assets = texture_assets
 
 @export_group("Mesh", "mesh")
 
-## World spacing between vertices. Power-of-two values are recommended.
-@export_custom(PROPERTY_HINT_LINK, "suffix:m") var mesh_vertex_spacing := Vector2.ONE:
+# NOTE: Lower limit of 2 because of https://github.com/godotengine/godot/issues/115103
+## The amount of level of detail (LOD) rings that form this mesh.
+@export_range(2, 16, 1) var mesh_lod_count: int = 5:
 	set(value):
-		mesh_vertex_spacing = value
-		if not is_node_ready():
-			return
-		_mesh_handler.vertex_spacing = mesh_vertex_spacing
-		if _collision_handler:
-			_collision_handler.vertex_spacing = mesh_vertex_spacing
-		if source:
-			source.vertex_spacing = mesh_vertex_spacing
-
+		mesh_lod_count = value
+		_mesh_handler.lod_count = mesh_lod_count
+		_compute_handler.lod_count = mesh_lod_count
+		
 ## The base tile size used to build the clipmap.
 @export var mesh_tile_size := Vector2i(32, 32):
 	set(value):
-		value = value.clampi(1, 128)
-		mesh_tile_size = value
-		if not is_node_ready():
-			return
+		mesh_tile_size = value.clampi(1, 128)
 		_mesh_handler.tile_size = mesh_tile_size
-		if source:
-			source.size = _mesh_handler.get_vertices()
-
-# NOTE: lower limit of 2 because of https://github.com/godotengine/godot/issues/115103
-# NOTE: upper limit of 10 rings is arbitrary
-## The amount of level of detail (LOD) rings that form this mesh.
-@export_range(2, 10, 1) var mesh_lod_count: int = 5:
-	set(value):
-		mesh_lod_count = value
-		if not is_node_ready():
-			return
-		_mesh_handler.lod_count = mesh_lod_count
-		if source:
-			source.lod_count = mesh_lod_count
+		_compute_handler.tile_size = mesh_tile_size
 
 @export_group("Rendering")
 
@@ -67,148 +39,155 @@ class_name Clipmap3D extends Node3D
 @export var material: ShaderMaterial:
 	set(value):
 		material = value
-		if not is_node_ready():
-			return
-		if material:
-			_mesh_handler.material_rid = material.get_rid()
-		else:
-			_mesh_handler.material_rid = RID()
+		_mesh_handler.material = material
+		_compute_handler.material = material
+		_texture_handler.material = material
 
 @export_flags_3d_render var render_layer: int = 1:
 	set(value):
 		render_layer = value
-		if not is_node_ready():
-			return
 		_mesh_handler.render_layer = render_layer
 
 # NOTE: Manual enum is used since directly exporting looks different than other Godot editor properties of this type
 @export_enum("Off:0", "On:1", "Double-Sided:2", "Shadows Only:3") var cast_shadows: int = 1:
 	set(value):
 		cast_shadows = value
-		if not is_node_ready():
-			return
 		_mesh_handler.cast_shadows = cast_shadows as RenderingServer.ShadowCastingSetting
+
+@export var aabb_height: float = 10000.0:
+	set(value):
+		aabb_height = value
+		_mesh_handler.aabb_height = aabb_height
 
 @export_group("Collision", "collision")
 @export_custom(PROPERTY_HINT_GROUP_ENABLE, "") var collision_enabled: bool = true:
 	set(value):
 		collision_enabled = value
-		if not is_node_ready():
-			return
-		if _collision_handler:
-			_collision_handler.enabled = collision_enabled
+		if (debug_visible_collision_shapes or not Engine.is_editor_hint()) and collision_enabled:
+			_collision_handler.build()
+		else:
+			_collision_handler.clear()
+
+@export_range(0, 16) var collision_lod: int = 2:
+	set(value):
+		collision_lod = value
+		_collision_handler.collision_lod = collision_lod
 
 @export var collision_mesh_radius := Vector2i(4, 4):
 	set(value):
-		collision_mesh_radius = value
-		if not is_node_ready():
-			return
-		if _collision_handler:
-			_collision_handler.mesh_size = collision_mesh_radius
-
-## WIP: must currently only contain the follow target
-@export var collision_targets: Array[PhysicsBody3D]
-
+		collision_mesh_radius = value.maxi(1)
+		_collision_handler.mesh_radius = collision_mesh_radius
+	
 @export_flags_3d_physics var collision_layer: int = 1:
 	set(value):
 		collision_layer = value
-		if not is_node_ready():
-			return
-		if _collision_handler:
-			_collision_handler.collision_layer = collision_layer
+		_collision_handler.collision_layer = collision_layer
 
 @export_flags_3d_physics var collision_mask: int = 1:
 	set(value):
 		collision_mask = value
-		if not is_node_ready():
-			return
-		if _collision_handler:
-			_collision_handler.collision_mask = collision_mask
+		_collision_handler.collision_mask = collision_mask
 
-@export_group("Debug")
+@export var collision_physics_material: PhysicsMaterial:
+	set(value):
+		collision_physics_material = value
+		_collision_handler.physics_material = collision_physics_material
 
-@export var generate_debug_canvas_items: bool = false
+@export var collision_priority: int:
+	set(value):
+		collision_priority = value
+		_collision_handler.collision_priority = collision_priority
 
-var _mesh_handler: Clipmap3DMeshHandler
-var _collision_handler: Clipmap3DCollisionHandler
-var _last_p := Vector3(INF, INF, INF)
+@export_group("Debug", "debug")
+
+@export var debug_visible_collision_shapes: bool:
+	set(value):
+		debug_visible_collision_shapes = value
+		_collision_handler.debug_visible_collision_shapes = debug_visible_collision_shapes
+		if (debug_visible_collision_shapes or not Engine.is_editor_hint()) and collision_enabled:
+			_collision_handler.build()
+		else:
+			_collision_handler.clear()
+
+var _compute_handler := Clipmap3DComputeHandler.new()
+var _mesh_handler := Clipmap3DMeshHandler.new()
+var _texture_handler := Clipmap3DTextureHandler.new()
+var _collision_handler := Clipmap3DCollisionHandler.new()
 
 func _enter_tree() -> void:
 	request_ready()
 
 func _ready():
-	if not _mesh_handler:
-		_mesh_handler = Clipmap3DMeshHandler.new()
-		_mesh_handler.source = source
-		_mesh_handler.vertex_spacing = mesh_vertex_spacing
-		_mesh_handler.tile_size = mesh_tile_size
-		_mesh_handler.lod_count = mesh_lod_count
-		_mesh_handler.cast_shadows = cast_shadows
-		_mesh_handler.render_layer = render_layer
-		if material:
-			_mesh_handler.material_rid = material.get_rid()
-		
-	_mesh_handler.visible = is_visible_in_tree()
+	_compute_handler.compute_data = compute_data
+	_compute_handler.lod_count = mesh_lod_count
+	_compute_handler.tile_size = mesh_tile_size
+	_compute_handler.material = material
+
 	_mesh_handler.scenario_rid = get_world_3d().scenario
+	_mesh_handler.tile_size = mesh_tile_size
+	_mesh_handler.lod_count = mesh_lod_count
+	_mesh_handler.cast_shadows = cast_shadows
+	_mesh_handler.render_layer = render_layer
+	_mesh_handler.material = material
+	_mesh_handler.visible = is_visible_in_tree()
+	_mesh_handler.aabb_height = aabb_height
 	
-	_mesh_handler.build()
+	_texture_handler.texture_assets = texture_assets
+	_texture_handler.material = material
 	
-	if Engine.is_editor_hint():
-		set_physics_process(false)
-	else:
-		if not _collision_handler:
-			_collision_handler = Clipmap3DCollisionHandler.new()
-			_collision_handler.source = source
-			_collision_handler.mesh_radius = collision_mesh_radius
-			_collision_handler.enabled = collision_enabled
-			_collision_handler.collision_layer = collision_layer
-			_collision_handler.collision_mask = collision_mask
-			_collision_handler.vertex_spacing = mesh_vertex_spacing
-			
-		_collision_handler.space = get_world_3d().space
-		_collision_handler.build()
-			
+	_collision_handler.space_rid = get_world_3d().space
+	_collision_handler.compute_handler = _compute_handler
+	_collision_handler.mesh_radius = collision_mesh_radius
+	_collision_handler.collision_layer = collision_layer
+	_collision_handler.collision_mask = collision_mask
+	_collision_handler.physics_material = collision_physics_material
+	_collision_handler.collision_lod = collision_lod
+	_collision_handler.instance_id = get_instance_id()
+	_collision_handler.debug_visible_collision_shapes = debug_visible_collision_shapes
+	
 	_update_position()
 	
-	if source:
-		source.size = _mesh_handler.get_vertices()
-		source.vertex_spacing = mesh_vertex_spacing
-		source.lod_count = mesh_lod_count
-		source.collision_enabled = collision_enabled # HACK
-		source.build()
-		if generate_debug_canvas_items and not Engine.is_editor_hint():
-			var node_2d := Node2D.new()
-			add_child(node_2d)
-			source.create_debug_canvas_items(node_2d)
+	_compute_handler.build()
+	_mesh_handler.build()
+	_texture_handler.build()
+	if (debug_visible_collision_shapes or not Engine.is_editor_hint()) and collision_enabled:
+		_collision_handler.build()
 	
 func _exit_tree() -> void:
+	_compute_handler.clear()
 	_mesh_handler.clear()
-	if _collision_handler:
-		_collision_handler.clear()
+	_texture_handler.clear()
+	_collision_handler.clear()
 
-func _process(_delta: float) -> void:
+func _notification(what: int) -> void:
+	match what:
+		NOTIFICATION_EXIT_WORLD:
+			_mesh_handler.scenario_rid = RID()
+			_collision_handler.space_rid = RID()
+		NOTIFICATION_VISIBILITY_CHANGED:
+			_mesh_handler.visible = is_visible_in_tree()
+
+@warning_ignore("unused_parameter")
+func _process(dt: float) -> void:
 	_update_position()
 
 func _update_position():
 	if follow_target:
 		global_position.x = follow_target.global_position.x
 		global_position.z = follow_target.global_position.z
+	else:
+		var camera: Camera3D
+		if Engine.is_editor_hint():
+			camera = EditorInterface.get_editor_viewport_3d(0).get_camera_3d()
+		else:
+			camera = get_viewport().get_camera_3d()
+		
+		if camera:
+			global_position.x = camera.global_position.x
+			global_position.z = camera.global_position.z
 	
-	if global_position == _last_p:
-		return
-	
-	_last_p = global_position
-	_mesh_handler.target_position = global_position
-	if _collision_handler:
-		_collision_handler.target_position = global_position
-	if source:
-		source.world_origin = Vector2(global_position.x, global_position.z)
-
-func _notification(what: int) -> void:
-	match what:
-		NOTIFICATION_EXIT_WORLD:
-			if source:
-				source.clear()
-			_mesh_handler.scenario_rid = RID()
-		NOTIFICATION_VISIBILITY_CHANGED:
-			_mesh_handler.visible = is_visible_in_tree()
+	_compute_handler.target_transform = global_transform
+	_mesh_handler.target_transform = global_transform
+	_collision_handler.target_transform = global_transform
+	if material:
+		material.set_shader_parameter(&"_target_transform", global_transform)
