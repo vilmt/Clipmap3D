@@ -4,11 +4,11 @@
 [ext_resource type="RDShaderFile" uid="uid://xjxu5li6gpx" path="res://demos/compute_shaders/erosion_terrain.glsl" id="2_p1oah"]
 [ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="3_4ispy"]
 [ext_resource type="Script" uid="uid://d20stuy1e0ig" path="res://addons/Clipmap3D/compute_data.gd" id="3_p1oah"]
-[ext_resource type="Resource" uid="uid://dw1xfupljk0rh" path="res://grass_asset.tres" id="4_ob4lt"]
-[ext_resource type="Resource" uid="uid://gmucl8qwvxxo" path="res://cliff_asset.tres" id="5_vsihy"]
-[ext_resource type="Resource" uid="uid://deandw8b7vm76" path="res://snow_asset.tres" id="6_p1oah"]
-[ext_resource type="Resource" uid="uid://di8rne3ikvw1g" path="res://moss_asset.tres" id="7_r2ioa"]
-[ext_resource type="Shader" uid="uid://bu5ooak2588ih" path="res://demos/shaders/mipped_approach_2.gdshader" id="8_vsihy"]
+[ext_resource type="Resource" uid="uid://dw1xfupljk0rh" path="res://demos/assets/textures/grass/grass_asset.tres" id="4_ob4lt"]
+[ext_resource type="Resource" uid="uid://gmucl8qwvxxo" path="res://demos/assets/textures/cliff/cliff_asset.tres" id="5_vsihy"]
+[ext_resource type="Resource" uid="uid://deandw8b7vm76" path="res://demos/assets/textures/snow/snow_asset.tres" id="6_p1oah"]
+[ext_resource type="Resource" uid="uid://di8rne3ikvw1g" path="res://demos/assets/textures/moss/moss_asset.tres" id="7_r2ioa"]
+[ext_resource type="Shader" uid="uid://bu5ooak2588ih" path="res://demos/shaders/full.gdshader" id="8_vsihy"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://demos/scenes/player/player.tscn" id="14_ew5cq"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_6b21n"]
@@ -21,6 +21,7 @@ sky_material = SubResource("ProceduralSkyMaterial_6b21n")
 background_mode = 2
 sky = SubResource("Sky_b7n1i")
 tonemap_mode = 3
+fog_enabled = true
 fog_mode = 1
 fog_light_color = Color(0.47238785, 0.5040485, 0.55549383, 1)
 fog_sun_scatter = 0.03
@@ -39,24 +40,36 @@ dof_blur_far_transition = 765.43
 [sub_resource type="Resource" id="Resource_r2ioa"]
 script = ExtResource("3_p1oah")
 compute_shader = ExtResource("2_p1oah")
-texels_per_vertex = Vector2i(4, 4)
+texels_per_vertex = Vector2i(6, 6)
 metadata/_custom_type_script = "uid://d20stuy1e0ig"
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_p1oah"]
+noise_type = 5
+frequency = 0.7396
+fractal_type = 0
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_r2ioa"]
+noise = SubResource("FastNoiseLite_p1oah")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_p1oah"]
 render_priority = 0
 shader = ExtResource("8_vsihy")
-shader_parameter/use_antialiasing = true
-shader_parameter/projection_threshold = 0.6
+shader_parameter/stochastic_noise = SubResource("NoiseTexture2D_r2ioa")
+shader_parameter/stochastic_blend_bias = 0.21
+shader_parameter/use_mip_lod = true
+shader_parameter/triplanar_sharpness = 29.5250013549375
 shader_parameter/lod_blend_ratio = 0.2
-shader_parameter/_texels_per_vertex = Vector2i(4, 4)
+shader_parameter/_texels_per_vertex = Vector2i(6, 6)
 shader_parameter/_target_transform = Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
 shader_parameter/_albedo_remap = PackedInt32Array(0, 1, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
 shader_parameter/_normal_remap = PackedInt32Array(0, 1, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
-shader_parameter/_uv_scales = PackedVector2Array(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-shader_parameter/_albedo_modulates = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-shader_parameter/_roughness_offsets = PackedFloat32Array(0.032, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/_normal_depths = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-shader_parameter/_flags = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_uv_scales = PackedVector3Array(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+shader_parameter/_albedo_modulates = PackedColorArray(0.65519994, 0.84, 0.66444, 1, 0.88120085, 0.8680145, 0.8416278, 1, 1, 1, 1, 1, 0.90359825, 0.90359825, 0.9035982, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+shader_parameter/_roughness_offsets = PackedFloat32Array(0.142, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_normal_depths = PackedFloat32Array(1, 1, 1, 2.866, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+shader_parameter/_stochastic_offsets = PackedVector3Array(0, 0, 0, 2.32, 2.41, 0.825, 0.855, 1.6, 1.205, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_stochastic_rotations = PackedFloat32Array(0.655, 4.97, 1.035, 0.225, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_flags = PackedInt32Array(0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_p1oah"]
 
@@ -67,7 +80,7 @@ environment = SubResource("Environment_thxwv")
 camera_attributes = SubResource("CameraAttributesPractical_wujal")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1953520136]
-transform = Transform3D(0.369643, -0.53555256, 0.75930715, -0.9162714, -0.07438498, 0.3935909, -0.1543076, -0.8412195, -0.5182074, 0, 496.4257, 306.4474)
+transform = Transform3D(-0.60733443, 0.14097919, -0.78183746, -0.7934494, -0.15692507, 0.58805823, -0.039785948, 0.97749656, 0.2071658, 224.93452, 1615.8408, 1320.4667)
 light_intensity_lux = 65176.9
 light_temperature = 2989.0
 light_energy = 2.0
@@ -76,7 +89,7 @@ directional_shadow_split_1 = 0.01
 directional_shadow_split_2 = 0.07
 directional_shadow_split_3 = 0.261
 directional_shadow_blend_splits = true
-directional_shadow_max_distance = 4000.0
+directional_shadow_max_distance = 8192.0
 
 [node name="ZoomOutWarningLabel" type="Label3D" parent="." unique_id=1827955459]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.225605, 0)
@@ -88,7 +101,7 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
-transform = Transform3D(0.99999714, 0, 0, 0, 0.99999917, 0, 0, 0, 0.99999416, -349.66187, 0.00024414063, -781.0762)
+transform = Transform3D(0.99999714, 0, 0, 0, 0.99999917, 0, 0, 0, 0.99999416, 192.7633, 0.00024414063, 1122.0938)
 script = ExtResource("1_e348m")
 compute_data = SubResource("Resource_r2ioa")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("4_ob4lt"), ExtResource("5_vsihy"), ExtResource("6_p1oah"), ExtResource("7_r2ioa")])

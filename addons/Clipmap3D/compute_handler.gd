@@ -166,6 +166,14 @@ func get_texels_per_vertex() -> Vector2i:
 func get_buffer_size() -> Vector2i:
 	return get_vertex_count() * _texels_per_vertex
 
+func get_safe_region(lod: int) -> Rect2i:
+	if _previous_origins.size() <= lod:
+		return Rect2i()
+	var origin := _previous_origins[lod]
+	var buffer_size := get_buffer_size()
+	var top_corner := origin - (buffer_size / 2 - _texels_per_vertex)
+	return Rect2i(top_corner, buffer_size)
+
 func world_to_texel(world_position: Vector3, lod: int) -> Vector2i:
 	# TODO: document why the snap is 2 texels wide
 	var snap := 2.0 * Vector2.ONE

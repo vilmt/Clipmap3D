@@ -99,7 +99,6 @@ var debug_visible_collision_shapes: bool:
 		if debug_visible_collision_shapes == value:
 			return
 		debug_visible_collision_shapes = value
-		_body_needs_rebuild = true
 		_shape_needs_rebuild = true
 		_schedule_update()
 		
@@ -117,7 +116,6 @@ var _cached_data: PackedByteArray
 var _data_request_pending: bool = false
 
 var _built: bool = false
-var _body_needs_rebuild: bool = false
 var _body_needs_update: bool = false
 var _shape_needs_rebuild: bool = false
 var _shape_needs_update: bool = false
@@ -133,7 +131,6 @@ func build():
 	if _built:
 		return
 	_built = true
-	_body_needs_rebuild = true
 	_body_needs_update = true
 	_shape_needs_rebuild = true
 	_shape_needs_update = true
@@ -145,7 +142,6 @@ func clear():
 	if not _built:
 		return
 	_built = false
-	_body_needs_rebuild = false
 	_body_needs_update = false
 	_shape_needs_rebuild = false
 	_shape_needs_update = false
@@ -164,16 +160,16 @@ func _update():
 	_update_data()
 	
 	if _shape_needs_rebuild:
+		_clear_body()
+		
 		_clear_shape()
 		_create_shape()
-		_shape_needs_rebuild = false
-		_body_needs_rebuild = true
-		_shape_needs_update = true
-	if _body_needs_rebuild:
-		_clear_body()
+		
 		_create_body()
-		_body_needs_rebuild = false
+		_shape_needs_rebuild = false
+		_shape_needs_update = true
 		_body_needs_update = true
+		
 	if _shape_needs_update:
 		_update_shape()
 		_shape_needs_update = false
@@ -187,6 +183,9 @@ func _create_shape():
 		_debug_shape = ConcavePolygonShape3D.new()
 	else:
 		_shape_rid = PhysicsServer3D.concave_polygon_shape_create()
+	
+	_faces.clear()
+	_grid_to_face_indices.clear()
 	
 	var mesh_arrays: Array = []
 	mesh_arrays.resize(RenderingServer.ARRAY_MAX)
@@ -203,7 +202,6 @@ func _create_shape():
 		for x: int in range(-mesh_radius.x, mesh_radius.x + 1):
 			grid.append(Vector3(float(x) * scale, 0.0, float(z) * scale))
 	
-	_faces.clear()
 	for z: int in 2 * mesh_radius.y:
 		for x: int in 2 * mesh_radius.x:
 			var b_l: int = z * (2 * mesh_radius.x + 1) + x
@@ -339,15 +337,15 @@ func _update_data():
 	
 	var desired_region := _get_desired_region()
 	
-	# If data is not invalid, return if the desired region has not changed.
-	if not _data_invalid:
+	if _data_invalid:
+		_available_region = compute_handler.get_safe_region(collision_lod)
+	else:
 		if desired_region == _collision_region:
+			# Desired region has not changed.
 			_data_needs_update = false
 			return
-	
-	# If the data is not invalid, return if the desired region can be fulfilled with existing data.
-	if not _data_invalid:
 		if _cached_region.encloses(desired_region):
+			# Desired region can be fulfilled with existing data.
 			_collision_region = desired_region
 			_body_needs_update = true
 			_shape_needs_update = true
@@ -362,6 +360,7 @@ func _update_data():
 		_requested_region = desired_region
 		_data_request_pending = true
 		compute_handler.request_height_data(collision_lod, _on_height_data_received)
+		return
 
 func _on_region_updated(lod: int, new_available_region: Rect2i):
 	if lod != collision_lod:

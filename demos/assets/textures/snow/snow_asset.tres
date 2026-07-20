@@ -6,7 +6,9 @@
 
 [resource]
 script = ExtResource("1_8o8xd")
-uv_scale = Vector2(0.1, 0.1)
+uv_scale = Vector3(0.1, 0.1, 0.1)
 albedo_texture = ExtResource("1_a0e3s")
 normal_texture = ExtResource("2_5aym7")
+stochastic_offset = Vector3(0.855, 1.6, 1.205)
+stochastic_rotation = 1.035
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"

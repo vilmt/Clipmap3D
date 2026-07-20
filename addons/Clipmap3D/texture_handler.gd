@@ -56,12 +56,13 @@ var _albedo_remap := PackedInt32Array()
 var _normal_textures_rid: RID
 var _normal_remap := PackedInt32Array()
 
-var _uv_scales := PackedVector2Array()
+var _uv_scales := PackedVector3Array()
 var _albedo_modulates := PackedColorArray()
 var _roughness_offsets := PackedFloat32Array()
 var _normal_depths := PackedFloat32Array()
+var _stochastic_offsets := PackedVector3Array()
+var _stochastic_rotations := PackedFloat32Array()
 var _flags := PackedInt32Array()
-
 
 func _rebuild_textures():
 	if not _textures_need_rebuild:
@@ -91,6 +92,12 @@ func _rebuild_textures():
 	_normal_depths.resize(MAX_TEXTURE_COUNT)
 	_normal_depths.fill(Clipmap3DTextureAsset.NORMAL_DEPTH_DEFAULT)
 	
+	_stochastic_offsets.resize(MAX_TEXTURE_COUNT)
+	_stochastic_offsets.fill(Clipmap3DTextureAsset.STOCHASTIC_OFFSET_DEFAULT)
+	
+	_stochastic_rotations.resize(MAX_TEXTURE_COUNT)
+	_stochastic_rotations.fill(Clipmap3DTextureAsset.STOCHASTIC_ROTATION_DEFAULT)
+	
 	_flags.resize(MAX_TEXTURE_COUNT)
 	_flags.fill(Clipmap3DTextureAsset.FLAGS_DEFAULT)
 	
@@ -103,6 +110,8 @@ func _rebuild_textures():
 		_albedo_modulates[i] = texture_asset.albedo_modulate
 		_roughness_offsets[i] = texture_asset.roughness_offset
 		_normal_depths[i] = texture_asset.normal_depth
+		_stochastic_offsets[i] = texture_asset.stochastic_offset
+		_stochastic_rotations[i] = texture_asset.stochastic_rotation
 		_flags[i] = texture_asset.flags
 		
 		if texture_asset.albedo_texture:
@@ -153,6 +162,8 @@ func _update_material_parameters():
 	material.set_shader_parameter(&"_albedo_modulates", _albedo_modulates)
 	material.set_shader_parameter(&"_roughness_offsets", _roughness_offsets)
 	material.set_shader_parameter(&"_normal_depths", _normal_depths)
+	material.set_shader_parameter(&"_stochastic_offsets", _stochastic_offsets)
+	material.set_shader_parameter(&"_stochastic_rotations", _stochastic_rotations)
 	material.set_shader_parameter(&"_flags", _flags)
 
 func _clear_textures():
@@ -163,10 +174,12 @@ func _clear_textures():
 		RenderingServer.free_rid(_normal_textures_rid)
 	_normal_remap = PackedInt32Array()
 	
-	_uv_scales = PackedVector2Array()
+	_uv_scales = PackedVector3Array()
 	_albedo_modulates = PackedColorArray()
 	_roughness_offsets = PackedFloat32Array()
 	_normal_depths = PackedFloat32Array()
+	_stochastic_offsets = PackedVector3Array()
+	_stochastic_rotations = PackedFloat32Array()
 	_flags = PackedInt32Array()
 
 func _on_texture_asset_changed():

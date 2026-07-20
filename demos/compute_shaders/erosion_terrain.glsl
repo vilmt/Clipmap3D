@@ -1,6 +1,17 @@
 #[compute]
 #version 460
 
+/*
+TODO:
+
+- Floating-point origin shifting
+- Integer-based hashes (will fix seams due to precision issues)
+- More painting helpers (maybe use a shader include)
+- Color map? Could create new buffers or write to control.
+- A simple perlin noise parameter for painting
+
+*/
+
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 layout(r32f, binding = 0) restrict uniform image2DArray height_buffers;
@@ -17,13 +28,13 @@ layout(push_constant, std430) uniform Parameters {
 #define INV_255 0.003921568627450
 #define TAU 6.28318530717958
 
+// Painting helpers
+
 struct Material {
 	uint id_0;
 	uint id_1;
 	float blend;
 };
-
-// painting helpers
 
 void brush_replace(inout Material mat, uint id) {
 	mat.id_0 = id;
@@ -159,7 +170,6 @@ vec3 height_map(vec2 position, out float erosion_factor) {
 void main() {
 	ivec2 id = ivec2(gl_GlobalInvocationID.xy);
 	
-	// Skip if invocation ID is greater than region size
 	if (id.x >= parameters.region.z || id.y >= parameters.region.w) return;
 	
 	ivec2 size = imageSize(gradient_buffers).xy;
@@ -176,42 +186,47 @@ void main() {
 	
 	/*
 	Painting: we use painting helper functions and calculated painting parameters to decide two dominant materials.
-	These material IDs and a blending float are written into the control buffer, and later parsed by the fragment function.
 	*/
 
 	Material mat = Material(0u, 0u, 0.0);
 
-	// Material IDs: indices correspond to Clipmap3DTextureAsset ordering.
+	// Material IDs: values correspond to Clipmap3DTextureAsset array indices in the Clipmap3D node.
 	#define GRASS_ID 0
 	#define CLIFF_ID 1
 	#define SNOW_ID 2
 	#define MOSS_ID 3
 
-	// "Factors" are normalized painting parameters
+	// "Factors" are normalized painting parameters.
 	float slope_factor = 1.0 - normalize(vec3(-height.y, 1.0, -height.z)).y;
 	float ridge_factor = max(erosion_factor, 0.0);
-	float occlusion_factor = min(erosion_factor, 0.0);
+	float occlusion_factor = max(-erosion_factor, 0.0);
 
-	// Initialize with cliff
+	// Initialize with cliff.
 	brush_replace(mat, CLIFF_ID);
 
-	// Paint some moss before grass
-	float moss_height_factor = 1.0 - smoothstep(1200.0, 1210.0, height.x);
-	float moss_weight = moss_height_factor;
+	// Paint moss in low and flat areas. Also incentivize occluded areas.
+	float moss_weight = 1.6 * (1.0 - smoothstep(0.0, 1350.0, height.x)); // Inverse height factor
+	moss_weight += 1.0 * (1.0 - smoothstep(0.2, 0.3, slope_factor)); // Inverse slope factor
+	moss_weight += 0.7 * occlusion_factor;
+	moss_weight = smoothstep(0.85, 1.0, moss_weight); // Final threshold
 	brush_add(mat, MOSS_ID, moss_weight);
 	
-	// Paint some grass on top of the moss
-	float grass_height_factor = 1.0 - smoothstep(1200.0, 1230.0, height.x);
-	float grass_weight = grass_height_factor;
-	grass_weight = 0.0;
+	// Paint some grass on top of the moss.
+	float grass_weight = 1.6 * (1.0 - smoothstep(0.0, 1120.0, height.x)); // Inverse height factor
+	grass_weight += 1.0 * (1.0 - smoothstep(0.17, 0.2, slope_factor)); // Inverse slope factor
+	grass_weight = smoothstep(0.95, 1.0, grass_weight); // Final threshold
 	brush_add(mat, GRASS_ID, grass_weight);
 	
-	// Paint snow at high elevation
-	float snow_weight = 0.0;
-	snow_weight = max(snow_weight, smoothstep(1600.0, 1700.0, height.x) * smoothstep(0.4, 0.5, ridge_factor));	// Snow also appears on ridges above 1600 m
+	// Paint snow in high, ridged areas.
+	float snow_weight = 0.9 * smoothstep(1500.0, 1720.0, height.x);
+	snow_weight += 0.4 * ridge_factor;
+	snow_weight = smoothstep(0.95, 1.0, snow_weight);
 	brush_add(mat, SNOW_ID, snow_weight);
 	
-	// encode control
+	/*
+	Control encoding: The two dominant material IDs and a blending float are written into the control buffer, and later parsed by the fragment function.
+	*/
+	
 	uint control = 0u;
 	
 	control |= (mat.id_0 & 0x1F) << 27; // id 0, bits 28-32

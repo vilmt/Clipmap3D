@@ -1,10 +1,12 @@
 @tool
 class_name Clipmap3DTextureAsset extends Resource
 
-const UV_SCALE_DEFAULT := Vector2.ONE
+const UV_SCALE_DEFAULT := Vector3.ONE
 const ALBEDO_MODULATE_DEFAULT := Color.WHITE
 const ROUGHNESS_OFFSET_DEFAULT: float = 0.0
 const NORMAL_DEPTH_DEFAULT: float = 1.0
+const STOCHASTIC_OFFSET_DEFAULT := Vector3.ZERO
+const STOCHASTIC_ROTATION_DEFAULT: float = 0.0
 const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 
 @export_custom(PROPERTY_HINT_LINK, "") var uv_scale := UV_SCALE_DEFAULT:
@@ -41,7 +43,17 @@ const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 		normal_depth = value
 		emit_changed()
 
-@export_flags("Randomize Translation", "Randomize Rotation") var flags := FLAGS_DEFAULT:
+@export var stochastic_offset := STOCHASTIC_OFFSET_DEFAULT:
+	set(value):
+		stochastic_offset = value
+		emit_changed()
+
+@export var stochastic_rotation := STOCHASTIC_ROTATION_DEFAULT:
+	set(value):
+		stochastic_rotation = value
+		emit_changed()
+
+@export_flags("Triplanar") var flags := FLAGS_DEFAULT:
 	set(value):
 		flags = value
 		emit_changed()

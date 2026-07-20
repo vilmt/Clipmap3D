@@ -6,8 +6,10 @@
 
 [resource]
 script = ExtResource("3_bs71j")
-uv_scale = Vector2(0.1, 0.1)
+uv_scale = Vector3(0.1, 0.1, 0.1)
 albedo_texture = ExtResource("1_1h0qj")
-roughness_offset = 0.03200000000000003
+albedo_modulate = Color(0.65519994, 0.84, 0.66444, 1)
+roughness_offset = 0.1419999999999999
 normal_texture = ExtResource("2_6fdt7")
+stochastic_rotation = 0.655
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"

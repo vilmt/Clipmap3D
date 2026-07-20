@@ -153,11 +153,6 @@ func _ready():
 	if (debug_visible_collision_shapes or not Engine.is_editor_hint()) and collision_enabled:
 		_collision_handler.build()
 	
-	_shit.call_deferred()
-
-func _shit():
-	_collision_handler.collision_lod = 1
-	
 func _exit_tree() -> void:
 	_compute_handler.clear()
 	_mesh_handler.clear()
