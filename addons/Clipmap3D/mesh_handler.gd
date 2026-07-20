@@ -270,7 +270,6 @@ func _update_instances() -> void:
 		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, cast_shadows)
 		RenderingServer.instance_set_layer_mask(instance_rid, render_layer)
 		
-	# NOTE: XZ-only positions are collapsed to 2D for clean vector operations
 	var world_position := Vector2(target_transform.origin.x, target_transform.origin.z)
 	
 	var instance_index_start: int = 0

@@ -269,6 +269,7 @@ func _ensure_buffers_threaded() -> bool:
 	var buffer_size := get_buffer_size()
 	
 	# Height buffer
+	
 	var height_format := RDTextureFormat.new()
 	height_format.format = HEIGHT_BUFFER_FORMAT
 	height_format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
@@ -290,6 +291,7 @@ func _ensure_buffers_threaded() -> bool:
 	height_uniform.add_id(_height_buffer_rd_rid)
 	
 	# Gradient buffer
+	
 	var gradient_format := RDTextureFormat.new()
 	gradient_format.format = GRADIENT_BUFFER_FORMAT
 	gradient_format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
@@ -311,6 +313,7 @@ func _ensure_buffers_threaded() -> bool:
 	gradient_uniform.add_id(_gradient_buffer_rd_rid)
 	
 	# Control buffer
+	
 	var control_format := RDTextureFormat.new()
 	control_format.format = CONTROL_BUFFER_FORMAT
 	control_format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
@@ -458,10 +461,13 @@ func _update_material() -> void:
 		_material_needs_update = false
 		return
 	
-	material.set_shader_parameter(&"_texels_per_vertex", _texels_per_vertex)
-	material.set_shader_parameter(&"_height_buffer", _height_buffer_rid)
-	material.set_shader_parameter(&"_gradient_buffer", _gradient_buffer_rid)
-	material.set_shader_parameter(&"_control_buffer", _control_buffer_rid)
+	# NOTE: Setting shader parameters using the RID is more consistent when calling from the rendering thread
+	
+	var material_rid := material.get_rid()
+	RenderingServer.material_set_param(material_rid, &"_texels_per_vertex", _texels_per_vertex)
+	RenderingServer.material_set_param(material_rid, &"_height_buffer", _height_buffer_rid)
+	RenderingServer.material_set_param(material_rid, &"_gradient_buffer", _gradient_buffer_rid)
+	RenderingServer.material_set_param(material_rid, &"_control_buffer", _control_buffer_rid)
 	
 	_material_needs_update = false
 #endregion

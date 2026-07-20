@@ -6,6 +6,7 @@ TODO:
 - Support arbitrary rotation
 - Optimize triplanar sampling if possible
 - Use texelFetch in vertex
+- Use coarse derivatives to pick mip
 */
 
 #define MAX_TEXTURE_COUNT 32

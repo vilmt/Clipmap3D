@@ -37,7 +37,7 @@ fog_depth_end = 15000.0
 dof_blur_far_distance = 2805.19
 dof_blur_far_transition = 765.43
 
-[sub_resource type="Resource" id="Resource_r2ioa"]
+[sub_resource type="Resource" id="Resource_p1oah"]
 script = ExtResource("3_p1oah")
 compute_shader = ExtResource("2_p1oah")
 texels_per_vertex = Vector2i(6, 6)
@@ -101,9 +101,9 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
-transform = Transform3D(0.99999714, 0, 0, 0, 0.99999917, 0, 0, 0, 0.99999416, 192.7633, 0.00024414063, 1122.0938)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 217.99805, 0.00024414063, -529.1292)
 script = ExtResource("1_e348m")
-compute_data = SubResource("Resource_r2ioa")
+compute_data = SubResource("Resource_p1oah")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("4_ob4lt"), ExtResource("5_vsihy"), ExtResource("6_p1oah"), ExtResource("7_r2ioa")])
 mesh_lod_count = 10
 mesh_tile_size = Vector2i(48, 48)
