@@ -8,7 +8,7 @@
 [ext_resource type="Resource" uid="uid://gmucl8qwvxxo" path="res://demos/assets/textures/cliff/cliff_asset.tres" id="5_vsihy"]
 [ext_resource type="Resource" uid="uid://deandw8b7vm76" path="res://demos/assets/textures/snow/snow_asset.tres" id="6_p1oah"]
 [ext_resource type="Resource" uid="uid://di8rne3ikvw1g" path="res://demos/assets/textures/moss/moss_asset.tres" id="7_r2ioa"]
-[ext_resource type="Shader" uid="uid://bu5ooak2588ih" path="res://demos/shaders/full.gdshader" id="8_vsihy"]
+[ext_resource type="Material" uid="uid://dvqdrhnugsl3r" path="res://demos/shaders/full.tres" id="9_p1oah"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://demos/scenes/player/player.tscn" id="14_ew5cq"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_6b21n"]
@@ -43,34 +43,6 @@ compute_shader = ExtResource("2_p1oah")
 texels_per_vertex = Vector2i(6, 6)
 metadata/_custom_type_script = "uid://d20stuy1e0ig"
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_p1oah"]
-noise_type = 5
-frequency = 0.7396
-fractal_type = 0
-
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_r2ioa"]
-noise = SubResource("FastNoiseLite_p1oah")
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_p1oah"]
-render_priority = 0
-shader = ExtResource("8_vsihy")
-shader_parameter/stochastic_noise = SubResource("NoiseTexture2D_r2ioa")
-shader_parameter/stochastic_blend_bias = 0.21
-shader_parameter/use_mip_lod = true
-shader_parameter/triplanar_sharpness = 29.5250013549375
-shader_parameter/lod_blend_ratio = 0.2
-shader_parameter/_texels_per_vertex = Vector2i(6, 6)
-shader_parameter/_target_transform = Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
-shader_parameter/_albedo_remap = PackedInt32Array(0, 1, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
-shader_parameter/_normal_remap = PackedInt32Array(0, 1, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
-shader_parameter/_uv_scales = PackedVector3Array(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-shader_parameter/_albedo_modulates = PackedColorArray(0.65519994, 0.84, 0.66444, 1, 0.88120085, 0.8680145, 0.8416278, 1, 1, 1, 1, 1, 0.90359825, 0.90359825, 0.9035982, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-shader_parameter/_roughness_offsets = PackedFloat32Array(0.142, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/_normal_depths = PackedFloat32Array(1, 1, 1, 2.866, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-shader_parameter/_stochastic_offsets = PackedVector3Array(0, 0, 0, 2.32, 2.41, 0.825, 0.855, 1.6, 1.205, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/_stochastic_rotations = PackedFloat32Array(0.655, 4.97, 1.035, 0.225, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/_flags = PackedInt32Array(0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_p1oah"]
 
 [node name="ErosionTerrainDemo" type="Node3D" unique_id=932743419]
@@ -101,17 +73,17 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 217.99805, 0.00024414063, -529.1292)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.077393, 0.00024414063, 1914.5198)
 script = ExtResource("1_e348m")
 compute_data = SubResource("Resource_p1oah")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("4_ob4lt"), ExtResource("5_vsihy"), ExtResource("6_p1oah"), ExtResource("7_r2ioa")])
 mesh_lod_count = 10
 mesh_tile_size = Vector2i(48, 48)
-material = SubResource("ShaderMaterial_p1oah")
+material = ExtResource("9_p1oah")
 aabb_height = 5000.0
 collision_mesh_radius = Vector2i(6, 6)
 collision_physics_material = SubResource("PhysicsMaterial_p1oah")
 metadata/_custom_type_script = "uid://wudkpxu6xggb"
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -267.72116, 1588.7144, 217.98123)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 656.7761, 2355.6716, 1695.2573)
