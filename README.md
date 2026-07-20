@@ -14,7 +14,7 @@ A lightweight infinite procedural terrain system for Godot 4.6
 * No manual work to author terrain; everything is done through code
 * Over 30x30km render distance with configurable vertex density and levels of detail (LODs)
 * Real-time toroidal LOD shifting as the player moves
-* Supports blending up to 32 albedo + normal textures
+* Supports blending up to 16 albedo + normal textures
 
 ## Roadmap
 * Floating-point origin shifting
