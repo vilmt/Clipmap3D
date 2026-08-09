@@ -1,12 +1,11 @@
 shader_type spatial;
-render_mode blend_mix;
+render_mode blend_mix, skip_vertex_transform;
 
 /*
 TODO:
+- Accumulate materials in GPU-friendly way
 - Support arbitrary rotation
 - Optimize triplanar sampling if possible
-- Use texelFetch in vertex
-- Use coarse derivatives to pick mip
 */
 
 #define MAX_TEXTURE_COUNT 16
@@ -20,6 +19,8 @@ uniform sampler2D stochastic_noise: filter_linear;
 uniform float stochastic_blend_bias = 0.1; // TODO: should be material parameter
 
 uniform bool use_mip_lod = true;
+
+uniform float mip_bias: hint_range(-3.0, 3.0) = 0.0;
 uniform float triplanar_sharpness: hint_range(1.0, 100.0) = 30.0;
 uniform float lod_blend_ratio: hint_range(0.0, 0.2928932188134525) = 0.2;
 
@@ -45,8 +46,11 @@ uniform highp sampler2DArray _height_buffer: hint_default_black, repeat_enable, 
 uniform highp sampler2DArray _gradient_buffer: hint_normal, repeat_enable, filter_nearest;
 uniform highp sampler2DArray _control_buffer: hint_default_black, repeat_enable, filter_nearest;
 
-varying vec3 world_position; // TODO: refactor this. This is not the world position, but rather a vertex position.
+varying vec3 world_position; // TODO: refactor this. This is more of an unscaled vertex position
+
 varying float vertex_lod;
+
+varying flat vec3 debug_albedo;
 
 vec2 get_bilinear_uv(vec2 texel, vec2 sampler_size) {
 	vec2 i = floor(texel); // There's not really any reason to use floor here.
@@ -58,54 +62,57 @@ vec4 get_bilinear_weights(vec2 texel) {
 	return vec2(1.0 - w.x, w.x).xyxy * vec2(1.0 - w.y, w.y).xxyy;
 }
 
-ivec2 imod(ivec2 x, ivec2 s) {
-	ivec2 m = min(sign(x), 0);
-	return x-s*((x-m)/s+m);
-}
-
 void vertex() {
-	// TODO: need the subtexel snapped transform 
-	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; // Position in clipmap + target position
-	//world_position = (inverse(_target_transform) * vec4(world_position, 1.0)).xyz;
-	//world_position += _target_transform[3].xyz;
+	ivec3 buffer_size = textureSize(_gradient_buffer, 0);
 	
-	// scale and lod from transform
-	//vec2 scale = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[2].xyz));
+	//mat4 target_to_world = _target_transform;
+	//mat4 world_to_target = inverse(target_to_world);
+	//mat4 model_to_target = world_to_target * MODEL_MATRIX;
 	
-	// This is correct, but unoptimized. Can do it in one sqrt.
-	vec2 scale = vec2(length(MODEL_MATRIX[0].xyz) / length(_target_transform[0].xyz), length(MODEL_MATRIX[2].xyz) / length(_target_transform[2].xyz));
-	vec2 inv_scale = 1.0 / scale;
-	vec2 inv_texel_scale = inv_scale * vec2(_texels_per_vertex);
+	//vec3 target_position = (model_to_target * vec4(VERTEX, 1.0)).xyz;
+	
+	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	
+	// Scale and LOD from transform
+	
+	mat4 info = inverse(_target_transform) * MODEL_MATRIX;
+	
+	vec2 scale = vec2(info[0][0], info[2][2]);
 	float lod_floor = log2(scale.x);
 	
-	vec3 target_position = _target_transform[3].xyz;
-	
-	ivec3 full_size = textureSize(_gradient_buffer, 0);
+	vec2 target_texel = _target_transform[3].xz * vec2(_texels_per_vertex) / scale;
+	vec2 texel = world_position.xz * vec2(_texels_per_vertex) / scale;
 	
 	// Circular LOD pattern (vertex LOD)
 	
-	vec2 lod_origin = (world_position.xz - target_position.xz) * inv_texel_scale;
-	vec2 half_size = vec2(full_size.xy / 2 - _texels_per_vertex);
+	vec2 lod_origin = texel - target_texel;
+	vec2 half_size = vec2(buffer_size.xy / 2 - _texels_per_vertex);
 	float blend_mask = length(lod_origin / half_size);
 	float lod_fract = smoothstep(1.0 - lod_blend_ratio, 1.0, blend_mask);
-	lod_fract = int(lod_floor) >= full_size.z - 1 ? 0.0 : lod_fract; // ensure outer lod_floor does not blend
+	lod_fract = int(lod_floor) >= buffer_size.z - 1 ? 0.0 : lod_fract; // ensure outer lod_floor does not blend
 	
 	vertex_lod = lod_floor + lod_fract;
 	
 	// LOD Geo-morphing
 	
-	// TODO: clamp lod_fract when it's very close to avoid degenerate triangles
-	vec2 parity_mask = mod(floor(world_position.xz * inv_scale + 0.5), 2.0);
-	vec2 geo_morph_offset = parity_mask * lod_fract;
-	VERTEX.xz += geo_morph_offset;
-	world_position.xz += geo_morph_offset * scale;
+	vec2 parity_mask = mod(floor(world_position.xz / scale + 0.5), 2.0);
+	world_position.xz += parity_mask * lod_fract * scale;
+	texel += parity_mask * lod_fract * vec2(_texels_per_vertex);
 	
-	vec2 texel = world_position.xz * inv_texel_scale;
+	/* Height sampling
 	
-	vec2 uv = get_bilinear_uv(texel, vec2(full_size.xy));
+	Notes:
+	- It is not necessary to use texelFetch() for precision since texture() seems to work
+	  identically with the nearest texture filter. Also, texture() has built-in repeat wrapping.
+	- 
+	*/
+	
+	
+	
+	vec2 uv = get_bilinear_uv(texel, vec2(buffer_size.xy));
 	vec4 weights = get_bilinear_weights(texel);
 	
-	vec3 s = vec3(1.0 / vec2(full_size.xy), 0.0);
+	vec3 s = vec3(1.0 / vec2(buffer_size.xy), 0.0);
 	
 	// Bilinear sample is needed since geo-morphing pushes vertices outside of the texel centers.
 	vec4 heights = vec4(
@@ -115,19 +122,17 @@ void vertex() {
 		texture(_height_buffer, vec3(uv + s.xy, lod_floor)).r
 	);
 	
-	// TODO: use texelFetch for precision
+	debug_albedo = vec3(lod_floor);
 	
-	//ivec3 si = ivec3(_texels_per_vertex, 0);
-	//
-	//heights = vec4(
-		//texelFetch(_height_buffer, ivec3(imod(ivec2(floor(texel))        , full_size.xy), int(lod_floor + 1e-5)), 0).r,
-		//texelFetch(_height_buffer, ivec3(imod(ivec2(floor(texel)) + si.xz, full_size.xy), int(lod_floor + 1e-5)), 0).r,
-		//texelFetch(_height_buffer, ivec3(imod(ivec2(floor(texel)) + si.zy, full_size.xy), int(lod_floor + 1e-5)), 0).r,
-		//texelFetch(_height_buffer, ivec3(imod(ivec2(floor(texel)) + si.xy, full_size.xy), int(lod_floor + 1e-5)), 0).r
-	//);
+	//uint control = floatBitsToUint(texture(_control_buffer, vec3(uv, lod_floor)).r);
 	
-	VERTEX.y = dot(heights, weights);
-	world_position.y = VERTEX.y;
+	world_position.y = dot(heights, weights);
+	
+	VERTEX = (VIEW_MATRIX * vec4(world_position, 1.0)).xyz;
+	
+	//if (bool(control >> 13u & 0x1u)) {
+		//VERTEX.x = 0.0 / 0.0;
+	//}
 }
 
 struct Material {
@@ -140,9 +145,11 @@ struct Material {
 	float total_weight;
 };
 
-void accumulate_material(inout Material mat, uint id, float weight, vec3 normal) {
-	vec3 P = _uv_scales[id] * world_position;
-	vec3 dPdx = dFdxCoarse(P), dPdy = dFdyCoarse(P);
+void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3 dPdx, vec3 dPdy, vec3 N) {
+	vec3 s = _uv_scales[id];
+	P *= s;
+	dPdx *= s;
+	dPdy *= s;
 	
 	int albedo_id = _albedo_remap[id];
 	int normal_id = _normal_remap[id];
@@ -246,7 +253,7 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 normal)
 		
 		// Triplanar mix of the 3 axes
 		
-		vec3 power_normal = pow(abs(normal), vec3(triplanar_sharpness));
+		vec3 power_normal = pow(abs(N), vec3(triplanar_sharpness));
 		power_normal /= dot(power_normal, vec3(1.0));
 		
 		albedo_r = x_albedo_r * power_normal.x + albedo_r * power_normal.y + z_albedo_r * power_normal.z;
@@ -277,7 +284,7 @@ void fragment() {
 	vec2 mip_uv = (world_position.xz * vec2(_texels_per_vertex) + 0.5) / vec2(buffer_size.xy);
 	float mip_lod = use_mip_lod ? textureQueryLod(_gradient_buffer, mip_uv).y : vertex_lod;
 	
-	float lod = clamp(mip_lod, vertex_lod, float(buffer_size.z - 1)) + 1e-5;
+	float lod = clamp(mip_lod + mip_bias, vertex_lod, float(buffer_size.z - 1)) + 1e-5;
 	
 	// Trilinear sampling coordinates
 	
@@ -311,7 +318,7 @@ void fragment() {
 	
 	vec3 normal = normalize(vec3(-gradient.x, 1.0, -gradient.y));
 	vec3 tangent = cross(normal, vec3(0.0, 0.0, 1.0));
-	vec3 binormal = cross(normal, tangent); // perpendicular, no need to normalize
+	vec3 binormal = cross(normal, tangent);
 	
 	NORMAL = mat3(VIEW_MATRIX) * normal;
 	TANGENT = mat3(VIEW_MATRIX) * tangent;
@@ -324,6 +331,7 @@ void fragment() {
 	uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, vec3(uv_1, lod_1), 0).wzxy);
 	
 	// Texture weight accumulation from control
+	// NOTE: This is not gpu friendly. Maybe choose like 4 greatest contributions and ignore rest.
 	
 	float weights[MAX_TEXTURE_COUNT];
 	for (int i = 0; i < MAX_TEXTURE_COUNT; i++) weights[i] = 0.0;
@@ -366,9 +374,13 @@ void fragment() {
 	
 	int samples = 0;
 	
+	vec3 p = world_position;
+	vec3 dpdx = dFdxCoarse(world_position);
+	vec3 dpdy = dFdyCoarse(world_position);
+	
 	for (uint id = 0u; id < uint(MAX_TEXTURE_COUNT); id++) {
-		if (weights[id] > 1e-4) {
-			accumulate_material(mat, id, weights[id], normal);
+		if (weights[id] > 1e-3) {
+			accumulate_material(mat, id, weights[id], p, dpdx, dpdy, normal);
 			samples += 1;
 		}
 		
@@ -390,6 +402,8 @@ void fragment() {
 	NORMAL_MAP = fma(mat.normal.xzy, vec3(0.5), vec3(0.5));
 	NORMAL_MAP_DEPTH = mat.normal_depth;
 	AO = mat.ao;
+	
+	//ALBEDO = debug_albedo;
 	
 	//ALBEDO = vec3(float(samples == 1));
 }

@@ -379,6 +379,9 @@ func _update_compute_threaded() -> void:
 		_previous_origins.fill(Vector2i(-1e10, -1e10))
 	
 	for lod: int in lod_count:
+		#var real_origin = target_transform.basis.inverse() * target_transform.origin
+		#current_origins[lod] = world_to_texel(real_origin, lod)
+		
 		current_origins[lod] = world_to_texel(target_transform.origin, lod)
 	
 	var buffer_size := get_buffer_size()

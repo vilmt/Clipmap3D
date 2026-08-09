@@ -227,38 +227,38 @@ func _create_instances() -> void:
 	_instance_offsets[MeshType.TILE] = PackedVector3Array([
 		Vector3(tile_size.x * +1.5 + 1.0, 0.0, tile_size.y * +1.5 + 1.0),
 		Vector3(tile_size.x * +0.5 + 1.0, 0.0, tile_size.y * +1.5 + 1.0),
-		Vector3(tile_size.x * -0.5, 0.0, tile_size.y * +1.5 + 1.0),
-		Vector3(tile_size.x * -1.5, 0.0, tile_size.y * +1.5 + 1.0),
-		Vector3(tile_size.x * -1.5, 0.0, tile_size.y * +0.5 + 1.0),
-		Vector3(tile_size.x * -1.5, 0.0, tile_size.y * -0.5),
-		Vector3(tile_size.x * -1.5, 0.0, tile_size.y * -1.5),
-		Vector3(tile_size.x * -0.5, 0.0, tile_size.y * -1.5),
-		Vector3(tile_size.x * +0.5 + 1.0, 0.0, tile_size.y * -1.5),
-		Vector3(tile_size.x * +1.5 + 1.0, 0.0, tile_size.y * -1.5),
-		Vector3(tile_size.x * +1.5 + 1.0, 0.0, tile_size.y * -0.5),
+		Vector3(tile_size.x * -0.5      , 0.0, tile_size.y * +1.5 + 1.0),
+		Vector3(tile_size.x * -1.5      , 0.0, tile_size.y * +1.5 + 1.0),
+		Vector3(tile_size.x * -1.5      , 0.0, tile_size.y * +0.5 + 1.0),
+		Vector3(tile_size.x * -1.5      , 0.0, tile_size.y * -0.5      ),
+		Vector3(tile_size.x * -1.5      , 0.0, tile_size.y * -1.5      ),
+		Vector3(tile_size.x * -0.5      , 0.0, tile_size.y * -1.5      ),
+		Vector3(tile_size.x * +0.5 + 1.0, 0.0, tile_size.y * -1.5      ),
+		Vector3(tile_size.x * +1.5 + 1.0, 0.0, tile_size.y * -1.5      ),
+		Vector3(tile_size.x * +1.5 + 1.0, 0.0, tile_size.y * -0.5      ),
 		Vector3(tile_size.x * +1.5 + 1.0, 0.0, tile_size.y * +0.5 + 1.0),
 	])
 	
 	_instance_offsets[MeshType.FILL_X] = PackedVector3Array([
-		Vector3(0.5, 0.0, tile_size.y * 1.5 + 1.0),
-		Vector3(0.5, 0.0, tile_size.y * -1.5)
+		Vector3(0.5, 0.0, tile_size.y * +1.5 + 1.0),
+		Vector3(0.5, 0.0, tile_size.y * -1.5      )
 	])
 	
 	_instance_offsets[MeshType.FILL_Z] = PackedVector3Array([
-		Vector3(tile_size.x * 1.5 + 1.0, 0.0, 0.5),
-		Vector3(tile_size.x * -1.5, 0.0, 0.5)
+		Vector3(tile_size.x * +1.5 + 1.0, 0.0, 0.5),
+		Vector3(tile_size.x * -1.5      , 0.0, 0.5)
 	])
 	
 	_edge_x_offsets = {
-		Vector2i(0, 0): Vector3(tile_size.x * 2.0 + 1.5, 0.0, 1.0),
+		Vector2i(0, 0): Vector3(tile_size.x * +2.0 + 1.5, 0.0, 1.0),
 		Vector2i(1, 0): Vector3(tile_size.x * -2.0 - 0.5, 0.0, 1.0),
-		Vector2i(0, 1): Vector3(tile_size.x * 2.0 + 1.5, 0.0, 0.0),
+		Vector2i(0, 1): Vector3(tile_size.x * +2.0 + 1.5, 0.0, 0.0),
 		Vector2i(1, 1): Vector3(tile_size.x * -2.0 - 0.5, 0.0, 0.0)
 	}
 	
 	_edge_z_offsets = {
-		Vector2i(0, 0): Vector3(0.5, 0.0, tile_size.y * 2.0 + 1.5),
-		Vector2i(1, 0): Vector3(0.5, 0.0, tile_size.y * 2.0 + 1.5),
+		Vector2i(0, 0): Vector3(0.5, 0.0, tile_size.y * +2.0 + 1.5),
+		Vector2i(1, 0): Vector3(0.5, 0.0, tile_size.y * +2.0 + 1.5),
 		Vector2i(0, 1): Vector3(0.5, 0.0, tile_size.y * -2.0 - 0.5),
 		Vector2i(1, 1): Vector3(0.5, 0.0, tile_size.y * -2.0 - 0.5)
 	}
@@ -281,8 +281,8 @@ func _update_instances() -> void:
 		var edge_parity := Vector2i(lod_position).abs() % 2
 		
 		var transform_snapped := target_transform
-		transform_snapped.origin.x = floorf(target_transform.origin.x / lod_scale) * lod_scale
-		transform_snapped.origin.z = floorf(target_transform.origin.z / lod_scale) * lod_scale
+		transform_snapped.origin.x = lod_position.x * lod_scale
+		transform_snapped.origin.z = lod_position.y * lod_scale
 		
 		var mesh_type_count: Dictionary[MeshType, int] = {}
 		

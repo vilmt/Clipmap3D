@@ -222,6 +222,8 @@ void main() {
 	snow_weight += 0.4 * ridge_factor;
 	snow_weight = smoothstep(0.95, 1.0, snow_weight);
 	brush_add(mat, SNOW_ID, snow_weight);
+
+	//bool hole = bool(length(texel * scale) < 20.0);
 	
 	/*
 	Control encoding: The two dominant material IDs and a blending float are written into the control buffer, and later parsed by the fragment function.
@@ -229,11 +231,13 @@ void main() {
 	
 	uint control = 0u;
 	
-	control |= (mat.id_0 & 0x1F) << 27; // id 0, bits 28-32
-	control |= (mat.id_1 & 0x1F) << 22; // id 1, bits 23-27
-	
+	control |= (mat.id_0 & 0x1Fu) << 27u; // id 0, bits 28-32
+	control |= (mat.id_1 & 0x1Fu) << 22u; // id 1, bits 23-27
+
 	uint blend = uint(clamp(mat.blend * 255.0, 0.0, 255.0));
-	control |= (blend & 0xFF) << 14; // id 0 -> id 1 blend, bits 15-22
+	control |= (blend & 0xFFu) << 14u; // id 0 -> id 1 blend, bits 15-22
+
+	//control |= (uint(hole) & 0x1u) << 13u;
 	
 	imageStore(control_buffers, ivec3(wrapped_texel, parameters.lod), vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
 }

@@ -12,5 +12,4 @@ albedo_modulate = Color(0.90359825, 0.90359825, 0.9035982, 1)
 normal_texture = ExtResource("2_ci40l")
 normal_depth = 2.866
 stochastic_rotation = 0.225
-flags = 1
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"
