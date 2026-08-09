@@ -280,8 +280,9 @@ func _update_instances() -> void:
 		var lod_position := (world_position / lod_scale).floor()
 		var edge_parity := Vector2i(lod_position).abs() % 2
 		
-		var transform_snapped := target_transform
+		var transform_snapped := Transform3D.IDENTITY
 		transform_snapped.origin.x = lod_position.x * lod_scale
+		transform_snapped.origin.y = target_transform.origin.y
 		transform_snapped.origin.z = lod_position.y * lod_scale
 		
 		var mesh_type_count: Dictionary[MeshType, int] = {}

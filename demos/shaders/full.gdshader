@@ -4,8 +4,7 @@ render_mode blend_mix, skip_vertex_transform;
 /*
 TODO:
 - Accumulate materials in GPU-friendly way
-- Support arbitrary rotation
-- Optimize triplanar sampling if possible
+- Support arbitrary transform
 */
 
 #define MAX_TEXTURE_COUNT 16
@@ -65,19 +64,11 @@ vec4 get_bilinear_weights(vec2 texel) {
 void vertex() {
 	ivec3 buffer_size = textureSize(_gradient_buffer, 0);
 	
-	//mat4 target_to_world = _target_transform;
-	//mat4 world_to_target = inverse(target_to_world);
-	//mat4 model_to_target = world_to_target * MODEL_MATRIX;
-	
-	//vec3 target_position = (model_to_target * vec4(VERTEX, 1.0)).xyz;
-	
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	
 	// Scale and LOD from transform
 	
-	mat4 info = inverse(_target_transform) * MODEL_MATRIX;
-	
-	vec2 scale = vec2(info[0][0], info[2][2]);
+	vec2 scale = vec2(MODEL_MATRIX[0][0], MODEL_MATRIX[2][2]);
 	float lod_floor = log2(scale.x);
 	
 	vec2 target_texel = _target_transform[3].xz * vec2(_texels_per_vertex) / scale;
@@ -106,8 +97,6 @@ void vertex() {
 	  identically with the nearest texture filter. Also, texture() has built-in repeat wrapping.
 	- 
 	*/
-	
-	
 	
 	vec2 uv = get_bilinear_uv(texel, vec2(buffer_size.xy));
 	vec4 weights = get_bilinear_weights(texel);
