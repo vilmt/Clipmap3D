@@ -28,7 +28,24 @@ layout(push_constant, std430) uniform Parameters {
 #define INV_255 0.003921568627450
 #define TAU 6.28318530717958
 
-// Painting helpers
+// Math helpers
+
+// Stable integer floor division and modulo by vilmt
+ivec4 div_mod(ivec2 x, ivec2 y) {
+    uvec2 x_u = uvec2(x), x_s = x_u >> 31;
+    uvec2 y_u = uvec2(y), y_s = y_u >> 31;
+    
+    uvec2 x_a = (x_u ^ -x_s) + x_s;
+    uvec2 y_a = (y_u ^ -y_s) + y_s;
+    
+    uvec2 q = x_a / y_a, q_s = x_s ^ y_s;
+    q += q_s & uvec2(notEqual(x_a, y_a * q));
+    q = (q ^ -q_s) + q_s;
+    
+    return ivec4(q, x - y * ivec2(q));
+}
+
+// Painting helpers. TODO: optimize, add more.
 
 struct Material {
 	uint id_0;
@@ -45,15 +62,15 @@ void brush_replace(inout Material mat, uint id) {
 void brush_add(inout Material mat, uint id, float weight) {
 	if (weight < 1e-6) return;
 	
-	weight = clamp(weight, 0.0, 1.0);
+	//weight = clamp(weight, 0.0, 1.0);
 	
 	if (id != mat.id_0 && id != mat.id_1) {
 		if (mat.blend > 0.5) {
 			mat.blend = min(mat.blend + weight, 1.0);
-			mat.id_0 = mat.blend > 1.0 - INV_255 ? id : mat.id_0;
+			mat.id_0 = mat.blend > 1.0 - 1.0 / 255.0 ? id : mat.id_0;
 		} else {
 			mat.blend = max(mat.blend - weight, 0.0);
-			mat.id_1 = mat.blend < INV_255 ? id : mat.id_1;
+			mat.id_1 = mat.blend < 1.0 / 255.0 ? id : mat.id_1;
 		}
 	}
 	
@@ -62,107 +79,107 @@ void brush_add(inout Material mat, uint id, float weight) {
 	
 }
 
-ivec2 imod(ivec2 x, ivec2 s) {
-	ivec2 m = min(sign(x), 0);
-	return x-s*((x-m)/s+m);
-}
+// Hash and noise functions
 
-vec2 hash21(vec2 p) {
-	vec3 p3 = vec3(p, float(parameters.compute_seed));
-	p3 = fract(p3 * vec3(.1031, .1030, .0973));
-    p3 += dot(p3, p3.yzx+33.33);
-    return -1.0 + 2.0 * fract((p3.xx+p3.yz)*p3.zy);
-}
+// pcg3d hash (0, 1): https://www.jcgt.org/published/0009/03/02/
+vec2 hash(ivec2 p_i, uint seed) {
+    uvec3 v = uvec3(uvec2(p_i), seed);
 
-vec2 hash22(vec2 p) {
-	vec2 q = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)));
-	return fract(sin(q)*43758.5453);
-}
+    v = v * 1664525u + 1013904223u;
 
-// gradient noise and derivative by iq https://www.shadertoy.com/view/XdXBRH
-vec3 noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
+    v.x += v.y*v.z;
+    v.y += v.z*v.x;
+    v.z += v.x*v.y;
 
-    vec2 u = f*f*f*(f*(f*6.0-15.0)+10.0);
-    vec2 du = 30.0*f*f*(f*(f-2.0)+1.0); 
+    v ^= v >> 16u;
+
+    v.x += v.y*v.z;
+    v.y += v.z*v.x;
+    v.z += v.x*v.y;
     
-    vec2 ga = hash21(i + vec2(0.0, 0.0));
-    vec2 gb = hash21(i + vec2(1.0, 0.0));
-    vec2 gc = hash21(i + vec2(0.0, 1.0));
-    vec2 gd = hash21(i + vec2(1.0, 1.0));
-    
-    float va = dot(ga, f - vec2(0.0, 0.0));
-    float vb = dot(gb, f - vec2(1.0, 0.0));
-    float vc = dot(gc, f - vec2(0.0, 1.0));
-    float vd = dot(gd, f - vec2(1.0, 1.0));
-
-    return vec3( va + u.x*(vb-va) + u.y*(vc-va) + u.x*u.y*(va-vb-vc+vd),
-        ga + u.x*(gb-ga) + u.y*(gc-ga) + u.x*u.y*(ga-gb-gc+gd) +
-        du * (u.yx*(va-vb-vc+vd) + vec2(vb,vc) - va));
+    return vec2(v.xy) / 4294967296.0;
 }
 
-// erosion ridges and derivative by vilmt
-// based on smooth voronoi by iq https://iquilezles.org/articles/smoothvoronoi/
-vec3 ridges(vec2 p, vec2 curl) {
-	vec2 p_i = floor(p);
-	vec2 p_f = fract(p);
-	
-	vec3 r = vec3(0.0);
+// Gradient noise and derivative by iq: https://www.shadertoy.com/view/XdXBRH
+vec3 noise(ivec2 position, ivec2 wavelength, float amplitude) {
+    ivec4 division_result = div_mod(position, wavelength * parameters.texels_per_vertex);
+	vec2 frequency = 1.0 / vec2(wavelength);
+    ivec2 p_i = division_result.xy;
+    vec2 p_f = vec2(division_result.zw) * frequency / vec2(parameters.texels_per_vertex);
+        
+    vec2 u = p_f * p_f * p_f * (p_f * (p_f * 6.0 - 15.0) + 10.0);
+    vec2 du = 30.0 * p_f * p_f * (p_f * (p_f - 2.0) + 1.0);
+    
+    vec2 ga = 2.0 * hash(p_i + ivec2(0, 0), parameters.compute_seed) - 1.0;
+    vec2 gb = 2.0 * hash(p_i + ivec2(1, 0), parameters.compute_seed) - 1.0;
+    vec2 gc = 2.0 * hash(p_i + ivec2(0, 1), parameters.compute_seed) - 1.0;
+    vec2 gd = 2.0 * hash(p_i + ivec2(1, 1), parameters.compute_seed) - 1.0;
+    
+    float va = dot(ga, p_f - vec2(0.0, 0.0));
+    float vb = dot(gb, p_f - vec2(1.0, 0.0));
+    float vc = dot(gc, p_f - vec2(0.0, 1.0));
+    float vd = dot(gd, p_f - vec2(1.0, 1.0));
+    
+    vec3 layer = vec3(
+        va + u.x * (vb - va) + u.y * (vc - va) + u.x * u.y * (va - vb - vc + vd),
+        ga + u.x * (gb - ga) + u.y * (gc - ga) + u.x * u.y * (ga - gb - gc + gd) +
+        du * (u.yx * (va - vb - vc + vd) + vec2(vb, vc) - va)
+    );
+    
+    return layer * amplitude * vec3(1.0, frequency);
+}
+
+// Erosion ridges and derivatives by vilmt
+vec3 ridges(ivec2 position, ivec2 wavelength, float amplitude, vec3 height) {
+    ivec4 division_result = div_mod(position, wavelength * parameters.texels_per_vertex);
+    vec2 frequency = 1.0 / vec2(wavelength);
+    ivec2 p_i = division_result.xy;
+    vec2 p_f = vec2(division_result.zw) * frequency / vec2(parameters.texels_per_vertex);
+
+	vec2 curl = vec2(height.z, -height.y);
+    
+	vec3 layer = vec3(0.0);
 	
 	for (int j = -1; j <= 1; j++)
 	for (int i = -1; i <= 1; i++) {
-		vec2 o = vec2(float(i), float(j));
-		vec2 d = o - p_f + hash22(p_i + o);
-		float dd = max(0.0, 1.0 - dot(d, d));
-		//vec3 w = vec3(dd, 4.0 * d) * dd; // C1 quartic interpolant
-        vec3 w = vec3(dd, 6.0 * d) * dd * dd; // C2
+		ivec2 offset = ivec2(i, j);
+		vec2 random = vec2(offset) - p_f + hash(p_i + offset, parameters.compute_seed);
 		
-		float phase = dot(d, curl) * TAU;
-		float c = cos(phase), s = sin(phase);
-		r += vec3(c * w.x, TAU * s * curl * w.x + c * w.yz);
+        float x = 1.0 - dot(random, random);
+        vec3 weight = vec3(x, 4.0 * random) * max(0.0, x);
+        
+        float phase = TAU * dot(random, curl);
+        
+        layer += cos(phase) * weight;
+        layer.yz += TAU * sin(phase) * weight.x * curl;
 	}
-	
-	return r;
+    
+	return layer * amplitude * vec3(1.0, frequency);
 }
 
+// Height and derivatives
+vec3 height_map(ivec2 position, out float erosion_factor) {
+	vec3 height = vec3(1500.0, 0.0, 0.0);
+    
+	position += 100000; // Remove obvious pattern from 0, 0
 
-// Returns (height, dHeight_dx, dHeight_dz), and some normalized painting parameters
-vec3 height_map(vec2 position, out float erosion_factor) {
-    // FBM terrain
-	vec3 height = vec3(0.0);
-	float height_amplitude = 1500.0;
-	float height_frequency = 0.0005;
-	
-	for (int i = 0; i < 6; i++) {
-		vec3 layer = noise(position * height_frequency) * height_amplitude;
-		height += layer * vec3(1.0, vec2(height_frequency));
-		
-		height_amplitude *= 0.4; // gain
-		height_frequency *= 1.8; // lacunarity
-	}
+    height += noise(position, ivec2(2000), 1500.0);
+    height += noise(position, ivec2(1200), 750.0);
+    height += noise(position, ivec2(700), 325.0);
+    height += noise(position, ivec2(400), 112.0);
+    height += noise(position, ivec2(240), 56.0);
+	height += noise(position, ivec2(130), 30.0);
+	height += noise(position, ivec2(70), 15.0);
+	height += noise(position, ivec2(40), 7.0);
 
-	// map terrain to [0, amplitude]
-	// TODO: use noise in the range [0, 1]
-	height.x += 1500.0; 
+	vec3 erosion = vec3(0.0, 0.0, 0.0);
 	
-	// FBM erosion
-	vec3 erosion = vec3(0.0);
-	float erosion_amplitude = 20.0;
-	float erosion_frequency = 0.005;
-	
-	float initial_erosion_amplitude = erosion_amplitude;
-	
-	for (int i = 0; i < 5; i++) {
-		vec2 curl = (height.zy + erosion.zy) * vec2(1.0, -1.0);
-		vec3 layer = ridges(position * erosion_frequency, curl) * erosion_amplitude;
-		erosion += layer * vec3(1.0, vec2(erosion_frequency));
-		
-		erosion_amplitude *= 0.5; // gain
-		erosion_frequency *= 1.8; // lacunarity
-	}
-	
-	erosion_factor = erosion.x / initial_erosion_amplitude;
+	erosion += ridges(position, ivec2(100), 5.0, height + erosion);
+    erosion += ridges(position, ivec2(50), 2.5, height + erosion);
+    erosion += ridges(position, ivec2(25), 1.2, height + erosion);
+	erosion += ridges(position, ivec2(13), 0.6, height + erosion);
+
+	erosion_factor = erosion.x;
 	
 	return height + erosion;
 }
@@ -170,19 +187,21 @@ vec3 height_map(vec2 position, out float erosion_factor) {
 void main() {
 	ivec2 id = ivec2(gl_GlobalInvocationID.xy);
 	
-	if (id.x >= parameters.region.z || id.y >= parameters.region.w) return;
+	if (id.x >= parameters.region.z || id.y >= parameters.region.w)
+		return;
 	
-	ivec2 size = imageSize(gradient_buffers).xy;
-	ivec2 texel = parameters.region.xy + id;
-	ivec2 wrapped_texel = imod(texel, size);
+	ivec2 position = parameters.region.xy + id;
 
-	vec2 scale = float(1 << parameters.lod) / vec2(parameters.texels_per_vertex);
+	ivec2 wrap_size = imageSize(gradient_buffers).xy;
+	ivec3 texel = ivec3(div_mod(position, wrap_size).zw, parameters.lod);
+
+	position <<= parameters.lod;
 
 	float erosion_factor;
-	vec3 height = height_map(texel * scale, erosion_factor);
+	vec3 height = height_map(position, erosion_factor);
 
-	imageStore(height_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.x, 0.0, 0.0, 0.0));
-	imageStore(gradient_buffers, ivec3(wrapped_texel, parameters.lod), vec4(height.yz, 0.0, 0.0));
+	imageStore(height_buffers, texel, vec4(height.x, 0.0, 0.0, 0.0));
+	imageStore(gradient_buffers, texel, vec4(height.yz, 0.0, 0.0));
 	
 	/*
 	Painting: we use painting helper functions and calculated painting parameters to decide two dominant materials.
@@ -196,10 +215,13 @@ void main() {
 	#define SNOW_ID 2
 	#define MOSS_ID 3
 
-	// "Factors" are normalized painting parameters.
+	// Arbitrary painting parameters
 	float slope_factor = 1.0 - normalize(vec3(-height.y, 1.0, -height.z)).y;
 	float ridge_factor = max(erosion_factor, 0.0);
 	float occlusion_factor = max(-erosion_factor, 0.0);
+
+	float random_factor1 = noise(position, ivec2(500), 1.0).x;
+	float random_factor2 = noise(position, ivec2(100), 1.0).x;
 
 	// Initialize with cliff.
 	brush_replace(mat, CLIFF_ID);
@@ -207,7 +229,7 @@ void main() {
 	// Paint moss in low and flat areas. Also incentivize occluded areas.
 	float moss_weight = 1.6 * (1.0 - smoothstep(0.0, 1350.0, height.x)); // Inverse height factor
 	moss_weight += 1.0 * (1.0 - smoothstep(0.2, 0.3, slope_factor)); // Inverse slope factor
-	moss_weight += 0.7 * occlusion_factor;
+	moss_weight += 0.7 * smoothstep(3.0, 7.0, occlusion_factor);
 	moss_weight = smoothstep(0.85, 1.0, moss_weight); // Final threshold
 	brush_add(mat, MOSS_ID, moss_weight);
 	
@@ -218,9 +240,13 @@ void main() {
 	brush_add(mat, GRASS_ID, grass_weight);
 	
 	// Paint snow in high, ridged areas.
-	float snow_weight = 0.9 * smoothstep(1500.0, 1720.0, height.x);
-	snow_weight += 0.4 * ridge_factor;
-	snow_weight = smoothstep(0.95, 1.0, snow_weight);
+	float height_mask1 = smoothstep(1800.0, 1920.0, height.x + random_factor1 * 500.0);
+	float height_mask2 = smoothstep(2100, 2200, height.x + random_factor2 * 200.0);
+	float snow_weight = 0.7 * height_mask1;
+	snow_weight += 0.5 * height_mask2;
+	snow_weight += smoothstep(2.0, 5.0, ridge_factor) * height_mask1;
+	snow_weight = smoothstep(0.8, 1.0, snow_weight);
+	
 	brush_add(mat, SNOW_ID, snow_weight);
 
 	//bool hole = bool(length(texel * scale) < 20.0);
@@ -239,5 +265,5 @@ void main() {
 
 	//control |= (uint(hole) & 0x1u) << 13u;
 	
-	imageStore(control_buffers, ivec3(wrapped_texel, parameters.lod), vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
+	imageStore(control_buffers, texel, vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));
 }

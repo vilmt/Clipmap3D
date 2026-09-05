@@ -57,8 +57,8 @@ vec2 get_bilinear_uv(vec2 texel, vec2 sampler_size) {
 }
 
 vec4 get_bilinear_weights(vec2 texel) {
-	vec2 w = fract(texel);
-	return vec2(1.0 - w.x, w.x).xyxy * vec2(1.0 - w.y, w.y).xxyy;
+	vec2 w = fract(texel), w_inv = 1.0 - w;
+	return vec4(w_inv.x, w.x, w_inv.x, w.x) * vec4(w_inv.y, w_inv.y, w.y, w.y);
 }
 
 void vertex() {
