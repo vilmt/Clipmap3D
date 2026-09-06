@@ -4,8 +4,7 @@
 A lightweight infinite procedural terrain system for Godot 4.6
 
 > [!IMPORTANT]
-> Clipmap3D is not currently under active development. If you are looking
-> forward to seeing a new feature/bugfix in Clipmap3D, make an issue or contact me! I am always happy to work collaboratively.
+> If you are looking forward to seeing a new feature/bugfix in Clipmap3D, make an issue or contact me! I am always happy to work collaboratively.
 
 ## Overview
 * Written in GDScript, GDShader, and GLSL
@@ -18,8 +17,9 @@ A lightweight infinite procedural terrain system for Godot 4.6
 
 ## Roadmap
 * Floating-point origin shifting
+* Layer-based procedural generation for roads, rivers, and structures (LayerProcGen)
 * Foliage instancing (scatter system)
-* Heightmap image imports and streaming
+
 
 ## Limitations
 * This project is work-in-progress and is subject to major changes
@@ -29,6 +29,7 @@ A lightweight infinite procedural terrain system for Godot 4.6
 ## Trying the demos (4.6)
 * This repository contains a demo folder with example scenes and compute shaders
 	* Erosion terrain demo
+  		* Stable integer-based noise and an erosion filter
 	* ~~Simple terrain demo~~ (Temporarily removed)
 	* ~~NoLerp demo (For debugging and learning how the clipmap works)~~ (Temporarily removed)
 * After loading a scene, set View -> Settings... -> View Z-Far to 16000
