@@ -29,7 +29,7 @@ class_name Clipmap3D extends Node3D
 		_compute_handler.lod_count = mesh_lod_count
 		
 ## The base tile size used to build the clipmap.
-@export var mesh_tile_size := Vector2i(32, 32):
+@export_custom(PROPERTY_HINT_LINK, "") var mesh_tile_size := Vector2i(32, 32):
 	set(value):
 		mesh_tile_size = value.clampi(1, 128)
 		_mesh_handler.tile_size = mesh_tile_size
@@ -75,7 +75,7 @@ class_name Clipmap3D extends Node3D
 		collision_lod = value
 		_collision_handler.collision_lod = collision_lod
 
-@export var collision_mesh_radius := Vector2i(4, 4):
+@export_custom(PROPERTY_HINT_LINK, "") var collision_mesh_radius := Vector2i(4, 4):
 	set(value):
 		collision_mesh_radius = value.maxi(1)
 		_collision_handler.mesh_radius = collision_mesh_radius

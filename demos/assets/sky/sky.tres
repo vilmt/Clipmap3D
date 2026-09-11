@@ -1,0 +1,96 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://mhduws1ksl1j"]
+
+[ext_resource type="Shader" uid="uid://bn4ffb18rmne2" path="res://demos/assets/sky/sky.gdshader" id="1_i1li6"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_51kaw"]
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_sd3v2"]
+noise = SubResource("FastNoiseLite_51kaw")
+seamless = true
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_h3y5j"]
+frequency = 0.03
+
+[sub_resource type="NoiseTexture3D" id="NoiseTexture3D_4nfhm"]
+width = 128
+height = 128
+depth = 128
+noise = SubResource("FastNoiseLite_h3y5j")
+seamless = true
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_rryfl"]
+noise_type = 2
+frequency = 0.02
+
+[sub_resource type="NoiseTexture3D" id="NoiseTexture3D_b804q"]
+width = 128
+height = 128
+depth = 128
+noise = SubResource("FastNoiseLite_rryfl")
+seamless = true
+
+[resource]
+shader = ExtResource("1_i1li6")
+shader_parameter/use_debanding = true
+shader_parameter/atmosphere_sample_count = 32
+shader_parameter/elevation = 3000.0
+shader_parameter/rayleigh_strength = 1.0
+shader_parameter/mie_strength = 1.0
+shader_parameter/ozone_strength = 1.0
+shader_parameter/mie_anisotropy_factor = 0.75
+shader_parameter/atmosphere_density = 1.0
+shader_parameter/exposure = 10.0
+shader_parameter/sun_disc_feather = 0.5
+shader_parameter/sundisc_intensity = 100.0
+shader_parameter/stars_exposure = 5.0
+shader_parameter/stars_rotation = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
+shader_parameter/dim_stars_at_day = true
+shader_parameter/moon_dist = PackedFloat32Array(0, 0, 0)
+shader_parameter/moon_uv_x_offset = PackedFloat32Array(0, 0, 0)
+shader_parameter/moon_textures = Array[Texture2D]([])
+shader_parameter/hole_in_center = true
+shader_parameter/hole_radius = 9.33
+shader_parameter/hole_feather = 10.0
+shader_parameter/cloud_falloff_coeff = 0.3
+shader_parameter/clouds_alpha_lower_bound = 0.005
+shader_parameter/clouds_alpha_upper_bound = 1.04
+shader_parameter/cloud_color_texture = SubResource("NoiseTexture2D_sd3v2")
+shader_parameter/cloud_base_color = Color(0.85, 0.85, 0.9, 1)
+shader_parameter/cloud_overcast_color = Color(0.35, 0.4, 0.45, 1)
+shader_parameter/coverage = 0.51200002432
+shader_parameter/cloud_smoothness = 0.05
+shader_parameter/apply_stochastic_jitter = false
+shader_parameter/stochastic_jitter_amount = 0.1
+shader_parameter/cloud_base_march_dist = 10.0
+shader_parameter/cloud_marches = 30
+shader_parameter/density_coeff = 0.1590000075525
+shader_parameter/cloud_noise_factor = 0.5
+shader_parameter/cloud_shape = SubResource("NoiseTexture3D_b804q")
+shader_parameter/cloud_shape_size = 1.0
+shader_parameter/cloud_shape_offset = Vector3(0, 0, 0)
+shader_parameter/cloud_noise = SubResource("NoiseTexture3D_4nfhm")
+shader_parameter/cloud_noise_size = 7.02
+shader_parameter/cloud_noise_offset = Vector3(0, 0, 0)
+shader_parameter/clouds_anisotropy_factor = 0.194000009215
+shader_parameter/light_marches = 8
+shader_parameter/light_max_dist = 5.0
+shader_parameter/light_strength = 15.0
+shader_parameter/use_cirrus = false
+shader_parameter/cirrus_squish = Vector2(4, 1)
+shader_parameter/cirrus_scale = 1.0
+shader_parameter/cirrus_treshold = 0.75
+shader_parameter/cirrus_feather = 0.25
+shader_parameter/cirrus_offset = Vector2(0, 0)
+shader_parameter/cirrus_distortion_scale = 1.0
+shader_parameter/cirrus_distortion_strength = 0.4
+shader_parameter/cirrus_distortion_offset = Vector2(0, 0)
+shader_parameter/cirrus_mask_scale = 1.0
+shader_parameter/cirrus_mask_treshold = 0.6
+shader_parameter/cirrus_mask_feather = 0.4
+shader_parameter/cirrus_opacity = 0.2
+shader_parameter/use_rainbow = false
+shader_parameter/behind_clouds = false
+shader_parameter/rainbow_width = 0.05
+shader_parameter/rainbow_offset = 0.65
+shader_parameter/rainbow_opacity = 0.1
+shader_parameter/double_rainbow = true

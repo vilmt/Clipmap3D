@@ -61,7 +61,7 @@ var _albedo_modulates := PackedColorArray()
 var _roughness_offsets := PackedFloat32Array()
 var _normal_depths := PackedFloat32Array()
 var _stochastic_offsets := PackedVector3Array()
-var _stochastic_rotations := PackedFloat32Array()
+var _stochastic_rotations := PackedVector3Array()
 var _flags := PackedInt32Array()
 
 func _rebuild_textures():
@@ -179,7 +179,7 @@ func _clear_textures():
 	_roughness_offsets = PackedFloat32Array()
 	_normal_depths = PackedFloat32Array()
 	_stochastic_offsets = PackedVector3Array()
-	_stochastic_rotations = PackedFloat32Array()
+	_stochastic_rotations = PackedVector3Array()
 	_flags = PackedInt32Array()
 
 func _on_texture_asset_changed():

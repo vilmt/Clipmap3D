@@ -8,7 +8,6 @@ TODO:
 */
 
 #define MAX_TEXTURE_COUNT 16
-#define INV_255 0.003921568627450
 #define ALBEDO_DEFAULT vec4(0.8, 0.8, 0.8, 1.0)
 #define NORMAL_DEFAULT vec4(0.5, 0.5, 1.0, 1.0)
 
@@ -38,7 +37,7 @@ uniform vec3[MAX_TEXTURE_COUNT] _albedo_modulates: source_color;
 uniform float[MAX_TEXTURE_COUNT] _roughness_offsets;
 uniform float[MAX_TEXTURE_COUNT] _normal_depths;
 uniform vec3[MAX_TEXTURE_COUNT] _stochastic_offsets;
-uniform float[MAX_TEXTURE_COUNT] _stochastic_rotations;
+uniform vec3[MAX_TEXTURE_COUNT] _stochastic_rotations;
 uniform uint[MAX_TEXTURE_COUNT] _flags;
 
 uniform highp sampler2DArray _height_buffer: hint_default_black, repeat_enable, filter_nearest;
@@ -146,7 +145,7 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 	
 	float random = texture(stochastic_noise, 0.005 * P.xz).x;
 	vec3 offset_strength = _stochastic_offsets[id];
-	float rotation_strength = _stochastic_rotations[id];
+	vec3 rotation_strength = _stochastic_rotations[id];
 	
 	float l = random * 8.0;
 	float f = fract(l);
@@ -157,59 +156,65 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 	
 	// Coordinate space A
 	
-	vec3 offset_A = offset_strength * sin(vec3(3.0, 7.0, 13.0) * ia); // NOTE: replace hash if needed
-	float angle_A = rotation_strength * ia;
-	float sin_A = sin(angle_A), cos_A = cos(angle_A);
-	mat2 rot_A = mat2(vec2(cos_A, sin_A), vec2(-sin_A, cos_A));
+	vec3 PA = P - offset_strength * sin(vec3(3.0, 7.0, 13.0) * ia); // NOTE: replace hash if needed
+	vec3 angle_A = rotation_strength * ia;
+	vec3 sin_A = sin(angle_A), cos_A = cos(angle_A);
 	
 	// Coordinate space B
 	
-	vec3 offset_B = offset_strength * sin(vec3(3.0, 7.0, 13.0) * ib);
-	float angle_B = rotation_strength * ib;
-	float sin_B = sin(angle_B), cos_B = cos(angle_B);
-	mat2 rot_B = mat2(vec2(cos_B, sin_B), vec2(-sin_B, cos_B));
+	vec3 PB = P - offset_strength * sin(vec3(3.0, 7.0, 13.0) * ib);
+	vec3 angle_B = rotation_strength * ib;
+	vec3 sin_B = sin(angle_B), cos_B = cos(angle_B);
 	
 	// Y-axis samples
 	
-	vec2 A = rot_A * (P - offset_A).xz;
-	vec2 dAdx = rot_A * dPdx.xz;
-	vec2 dAdy = rot_A * dPdy.xz;
+	mat2 y_rot_A = mat2(vec2(cos_A.y, sin_A.y), vec2(-sin_A.y, cos_A.y));
 	
-	vec2 B = rot_B * (P - offset_B).xz;
-	vec2 dBdx = rot_B * dPdx.xz;
-	vec2 dBdy = rot_B * dPdy.xz;
+	vec2 y_A = y_rot_A * PA.xz;
+	vec2 y_dAdx = y_rot_A * dPdx.xz;
+	vec2 y_dAdy = y_rot_A * dPdy.xz;
 	
-	vec4 albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(A, float(albedo_id)), dAdx, dAdy);
-	vec4 normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(A, float(normal_id)), dAdx, dAdy);
-	normal_h_ao_A.rg = rot_A * (normal_h_ao_A.rg * 2.0 - 1.0);
+	mat2 y_rot_B = mat2(vec2(cos_B.y, sin_B.y), vec2(-sin_B.y, cos_B.y));
 	
-    vec4 albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(B, float(albedo_id)), dBdx, dBdy);
-    vec4 normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(B, float(normal_id)), dBdx, dBdy);
-	normal_h_ao_B.rg = rot_B * (normal_h_ao_B.rg * 2.0 - 1.0);
+	vec2 y_B = y_rot_B * PB.xz;
+	vec2 y_dBdx = y_rot_B * dPdx.xz;
+	vec2 y_dBdy = y_rot_B * dPdy.xz;
 	
-	float bias = stochastic_blend_bias * dot(albedo_r_A.rgb - albedo_r_B.rgb, vec3(1.0));
-	float blend = smoothstep(0.2, 0.8, f - bias); // TODO: add blend sharpness parameter here
+	vec4 y_albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(y_A, float(albedo_id)), y_dAdx, y_dAdy);
+	vec4 y_normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(y_A, float(normal_id)), y_dAdx, y_dAdy);
+	y_normal_h_ao_A.rg = y_rot_A * (y_normal_h_ao_A.rg * 2.0 - 1.0);
 	
-    vec4 albedo_r = mix(albedo_r_A, albedo_r_B, blend);
-	vec4 normal_h_ao = mix(normal_h_ao_A, normal_h_ao_B, blend);
+    vec4 y_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(y_B, float(albedo_id)), y_dBdx, y_dBdy);
+    vec4 y_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(y_B, float(normal_id)), y_dBdx, y_dBdy);
+	y_normal_h_ao_B.rg = y_rot_B * (y_normal_h_ao_B.rg * 2.0 - 1.0);
+	
+	float y_bias = stochastic_blend_bias * dot(y_albedo_r_A.rgb - y_albedo_r_B.rgb, vec3(1.0));
+	float y_blend = smoothstep(0.2, 0.8, f - y_bias); // TODO: add blend sharpness parameter here
+	
+    vec4 albedo_r = mix(y_albedo_r_A, y_albedo_r_B, y_blend);
+	vec4 normal_h_ao = mix(y_normal_h_ao_A, y_normal_h_ao_B, y_blend);
 	
 	if (bool(flags & FLAG_TRIPLANAR)) {
 		// X-axis sampling
-		vec2 x_A = -(P - offset_A).zy;
-		vec2 x_dAdx = -dPdx.zy;
-		vec2 x_dAdy = -dPdy.zy;
+		mat2 x_rot_A = mat2(vec2(cos_A.x, sin_A.x), vec2(-sin_A.x, cos_A.x));
 		
-		vec2 x_B = -(P - offset_B).zy;
-		vec2 x_dBdx = -dPdx.zy;
-		vec2 x_dBdy = -dPdy.zy;
+		vec2 x_A = x_rot_A * -PA.zy;
+		vec2 x_dAdx = x_rot_A * -dPdx.zy;
+		vec2 x_dAdy = x_rot_A * -dPdy.zy;
+		
+		mat2 x_rot_B = mat2(vec2(cos_B.x, sin_B.x), vec2(-sin_B.x, cos_B.x));
+		
+		vec2 x_B = x_rot_B * -PB.zy;
+		vec2 x_dBdx = x_rot_B * -dPdx.zy;
+		vec2 x_dBdy = x_rot_B * -dPdy.zy;
 		
 		vec4 x_albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(x_A, float(albedo_id)), x_dAdx, x_dAdy);
 		vec4 x_normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(x_A, float(normal_id)), x_dAdx, x_dAdy);
-		x_normal_h_ao_A.rg = rot_A * (x_normal_h_ao_A.rg * 2.0 - 1.0);
+		x_normal_h_ao_A.rg = -(x_normal_h_ao_A.rg * 2.0 - 1.0);
 		
 	    vec4 x_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(x_B, float(albedo_id)), x_dBdx, x_dBdy);
 	    vec4 x_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(x_B, float(normal_id)), x_dBdx, x_dBdy);
-		x_normal_h_ao_B.rg = rot_B * (x_normal_h_ao_B.rg * 2.0 - 1.0);
+		x_normal_h_ao_B.rg = -(x_normal_h_ao_B.rg * 2.0 - 1.0);
 		
 		float x_bias = stochastic_blend_bias * dot(x_albedo_r_A.rgb - x_albedo_r_B.rgb, vec3(1.0));
 		float x_blend = smoothstep(0.2, 0.8, f - x_bias); // TODO: add blend sharpness parameter here
@@ -218,21 +223,25 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 		vec4 x_normal_h_ao = mix(x_normal_h_ao_A, x_normal_h_ao_B, x_blend);
 		
 		// Z-axis sampling
-		vec2 z_A = -(P - offset_A).xy;
-		vec2 z_dAdx = -dPdx.xy;
-		vec2 z_dAdy = -dPdy.xy;
+		mat2 z_rot_A = mat2(vec2(cos_A.z, sin_A.z), vec2(-sin_A.z, cos_A.z));
 		
-		vec2 z_B = -(P - offset_B).xy;
-		vec2 z_dBdx = -dPdx.xy;
-		vec2 z_dBdy = -dPdy.xy;
+		vec2 z_A = z_rot_A * -PA.xy;
+		vec2 z_dAdx = z_rot_A * -dPdx.xy;
+		vec2 z_dAdy = z_rot_A * -dPdy.xy;
+		
+		mat2 z_rot_B = mat2(vec2(cos_B.z, sin_B.z), vec2(-sin_B.z, cos_B.z));
+		
+		vec2 z_B = z_rot_B * -PB.xy;
+		vec2 z_dBdx = z_rot_B * -dPdx.xy;
+		vec2 z_dBdy = z_rot_B * -dPdy.xy;
 		
 		vec4 z_albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(z_A, float(albedo_id)), z_dAdx, z_dAdy);
 		vec4 z_normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(z_A, float(normal_id)), z_dAdx, z_dAdy);
-		z_normal_h_ao_A.rg = rot_A * (z_normal_h_ao_A.rg * 2.0 - 1.0);
+		z_normal_h_ao_A.rg = -(z_normal_h_ao_A.rg * 2.0 - 1.0);
 		
 	    vec4 z_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(z_B, float(albedo_id)), z_dBdx, z_dBdy);
 	    vec4 z_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(z_B, float(normal_id)), z_dBdx, z_dBdy);
-		z_normal_h_ao_B.rg = rot_B * (z_normal_h_ao_B.rg * 2.0 - 1.0);
+		z_normal_h_ao_B.rg = -(z_normal_h_ao_B.rg * 2.0 - 1.0);
 		
 		float z_bias = stochastic_blend_bias * dot(z_albedo_r_A.rgb - z_albedo_r_B.rgb, vec3(1.0));
 		float z_blend = smoothstep(0.2, 0.8, f - z_bias); // TODO: add blend sharpness parameter here
@@ -247,7 +256,6 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 		
 		albedo_r = x_albedo_r * power_normal.x + albedo_r * power_normal.y + z_albedo_r * power_normal.z;
 		normal_h_ao = x_normal_h_ao * power_normal.x + normal_h_ao * power_normal.y + z_normal_h_ao * power_normal.z;
-		
 	}
 	
 	mat.albedo += albedo_r.rgb * _albedo_modulates[id] * weight;
@@ -327,7 +335,7 @@ void fragment() {
 	
 	uvec4 id_0_0 = controls_0 >> uvec4(27u) & uvec4(0x1Fu);
 	uvec4 id_0_1 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
-	vec4 weights_id_0_1 = vec4(controls_0 >> uvec4(14u) & uvec4(0xFFu)) * INV_255;
+	vec4 weights_id_0_1 = vec4(controls_0 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
 	vec4 weights_id_0_0 = 1.0 - weights_id_0_1;
 	weights_id_0_0 *= weights_0 * (1.0 - lod_fract);
 	weights_id_0_1 *= weights_0 * (1.0 - lod_fract);
@@ -343,7 +351,7 @@ void fragment() {
 	
 	uvec4 id_1_0 = controls_1 >> uvec4(27u) & uvec4(0x1Fu);
 	uvec4 id_1_1 = controls_1 >> uvec4(22u) & uvec4(0x1Fu);
-	vec4 weights_id_1_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) * INV_255;
+	vec4 weights_id_1_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
 	vec4 weights_id_1_0 = 1.0 - weights_id_1_1;
 	weights_id_1_0 *= weights_1 * lod_fract;
 	weights_id_1_1 *= weights_1 * lod_fract;

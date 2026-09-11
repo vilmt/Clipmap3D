@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://cq6vicc6yy7nc"]
 
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://addons/Clipmap3D/clipmap_3d.gd" id="1_e348m"]
+[ext_resource type="Material" uid="uid://mhduws1ksl1j" path="res://demos/assets/sky/sky.tres" id="1_r2ioa"]
 [ext_resource type="RDShaderFile" uid="uid://xjxu5li6gpx" path="res://demos/compute_shaders/erosion_terrain.glsl" id="2_p1oah"]
 [ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="3_4ispy"]
 [ext_resource type="Script" uid="uid://d20stuy1e0ig" path="res://addons/Clipmap3D/compute_data.gd" id="3_p1oah"]
@@ -11,27 +12,26 @@
 [ext_resource type="Material" uid="uid://dvqdrhnugsl3r" path="res://demos/shaders/full.tres" id="9_p1oah"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://demos/scenes/player/player.tscn" id="14_ew5cq"]
 
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_6b21n"]
-sky_horizon_color = Color(0.46415067, 0.67698413, 0.87305903, 1)
-ground_bottom_color = Color(0.4627451, 0.6784314, 0.8745098, 1)
-ground_horizon_color = Color(0.4627451, 0.6784314, 0.8745098, 1)
-
 [sub_resource type="Sky" id="Sky_b7n1i"]
-sky_material = SubResource("ProceduralSkyMaterial_6b21n")
+sky_material = ExtResource("1_r2ioa")
+process_mode = 2
 
 [sub_resource type="Environment" id="Environment_thxwv"]
 background_mode = 2
+background_energy_multiplier = 1.5
 sky = SubResource("Sky_b7n1i")
 tonemap_mode = 4
+fog_enabled = true
+fog_mode = 1
 fog_light_color = Color(0.36743686, 0.4808933, 0.7203126, 1)
-fog_light_energy = 1.26
-fog_sun_scatter = 0.1
-fog_density = 0.0001
+fog_light_energy = 2.03
+fog_sun_scatter = 0.16
+fog_density = 1.0
 fog_aerial_perspective = 0.287
 fog_sky_affect = 0.255
-fog_depth_curve = 1.231135
-fog_depth_begin = 7065.0
-fog_depth_end = 15000.0
+fog_depth_curve = 1.1095605
+fog_depth_begin = 10000.0
+fog_depth_end = 30000.0
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_wujal"]
 dof_blur_far_distance = 2805.19
@@ -41,10 +41,17 @@ dof_blur_far_transition = 765.43
 script = ExtResource("3_p1oah")
 compute_shader = ExtResource("2_p1oah")
 compute_seed = 1
-texels_per_vertex = Vector2i(7, 7)
+texels_per_vertex = Vector2i(6, 6)
 metadata/_custom_type_script = "uid://d20stuy1e0ig"
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_p1oah"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_r2ioa"]
+transparency = 1
+albedo_color = Color(0, 0.5058824, 0.5882353, 0.4862745)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_186hp"]
+size = Vector2(50000, 50000)
 
 [node name="ErosionTerrainDemo" type="Node3D" unique_id=932743419]
 
@@ -66,7 +73,6 @@ directional_shadow_max_distance = 8192.0
 
 [node name="ZoomOutWarningLabel" type="Label3D" parent="." unique_id=1827955459]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.225605, 0)
-visible = false
 pixel_size = 0.1
 billboard = 1
 outline_modulate = Color(0, 0, 0, 0)
@@ -74,17 +80,23 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 565.90234, 0, 1197.4209)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4342.4707, 0, 5386.9297)
 script = ExtResource("1_e348m")
 compute_data = SubResource("Resource_p1oah")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("4_ob4lt"), ExtResource("5_vsihy"), ExtResource("6_p1oah"), ExtResource("7_r2ioa")])
 mesh_lod_count = 10
 mesh_tile_size = Vector2i(48, 48)
 material = ExtResource("9_p1oah")
-aabb_height = 3000.0
+aabb_height = 6000.0
+collision_lod = 1
 collision_mesh_radius = Vector2i(6, 6)
 collision_physics_material = SubResource("PhysicsMaterial_p1oah")
 metadata/_custom_type_script = "uid://wudkpxu6xggb"
+
+[node name="Water (bad)" type="MeshInstance3D" parent="Clipmap3D" unique_id=1963552221]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9788.261, 804.3589, -1389.2937)
+material_override = SubResource("StandardMaterial3D_r2ioa")
+mesh = SubResource("PlaneMesh_186hp")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.288116, 1656.3026, -25.476)

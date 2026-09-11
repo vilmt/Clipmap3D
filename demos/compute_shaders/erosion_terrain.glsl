@@ -4,11 +4,9 @@
 /*
 TODO:
 
-- Floating-point origin shifting
-- Integer-based hashes (will fix seams due to precision issues)
+- Support arbitrary transform
 - More painting helpers (maybe use a shader include)
 - Color map? Could create new buffers or write to control.
-- A simple perlin noise parameter for painting
 
 */
 
@@ -25,13 +23,12 @@ layout(push_constant, std430) uniform Parameters {
 	uint compute_seed;
 } parameters;
 
-#define INV_255 0.003921568627450
 #define TAU 6.28318530717958
 
 // Math helpers
 
-// Stable integer floor division and modulo by vilmt
-ivec4 div_mod(ivec2 x, ivec2 y) {
+// Stable integer floor division by vilmt
+ivec2 div_floor(ivec2 x, ivec2 y) {
     uvec2 x_u = uvec2(x), x_s = x_u >> 31;
     uvec2 y_u = uvec2(y), y_s = y_u >> 31;
     
@@ -42,7 +39,7 @@ ivec4 div_mod(ivec2 x, ivec2 y) {
     q += q_s & uvec2(notEqual(x_a, y_a * q));
     q = (q ^ -q_s) + q_s;
     
-    return ivec4(q, x - y * ivec2(q));
+    return ivec2(q);
 }
 
 // Painting helpers. TODO: optimize, add more.
@@ -82,8 +79,8 @@ void brush_add(inout Material mat, uint id, float weight) {
 // Hash and noise functions
 
 // pcg3d hash (0, 1): https://www.jcgt.org/published/0009/03/02/
-vec2 hash(ivec2 p_i, uint seed) {
-    uvec3 v = uvec3(uvec2(p_i), seed);
+vec2 hash(ivec2 position, uint seed) {
+    uvec3 v = uvec3(uvec2(position), seed);
 
     v = v * 1664525u + 1013904223u;
 
@@ -102,18 +99,17 @@ vec2 hash(ivec2 p_i, uint seed) {
 
 // Gradient noise and derivative by iq: https://www.shadertoy.com/view/XdXBRH
 vec3 noise(ivec2 position, ivec2 wavelength, float amplitude) {
-    ivec4 division_result = div_mod(position, wavelength * parameters.texels_per_vertex);
-	vec2 frequency = 1.0 / vec2(wavelength);
-    ivec2 p_i = division_result.xy;
-    vec2 p_f = vec2(division_result.zw) * frequency / vec2(parameters.texels_per_vertex);
+	ivec2 scale = wavelength * parameters.texels_per_vertex;
+	ivec2 p_i = div_floor(position, scale);
+	vec2 p_f = vec2(position - p_i * scale) / vec2(scale);
         
-    vec2 u = p_f * p_f * p_f * (p_f * (p_f * 6.0 - 15.0) + 10.0);
-    vec2 du = 30.0 * p_f * p_f * (p_f * (p_f - 2.0) + 1.0);
+	vec2 u = p_f * p_f * p_f * (p_f * (p_f * 6.0 - 15.0) + 10.0);
+	vec2 du = 30.0 * p_f * p_f * (p_f * (p_f - 2.0) + 1.0);
     
-    vec2 ga = 2.0 * hash(p_i + ivec2(0, 0), parameters.compute_seed) - 1.0;
-    vec2 gb = 2.0 * hash(p_i + ivec2(1, 0), parameters.compute_seed) - 1.0;
-    vec2 gc = 2.0 * hash(p_i + ivec2(0, 1), parameters.compute_seed) - 1.0;
-    vec2 gd = 2.0 * hash(p_i + ivec2(1, 1), parameters.compute_seed) - 1.0;
+	vec2 ga = 2.0 * hash(p_i + ivec2(0, 0), parameters.compute_seed) - 1.0;
+	vec2 gb = 2.0 * hash(p_i + ivec2(1, 0), parameters.compute_seed) - 1.0;
+	vec2 gc = 2.0 * hash(p_i + ivec2(0, 1), parameters.compute_seed) - 1.0;
+	vec2 gd = 2.0 * hash(p_i + ivec2(1, 1), parameters.compute_seed) - 1.0;
     
     float va = dot(ga, p_f - vec2(0.0, 0.0));
     float vb = dot(gb, p_f - vec2(1.0, 0.0));
@@ -126,15 +122,14 @@ vec3 noise(ivec2 position, ivec2 wavelength, float amplitude) {
         du * (u.yx * (va - vb - vc + vd) + vec2(vb, vc) - va)
     );
     
-    return layer * amplitude * vec3(1.0, frequency);
+    return layer * amplitude * vec3(1.0, 1.0 / vec2(wavelength));
 }
 
 // Erosion ridges and derivatives by vilmt
 vec3 ridges(ivec2 position, ivec2 wavelength, float amplitude, vec3 height) {
-    ivec4 division_result = div_mod(position, wavelength * parameters.texels_per_vertex);
-    vec2 frequency = 1.0 / vec2(wavelength);
-    ivec2 p_i = division_result.xy;
-    vec2 p_f = vec2(division_result.zw) * frequency / vec2(parameters.texels_per_vertex);
+	ivec2 scale = wavelength * parameters.texels_per_vertex;
+	ivec2 p_i = div_floor(position, scale);
+	vec2 p_f = vec2(position - p_i * scale) / vec2(scale);
 
 	vec2 curl = vec2(height.z, -height.y);
     
@@ -154,14 +149,36 @@ vec3 ridges(ivec2 position, ivec2 wavelength, float amplitude, vec3 height) {
         layer.yz += TAU * sin(phase) * weight.x * curl;
 	}
     
-	return layer * amplitude * vec3(1.0, frequency);
+	return layer * amplitude * vec3(1.0, 1.0 / vec2(wavelength));
+}
+
+// Amplify high areas and flatten low areas using quadratic curve
+vec3 amplify(ivec2 position, ivec2 wavelength, vec3 height) {
+	vec3 n = noise(position, wavelength, 1.0);
+	n.yz *= 1.0 / vec2(wavelength);
+	
+	const float a = 0.4;
+	const float b = 0.35;
+	const float c = 6.0;
+
+	float curve = (a * n.x + b);
+
+	vec3 amplification = c * vec3(curve, 2.0 * n.yz) * curve;
+
+	// Product rule: 
+	// H = A · N
+	// ∇H = A∇N + N∇A
+
+	return vec3(height.x * amplification.x, height.yz * amplification.x + height.x * amplification.yz);
 }
 
 // Height and derivatives
 vec3 height_map(ivec2 position, out float erosion_factor) {
 	vec3 height = vec3(1500.0, 0.0, 0.0);
-    
-	position += 100000; // Remove obvious pattern from 0, 0
+	
+	// Remove obvious pattern from (0, 0)
+	// NOTE: Absolute offsets must be multiplied by texels_per_vertex for consistency
+	position += 100000 * parameters.texels_per_vertex;
 
     height += noise(position, ivec2(2000), 1500.0);
     height += noise(position, ivec2(1200), 750.0);
@@ -172,13 +189,15 @@ vec3 height_map(ivec2 position, out float erosion_factor) {
 	height += noise(position, ivec2(70), 15.0);
 	height += noise(position, ivec2(40), 7.0);
 
-	vec3 erosion = vec3(0.0, 0.0, 0.0);
+	height = amplify(position, ivec2(8000), height);
+
+	vec3 erosion = vec3(0.0, 0.0, 0.0); // We could just add to the height variable, but the erosion factor is important for painting.
 	
 	erosion += ridges(position, ivec2(100), 5.0, height + erosion);
     erosion += ridges(position, ivec2(50), 2.5, height + erosion);
     erosion += ridges(position, ivec2(25), 1.2, height + erosion);
 	erosion += ridges(position, ivec2(13), 0.6, height + erosion);
-
+	
 	erosion_factor = erosion.x;
 	
 	return height + erosion;
@@ -193,10 +212,11 @@ void main() {
 	ivec2 position = parameters.region.xy + id;
 
 	ivec2 wrap_size = imageSize(gradient_buffers).xy;
-	ivec3 texel = ivec3(div_mod(position, wrap_size).zw, parameters.lod);
+	ivec2 wrapped = position - wrap_size * div_floor(position, wrap_size); // Integer division -> modulo: x - y * q
+	ivec3 texel = ivec3(wrapped, parameters.lod);
 
-	position <<= parameters.lod;
-
+	position <<= parameters.lod; // LOD scales position by powers of two
+	
 	float erosion_factor;
 	vec3 height = height_map(position, erosion_factor);
 
@@ -249,8 +269,6 @@ void main() {
 	
 	brush_add(mat, SNOW_ID, snow_weight);
 
-	//bool hole = bool(length(texel * scale) < 20.0);
-	
 	/*
 	Control encoding: The two dominant material IDs and a blending float are written into the control buffer, and later parsed by the fragment function.
 	*/
@@ -263,6 +281,7 @@ void main() {
 	uint blend = uint(clamp(mat.blend * 255.0, 0.0, 255.0));
 	control |= (blend & 0xFFu) << 14u; // id 0 -> id 1 blend, bits 15-22
 
+	// NOTE: Holes are easy to add, but support for structures (custom meshes such as caves) must be added first for holes to be useful.
 	//control |= (uint(hole) & 0x1u) << 13u;
 	
 	imageStore(control_buffers, texel, vec4(uintBitsToFloat(control), 0.0, 0.0, 1.0));

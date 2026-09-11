@@ -1,0 +1,3 @@
+License: CC0 license
+
+Source: https://github.com/AndreySoldatov/Godot-Sky-Plus-Plus

@@ -15,5 +15,5 @@ class_name Clipmap3DComputeData extends Resource
 ## The number of texels allocated for each vertex. Larger values indicate more detail in gradients and controls.
 @export_custom(PROPERTY_HINT_LINK, "") var texels_per_vertex := Vector2i.ONE:
 	set(value):
-		texels_per_vertex = value.maxi(1)
+		texels_per_vertex = value.clampi(1, 16)
 		emit_changed()
