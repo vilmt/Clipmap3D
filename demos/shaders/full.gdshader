@@ -7,11 +7,16 @@ TODO:
 - Support arbitrary transform
 */
 
-#define MAX_TEXTURE_COUNT 16
-#define ALBEDO_DEFAULT vec4(0.8, 0.8, 0.8, 1.0)
-#define NORMAL_DEFAULT vec4(0.5, 0.5, 1.0, 1.0)
+const uint MAX_TEXTURE_COUNT = 16u;
 
-#define FLAG_TRIPLANAR (1u << 0u)
+const vec4 ALBEDO_DEFAULT = vec4(0.8, 0.8, 0.8, 1.0);
+const vec4 NORMAL_DEFAULT = vec4(0.5, 0.5, 1.0, 1.0);
+
+const uint FLAG_STOCHASTIC_OFFSET = 			1u << 0u;
+const uint FLAG_STOCHASTIC_ROTATION = 			1u << 1u;
+const uint FLAG_TRIPLANAR = 					1u << 2u;
+const uint FLAG_TRIPLANAR_STOCHASTIC_OFFSET = 	1u << 3u;
+const uint FLAG_TRIPLANAR_STOCHASTIC_ROTATION = 1u << 4u;
 
 uniform sampler2D stochastic_noise: filter_linear;
 uniform float stochastic_blend_bias = 0.1; // TODO: should be material parameter
@@ -36,22 +41,20 @@ uniform vec3[MAX_TEXTURE_COUNT] _uv_scales;
 uniform vec3[MAX_TEXTURE_COUNT] _albedo_modulates: source_color;
 uniform float[MAX_TEXTURE_COUNT] _roughness_offsets;
 uniform float[MAX_TEXTURE_COUNT] _normal_depths;
-uniform vec3[MAX_TEXTURE_COUNT] _stochastic_offsets;
-uniform vec3[MAX_TEXTURE_COUNT] _stochastic_rotations;
 uniform uint[MAX_TEXTURE_COUNT] _flags;
 
 uniform highp sampler2DArray _height_buffer: hint_default_black, repeat_enable, filter_nearest;
 uniform highp sampler2DArray _gradient_buffer: hint_normal, repeat_enable, filter_nearest;
 uniform highp sampler2DArray _control_buffer: hint_default_black, repeat_enable, filter_nearest;
 
-varying vec3 world_position; // TODO: refactor this. This is more of an unscaled vertex position
+varying vec3 world_position;
 
 varying float vertex_lod;
 
 varying flat vec3 debug_albedo;
 
 vec2 get_bilinear_uv(vec2 texel, vec2 sampler_size) {
-	vec2 i = floor(texel); // There's not really any reason to use floor here.
+	vec2 i = floor(texel);
 	return (i + 0.5) / sampler_size;
 }
 
@@ -73,28 +76,43 @@ void vertex() {
 	vec2 target_texel = _target_transform[3].xz * vec2(_texels_per_vertex) / scale;
 	vec2 texel = world_position.xz * vec2(_texels_per_vertex) / scale;
 	
-	// Circular LOD pattern (vertex LOD)
+	// Vertex LOD (circular LOD pattern)
 	
 	vec2 lod_origin = texel - target_texel;
-	vec2 half_size = vec2(buffer_size.xy / 2 - _texels_per_vertex);
+	vec2 half_size = vec2(buffer_size.xy / 2 - _texels_per_vertex); // Half formula from compute_handler.gd
 	float blend_mask = length(lod_origin / half_size);
 	float lod_fract = smoothstep(1.0 - lod_blend_ratio, 1.0, blend_mask);
-	lod_fract = int(lod_floor) >= buffer_size.z - 1 ? 0.0 : lod_fract; // ensure outer lod_floor does not blend
+	lod_fract = int(lod_floor) >= buffer_size.z - 1 ? 0.0 : lod_fract; // Ensure outer LOD does not blend
 	
 	vertex_lod = lod_floor + lod_fract;
 	
-	// LOD Geo-morphing
+	/* LOD Geo-morphing
+	- Without any consideration for the transition regions between the clipmap rings N and N+1, there
+		will be seams on vertices with odd parity since N has 4x more vertex density than N+1
+	- To remove the seams, N must reduce its density to match N+1 in transition regions
+	- It is possible to do this without moving N's vertices on the XZ axes. In transition regions, vertices
+		with odd parity can simply interpolate between neighboring vertices, producing the same value as N+1
+		- However, this would be a form of discrete LOD since the vertices in transition regions either
+			match N+1 or not. Discrete LOD causes popping artifacts. We are after smooth LOD.
+	- Instead, by moving N's vertices on the XZ axes, N's mesh can be directly morphed into N+1's mesh
 	
-	vec2 parity_mask = mod(floor(world_position.xz / scale + 0.5), 2.0);
-	world_position.xz += parity_mask * lod_fract * scale;
-	texel += parity_mask * lod_fract * vec2(_texels_per_vertex);
+	Implementation notes:
+	- It is important that the offset is also added into the sampling coordinates
+	*/
+	
+	vec2 geomorph = lod_fract * mod(floor(world_position.xz / scale + 0.5), 2.0);
+	world_position.xz += geomorph * scale;
+	texel += geomorph * vec2(_texels_per_vertex);
 	
 	/* Height sampling
+	- If the vertices did not move at all and were arranged in a regular grid, we could just do a single
+		lookup at the vertex position, and offset by that height
+	- However, since geo-morphing offsets vertices away from the texel centers, a bilinear sample is needed
 	
-	Notes:
+	Implementation notes:
 	- It is not necessary to use texelFetch() for precision since texture() seems to work
-	  identically with the nearest texture filter. Also, texture() has built-in repeat wrapping.
-	- 
+	  identically with the nearest texture filter. Also, texture() has built-in wrapping.
+	
 	*/
 	
 	vec2 uv = get_bilinear_uv(texel, vec2(buffer_size.xy));
@@ -102,7 +120,6 @@ void vertex() {
 	
 	vec3 s = vec3(1.0 / vec2(buffer_size.xy), 0.0);
 	
-	// Bilinear sample is needed since geo-morphing pushes vertices outside of the texel centers.
 	vec4 heights = vec4(
 		texture(_height_buffer, vec3(uv       , lod_floor)).r,
 		texture(_height_buffer, vec3(uv + s.xz, lod_floor)).r,
@@ -112,15 +129,9 @@ void vertex() {
 	
 	debug_albedo = vec3(lod_floor);
 	
-	//uint control = floatBitsToUint(texture(_control_buffer, vec3(uv, lod_floor)).r);
-	
 	world_position.y = dot(heights, weights);
 	
 	VERTEX = (VIEW_MATRIX * vec4(world_position, 1.0)).xyz;
-	
-	//if (bool(control >> 13u & 0x1u)) {
-		//VERTEX.x = 0.0 / 0.0;
-	//}
 }
 
 struct Material {
@@ -133,118 +144,134 @@ struct Material {
 	float total_weight;
 };
 
-void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3 dPdx, vec3 dPdy, vec3 N) {
-	vec3 s = _uv_scales[id];
-	P *= s;
-	dPdx *= s;
-	dPdy *= s;
+void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3 dPdx, vec3 dPdy, vec3 N,
+	vec2 offset_A, mat2 rotation_A, vec2 offset_B, mat2 rotation_B, float blend_AB) {
 	
 	int albedo_id = _albedo_remap[id];
 	int normal_id = _normal_remap[id];
 	uint flags = _flags[id];
+	vec3 s = _uv_scales[id];
 	
-	float random = texture(stochastic_noise, 0.005 * P.xz).x;
-	vec3 offset_strength = _stochastic_offsets[id];
-	vec3 rotation_strength = _stochastic_rotations[id];
+	P *= s;
+	dPdx *= s;
+	dPdy *= s;
 	
-	float l = random * 8.0;
-	float f = fract(l);
+	vec2 y_A = P.xz;
+	vec2 y_dAdx = dPdx.xz;
+	vec2 y_dAdy = dPdy.xz;
 	
-	float ia = floor(l + 0.5);
-	float ib = floor(l);
-	f = min(f, 1.0 - f) * 2.0;
+	vec2 y_B = P.xz;
+	vec2 y_dBdx = dPdx.xz;
+	vec2 y_dBdy = dPdy.xz;
 	
-	// Coordinate space A
+	if (bool(flags & FLAG_STOCHASTIC_OFFSET)) {
+		y_A -= offset_A;
+		y_B -= offset_B;
+	}
 	
-	vec3 PA = P - offset_strength * sin(vec3(3.0, 7.0, 13.0) * ia); // NOTE: replace hash if needed
-	vec3 angle_A = rotation_strength * ia;
-	vec3 sin_A = sin(angle_A), cos_A = cos(angle_A);
-	
-	// Coordinate space B
-	
-	vec3 PB = P - offset_strength * sin(vec3(3.0, 7.0, 13.0) * ib);
-	vec3 angle_B = rotation_strength * ib;
-	vec3 sin_B = sin(angle_B), cos_B = cos(angle_B);
-	
-	// Y-axis samples
-	
-	mat2 y_rot_A = mat2(vec2(cos_A.y, sin_A.y), vec2(-sin_A.y, cos_A.y));
-	
-	vec2 y_A = y_rot_A * PA.xz;
-	vec2 y_dAdx = y_rot_A * dPdx.xz;
-	vec2 y_dAdy = y_rot_A * dPdy.xz;
-	
-	mat2 y_rot_B = mat2(vec2(cos_B.y, sin_B.y), vec2(-sin_B.y, cos_B.y));
-	
-	vec2 y_B = y_rot_B * PB.xz;
-	vec2 y_dBdx = y_rot_B * dPdx.xz;
-	vec2 y_dBdy = y_rot_B * dPdy.xz;
+	if (bool(flags & FLAG_STOCHASTIC_ROTATION)) {
+		y_A *= rotation_A;
+		y_dAdx *= rotation_A;
+		y_dAdy *= rotation_A;
+		y_B *= rotation_B;
+		y_dBdx *= rotation_B;
+		y_dBdy *= rotation_B;
+	}
 	
 	vec4 y_albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(y_A, float(albedo_id)), y_dAdx, y_dAdy);
 	vec4 y_normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(y_A, float(normal_id)), y_dAdx, y_dAdy);
-	y_normal_h_ao_A.rg = y_rot_A * (y_normal_h_ao_A.rg * 2.0 - 1.0);
+	y_normal_h_ao_A.rg = y_normal_h_ao_A.rg * 2.0 - 1.0;
 	
-    vec4 y_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(y_B, float(albedo_id)), y_dBdx, y_dBdy);
-    vec4 y_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(y_B, float(normal_id)), y_dBdx, y_dBdy);
-	y_normal_h_ao_B.rg = y_rot_B * (y_normal_h_ao_B.rg * 2.0 - 1.0);
+	vec4 y_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(y_B, float(albedo_id)), y_dBdx, y_dBdy);
+	vec4 y_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(y_B, float(normal_id)), y_dBdx, y_dBdy);
+	y_normal_h_ao_B.rg = y_normal_h_ao_B.rg * 2.0 - 1.0;
 	
-	float y_bias = stochastic_blend_bias * dot(y_albedo_r_A.rgb - y_albedo_r_B.rgb, vec3(1.0));
-	float y_blend = smoothstep(0.2, 0.8, f - y_bias); // TODO: add blend sharpness parameter here
-	
-    vec4 albedo_r = mix(y_albedo_r_A, y_albedo_r_B, y_blend);
+	if (bool(flags & FLAG_STOCHASTIC_ROTATION)) {
+		y_normal_h_ao_A.rg *= rotation_A;
+		y_normal_h_ao_B.rg *= rotation_B;
+	}
+		
+	float y_bias = dot(y_normal_h_ao_A.rgb - y_albedo_r_B.rgb, vec3(stochastic_blend_bias));
+	float y_blend = smoothstep(0.2, 0.8, blend_AB - y_bias); // TODO: add blend sharpness parameter here
+		
+	vec4 albedo_r = mix(y_albedo_r_A, y_albedo_r_B, y_blend);
 	vec4 normal_h_ao = mix(y_normal_h_ao_A, y_normal_h_ao_B, y_blend);
 	
 	if (bool(flags & FLAG_TRIPLANAR)) {
-		// X-axis sampling
-		mat2 x_rot_A = mat2(vec2(cos_A.x, sin_A.x), vec2(-sin_A.x, cos_A.x));
+		vec2 x_A = -P.zy;
+		vec2 x_dAdx = -dPdx.zy;
+		vec2 x_dAdy = -dPdy.zy;
 		
-		vec2 x_A = x_rot_A * -PA.zy;
-		vec2 x_dAdx = x_rot_A * -dPdx.zy;
-		vec2 x_dAdy = x_rot_A * -dPdy.zy;
+		vec2 x_B = -P.zy;
+		vec2 x_dBdx = -dPdx.zy;
+		vec2 x_dBdy = -dPdy.zy;
 		
-		mat2 x_rot_B = mat2(vec2(cos_B.x, sin_B.x), vec2(-sin_B.x, cos_B.x));
+		vec2 z_A = -P.xy;
+		vec2 z_dAdx = -dPdx.xy;
+		vec2 z_dAdy = -dPdy.xy;
 		
-		vec2 x_B = x_rot_B * -PB.zy;
-		vec2 x_dBdx = x_rot_B * -dPdx.zy;
-		vec2 x_dBdy = x_rot_B * -dPdy.zy;
+		vec2 z_B = -P.xy;
+		vec2 z_dBdx = -dPdx.xy;
+		vec2 z_dBdy = -dPdy.xy;
+		
+		// NOTE: offsets may have to have their sign flipped for consistency
+		
+		if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_OFFSET)) {
+			x_A -= offset_A;
+			x_B -= offset_B;
+			
+			z_A -= offset_A;
+			z_B -= offset_B;
+		}
+		
+		if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_ROTATION)) {
+			x_A *= rotation_A;
+			x_dAdx *= rotation_A;
+			x_dAdy *= rotation_A;
+			x_B *= rotation_B;
+			x_dBdx *= rotation_B;
+			x_dBdy *= rotation_B;
+			
+			z_A *= rotation_A;
+			z_dAdx *= rotation_A;
+			z_dAdy *= rotation_A;
+			z_B *= rotation_B;
+			z_dBdx *= rotation_B;
+			z_dBdy *= rotation_B;
+		}
 		
 		vec4 x_albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(x_A, float(albedo_id)), x_dAdx, x_dAdy);
 		vec4 x_normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(x_A, float(normal_id)), x_dAdx, x_dAdy);
-		x_normal_h_ao_A.rg = -(x_normal_h_ao_A.rg * 2.0 - 1.0);
+		x_normal_h_ao_A.rg = fma(x_normal_h_ao_A.gr, vec2(2.0), vec2(-1.0));
 		
 	    vec4 x_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(x_B, float(albedo_id)), x_dBdx, x_dBdy);
 	    vec4 x_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(x_B, float(normal_id)), x_dBdx, x_dBdy);
-		x_normal_h_ao_B.rg = -(x_normal_h_ao_B.rg * 2.0 - 1.0);
+		x_normal_h_ao_B.rg = fma(x_normal_h_ao_B.gr, vec2(2.0), vec2(-1.0));
+		
+		vec4 z_albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(z_A, float(albedo_id)), z_dAdx, z_dAdy);
+		vec4 z_normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(z_A, float(normal_id)), z_dAdx, z_dAdy);
+		z_normal_h_ao_A.rg = fma(z_normal_h_ao_A.gr, vec2(2.0), vec2(-1.0));
+		
+	    vec4 z_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(z_B, float(albedo_id)), z_dBdx, z_dBdy);
+	    vec4 z_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(z_B, float(normal_id)), z_dBdx, z_dBdy);
+		z_normal_h_ao_B.rg = fma(z_normal_h_ao_B.gr, vec2(2.0), vec2(-1.0));
+		
+		if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_ROTATION)) {
+			x_normal_h_ao_A.gr *= rotation_A;
+			x_normal_h_ao_B.gr *= rotation_B;
+			
+			z_normal_h_ao_A.gr *= rotation_A;
+			z_normal_h_ao_B.gr *= rotation_B;
+		}
 		
 		float x_bias = stochastic_blend_bias * dot(x_albedo_r_A.rgb - x_albedo_r_B.rgb, vec3(1.0));
-		float x_blend = smoothstep(0.2, 0.8, f - x_bias); // TODO: add blend sharpness parameter here
+		float x_blend = smoothstep(0.2, 0.8, blend_AB - x_bias); // TODO: add blend sharpness parameter here
 		
 	    vec4 x_albedo_r = mix(x_albedo_r_A, x_albedo_r_B, x_blend);
 		vec4 x_normal_h_ao = mix(x_normal_h_ao_A, x_normal_h_ao_B, x_blend);
 		
-		// Z-axis sampling
-		mat2 z_rot_A = mat2(vec2(cos_A.z, sin_A.z), vec2(-sin_A.z, cos_A.z));
-		
-		vec2 z_A = z_rot_A * -PA.xy;
-		vec2 z_dAdx = z_rot_A * -dPdx.xy;
-		vec2 z_dAdy = z_rot_A * -dPdy.xy;
-		
-		mat2 z_rot_B = mat2(vec2(cos_B.z, sin_B.z), vec2(-sin_B.z, cos_B.z));
-		
-		vec2 z_B = z_rot_B * -PB.xy;
-		vec2 z_dBdx = z_rot_B * -dPdx.xy;
-		vec2 z_dBdy = z_rot_B * -dPdy.xy;
-		
-		vec4 z_albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(z_A, float(albedo_id)), z_dAdx, z_dAdy);
-		vec4 z_normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(z_A, float(normal_id)), z_dAdx, z_dAdy);
-		z_normal_h_ao_A.rg = -(z_normal_h_ao_A.rg * 2.0 - 1.0);
-		
-	    vec4 z_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(z_B, float(albedo_id)), z_dBdx, z_dBdy);
-	    vec4 z_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(z_B, float(normal_id)), z_dBdx, z_dBdy);
-		z_normal_h_ao_B.rg = -(z_normal_h_ao_B.rg * 2.0 - 1.0);
-		
 		float z_bias = stochastic_blend_bias * dot(z_albedo_r_A.rgb - z_albedo_r_B.rgb, vec3(1.0));
-		float z_blend = smoothstep(0.2, 0.8, f - z_bias); // TODO: add blend sharpness parameter here
+		float z_blend = smoothstep(0.2, 0.8, blend_AB - z_bias); // TODO: add blend sharpness parameter here
 		
 	    vec4 z_albedo_r = mix(z_albedo_r_A, z_albedo_r_B, z_blend);
 		vec4 z_normal_h_ao = mix(z_normal_h_ao_A, z_normal_h_ao_B, z_blend);
@@ -272,18 +299,27 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 	mat.total_weight += weight;
 }
 
-
 void fragment() {
 	ivec3 buffer_size = textureSize(_gradient_buffer, 0);
 	
-	// LOD selection
+	/* LOD selection and trilinear sampling coordinates
+	- In the fragment shader, it is important that the LOD used to sample the control and normal buffers
+		increases further away from the camera to reduce aliasing
+	- Just using the vertex LOD (further clipmap rings have less detail) is not sufficient in attenuating
+		aliasing artifacts, especially with higher texels_per_vertex values
+	- Using textureQueryLod(), we can directly get the LOD that the texture filtering hardware would have
+		used when performing trilinear filtering on a regular texture
+	- Then, by using max(mip LOD, vertex LOD) instead of just the vertex LOD, we avoid using the vertex LOD
+		on fragments where it would likely cause aliasing
+	
+	Implementation notes:
+	- The LOD must be clamped to not exceed the buffer size
+	*/
 	
 	vec2 mip_uv = (world_position.xz * vec2(_texels_per_vertex) + 0.5) / vec2(buffer_size.xy);
 	float mip_lod = use_mip_lod ? textureQueryLod(_gradient_buffer, mip_uv).y : vertex_lod;
 	
 	float lod = clamp(mip_lod + mip_bias, vertex_lod, float(buffer_size.z - 1)) + 1e-5;
-	
-	// Trilinear sampling coordinates
 	
 	float lod_0 = floor(lod);
 	vec2 texel_0 = world_position.xz * vec2(_texels_per_vertex) * exp2(-lod_0);
@@ -297,7 +333,16 @@ void fragment() {
 	
 	float lod_fract = fract(lod);
 	
-	// Gradient lookups (4 texture samples)
+	/* Gradient (normal) lookups
+	- Every time something is sampled from the buffers, it must also be sampled from the next LOD so
+		that they can be blended smoothly, hence the _0 and _1 suffixes
+	
+	Implementation notes
+	- Since we are doing bilinear blending by hand, textureGather() is convenient for sampling the four
+		closest texels
+	- The .wzxy swizzle arranges the values into the standard (0, 0), (1, 0), (0, 1), (1, 1) order
+	- A dot product with the weights does a bilinear blend in a single operation
+	*/
 	
 	vec2 gradient_0 = vec2(
 		dot(textureGather(_gradient_buffer, vec3(uv_0, lod_0), 0).wzxy, weights_0),
@@ -321,17 +366,16 @@ void fragment() {
 	TANGENT = mat3(VIEW_MATRIX) * tangent;
 	BINORMAL = mat3(VIEW_MATRIX) * binormal;
 	
-	// Control lookups (2 texture samples)
+	// Control lookups
 	
 	uvec4 controls_0 = floatBitsToUint(textureGather(_control_buffer, vec3(uv_0, lod_0), 0).wzxy);
 	
 	uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, vec3(uv_1, lod_1), 0).wzxy);
 	
 	// Texture weight accumulation from control
-	// NOTE: This is not gpu friendly. Maybe choose like 4 greatest contributions and ignore rest.
 	
 	float weights[MAX_TEXTURE_COUNT];
-	for (int i = 0; i < MAX_TEXTURE_COUNT; i++) weights[i] = 0.0;
+	for (uint i = 0u; i < MAX_TEXTURE_COUNT; i++) weights[i] = 0.0;
 	
 	uvec4 id_0_0 = controls_0 >> uvec4(27u) & uvec4(0x1Fu);
 	uvec4 id_0_1 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
@@ -371,13 +415,47 @@ void fragment() {
 	
 	int samples = 0;
 	
-	vec3 p = world_position;
-	vec3 dpdx = dFdxCoarse(world_position);
-	vec3 dpdy = dFdyCoarse(world_position);
+	vec3 P = world_position;
+	vec3 dPdx = dFdxCoarse(world_position);
+	vec3 dPdy = dFdyCoarse(world_position);
+	
+	/* Stochastic sampling
+	- A low-frequency noise texture is sampled and scaled to the range (0, 8)
+	- Two adjacent indices, A and B, are picked from 0-8 using the noise value
+	- These indices are used to seed a random offset and rotation, creating 8
+		virtual texture coordinate spaces that cycle with the noise
+	
+	Implementation notes:
+	- The stochastic noise texture should not use mipmaps or else the regions will cycle with distance
+	
+	Source: https://iquilezles.org/articles/texturerepetition/, Technique 3
+	*/
+	
+	float random = 8.0 * texture(stochastic_noise, 0.0005 * P.xz).r;
+	
+	float blend_AB = fract(random);
+	blend_AB = 2.0 * min(blend_AB, 1.0 - blend_AB);
+	
+	float index_A = floor(random + 0.5);
+	float index_B = floor(random);
+	
+	// Coordinate space A
+	
+	vec2 offset_A = sin(vec2(3.0, 13.0) * index_A);
+	float angle_A = 7.0 * index_A;
+	float sin_A = sin(angle_A), cos_A = cos(angle_A);
+	mat2 rotation_A = mat2(vec2(cos_A, sin_A), vec2(-sin_A, cos_A));
+	
+	// Coordinate space B
+	
+	vec2 offset_B = sin(vec2(3.0, 13.0) * index_B);
+	float angle_B = 13.0 * index_B;
+	float sin_B = sin(angle_B), cos_B = cos(angle_B);
+	mat2 rotation_B = mat2(vec2(cos_B, sin_B), vec2(-sin_B, cos_B));
 	
 	for (uint id = 0u; id < uint(MAX_TEXTURE_COUNT); id++) {
 		if (weights[id] > 1e-3) {
-			accumulate_material(mat, id, weights[id], p, dpdx, dpdy, normal);
+			accumulate_material(mat, id, weights[id], P, dPdx, dPdy, normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
 			samples += 1;
 		}
 		

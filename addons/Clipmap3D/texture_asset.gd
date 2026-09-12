@@ -5,8 +5,6 @@ const UV_SCALE_DEFAULT := Vector3.ONE
 const ALBEDO_MODULATE_DEFAULT := Color.WHITE
 const ROUGHNESS_OFFSET_DEFAULT: float = 0.0
 const NORMAL_DEPTH_DEFAULT: float = 1.0
-const STOCHASTIC_OFFSET_DEFAULT := Vector3.ZERO
-const STOCHASTIC_ROTATION_DEFAULT := Vector3.ZERO
 const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 
 @export_custom(PROPERTY_HINT_LINK, "") var uv_scale := UV_SCALE_DEFAULT:
@@ -32,7 +30,7 @@ const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 		roughness_offset = value
 		emit_changed()
 
-## RG = Normal (OpenGL). Optionally, B = Height, A = Ambient Occlusion.
+## By default, RG = Normal (OpenGL). Optionally, B = Height, A = Ambient Occlusion. 
 @export var normal_texture: Texture2D:
 	set(value):
 		normal_texture = value
@@ -43,17 +41,13 @@ const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 		normal_depth = value
 		emit_changed()
 
-@export var stochastic_offset := STOCHASTIC_OFFSET_DEFAULT:
-	set(value):
-		stochastic_offset = value
-		emit_changed()
-
-@export var stochastic_rotation := STOCHASTIC_ROTATION_DEFAULT:
-	set(value):
-		stochastic_rotation = value
-		emit_changed()
-
-@export_flags("Triplanar") var flags := FLAGS_DEFAULT:
+@export_flags(
+	"Stochastic Offset", # Offset for XZ axes
+	"Stochastic Rotation", # Rotation for Y axis
+	"Triplanar",
+	"Triplanar Stochastic Offset", # Offset for Y axis
+	"Triplanar Stochastic Rotation", # Rotation for XZ axes
+) var flags := FLAGS_DEFAULT:
 	set(value):
 		flags = value
 		emit_changed()

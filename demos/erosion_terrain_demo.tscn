@@ -60,7 +60,7 @@ environment = SubResource("Environment_thxwv")
 camera_attributes = SubResource("CameraAttributesPractical_wujal")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1953520136]
-transform = Transform3D(-0.60733443, 0.14097919, -0.78183746, -0.7934494, -0.15692507, 0.58805823, -0.039785948, 0.97749656, 0.2071658, 224.93452, 1615.8408, 1320.4667)
+transform = Transform3D(-0.7177687, 0.69575334, -0.027115798, -0.5167519, -0.50619364, 0.6904603, 0.4666642, 0.50960296, 0.72286177, 224.93452, 1615.8408, -479.7566)
 light_intensity_lux = 71129.28
 light_temperature = 2989.0
 light_energy = 3.0
@@ -80,7 +80,7 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4342.4707, 0, 5386.9297)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -561.5801, 0, -1464.2366)
 script = ExtResource("1_e348m")
 compute_data = SubResource("Resource_p1oah")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("4_ob4lt"), ExtResource("5_vsihy"), ExtResource("6_p1oah"), ExtResource("7_r2ioa")])
@@ -99,4 +99,4 @@ material_override = SubResource("StandardMaterial3D_r2ioa")
 mesh = SubResource("PlaneMesh_186hp")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.288116, 1656.3026, -25.476)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17.651215, 1656.3026, 35.742264)

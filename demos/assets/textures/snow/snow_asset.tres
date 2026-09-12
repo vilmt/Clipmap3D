@@ -9,6 +9,5 @@ script = ExtResource("1_8o8xd")
 uv_scale = Vector3(0.1, 0.1, 0.1)
 albedo_texture = ExtResource("1_a0e3s")
 normal_texture = ExtResource("2_5aym7")
-stochastic_offset = Vector3(0.89, 1.6, 1.205)
-stochastic_rotation = Vector3(0, 0.8, 0)
+flags = 3
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"

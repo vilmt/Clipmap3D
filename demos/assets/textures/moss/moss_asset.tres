@@ -10,6 +10,5 @@ uv_scale = Vector3(0.1, 0.1, 0.1)
 albedo_texture = ExtResource("1_b1bnm")
 albedo_modulate = Color(0.90359825, 0.90359825, 0.9035982, 1)
 normal_texture = ExtResource("2_ci40l")
-normal_depth = 2.866
-stochastic_rotation = Vector3(0, 0.5, 0)
+normal_depth = 3.0
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"
