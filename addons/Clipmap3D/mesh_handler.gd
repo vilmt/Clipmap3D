@@ -272,18 +272,23 @@ func _update_instances() -> void:
 		
 	var world_position := Vector2(target_transform.origin.x, target_transform.origin.z)
 	
+	# HACK: The scale is applied component-wise manually. Ideally, the transformation
+	# would be applied using matrix multiplication so that rotation would also work.
+	
+	var target_scale = Vector2(target_transform.basis.x.x, target_transform.basis.z.z)
+	
 	var instance_index_start: int = 0
 	var instance_index_end: int = LOD_0_INSTANCE_COUNT
 	
 	for lod: int in lod_count:
 		var lod_scale := float(1 << lod)
-		var lod_position := (world_position / lod_scale).floor()
+		var lod_position := (world_position / target_scale / lod_scale).floor()
 		var edge_parity := Vector2i(lod_position).abs() % 2
 		
-		var transform_snapped := Transform3D.IDENTITY
-		transform_snapped.origin.x = lod_position.x * lod_scale
+		var transform_snapped := target_transform
+		transform_snapped.origin.x = lod_position.x * target_scale.x * lod_scale
 		transform_snapped.origin.y = target_transform.origin.y
-		transform_snapped.origin.z = lod_position.y * lod_scale
+		transform_snapped.origin.z = lod_position.y * target_scale.y * lod_scale
 		
 		var mesh_type_count: Dictionary[MeshType, int] = {}
 		

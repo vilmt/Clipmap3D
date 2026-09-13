@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c2162wvt5s5bk"
-path.bptc="res://.godot/imported/plugin_thumbnail.jpg-4882c55e690df13fbe94a6ab851ca7ba.bptc.ctex"
+path.bptc="res://.godot/imported/plugin_thumbnail.jpg-5342bb37998ec46734e3a0164d92bed0.bptc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://addons/Clipmap3D/plugin_thumbnail.jpg"
-dest_files=["res://.godot/imported/plugin_thumbnail.jpg-4882c55e690df13fbe94a6ab851ca7ba.bptc.ctex"]
+source_file="res://addons/Clipmap3D/assets/plugin_thumbnail.jpg"
+dest_files=["res://.godot/imported/plugin_thumbnail.jpg-5342bb37998ec46734e3a0164d92bed0.bptc.ctex"]
 
 [params]
 

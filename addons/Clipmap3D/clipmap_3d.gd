@@ -22,7 +22,7 @@ class_name Clipmap3D extends Node3D
 
 # NOTE: Lower limit of 2 because of https://github.com/godotengine/godot/issues/115103
 ## The amount of level of detail (LOD) rings that form this mesh.
-@export_range(2, 16, 1) var mesh_lod_count: int = 5:
+@export_range(2, 16, 1) var mesh_lod_count: int = 8:
 	set(value):
 		mesh_lod_count = value
 		_mesh_handler.lod_count = mesh_lod_count
@@ -111,6 +111,11 @@ class_name Clipmap3D extends Node3D
 		else:
 			_collision_handler.clear()
 
+@export var debug_collision_shape_color := Color(1.0, 0.159, 0.323, 1.0):
+	set(value):
+		debug_collision_shape_color = value
+		_collision_handler.debug_collision_shape_color = debug_collision_shape_color
+
 var _compute_handler := Clipmap3DComputeHandler.new()
 var _mesh_handler := Clipmap3DMeshHandler.new()
 var _texture_handler := Clipmap3DTextureHandler.new()
@@ -146,6 +151,7 @@ func _ready():
 	_collision_handler.collision_lod = collision_lod
 	_collision_handler.instance_id = get_instance_id()
 	_collision_handler.debug_visible_collision_shapes = debug_visible_collision_shapes
+	_collision_handler.debug_collision_shape_color = debug_collision_shape_color
 	
 	_update_position()
 	

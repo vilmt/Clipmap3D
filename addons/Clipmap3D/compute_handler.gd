@@ -177,12 +177,13 @@ func get_safe_region(lod: int) -> Rect2i:
 func world_to_texel(world_position: Vector3, lod: int) -> Vector2i:
 	# TODO: document why the snap is 2 texels wide
 	var snap := 2.0 * Vector2.ONE
-	var vertex_position := Vector2(world_position.x, world_position.z) / float(1 << lod)
+	# HACK: transform is applied component-wise. Should use matrix multiplication for rotation to also work
+	var vertex_position := Vector2(world_position.x / target_transform.basis.x.x, world_position.z / target_transform.basis.z.z) / float(1 << lod)
 	return Vector2i((vertex_position / snap).floor() * snap) * _texels_per_vertex
 
 func texel_to_world(texel_position: Vector2i, lod: int) -> Vector3:
 	var s = Vector2(texel_position) / Vector2(_texels_per_vertex) * float(1 << lod)
-	return Vector3(s.x, 0.0, s.y)
+	return Vector3(s.x * target_transform.basis.x.x, 0.0, s.y * target_transform.basis.z.z)
 
 func _schedule_update() -> void:
 	RenderingServer.call_on_render_thread(_update_threaded)
@@ -379,7 +380,9 @@ func _update_compute_threaded() -> void:
 		_previous_origins.fill(Vector2i(-1e10, -1e10))
 	
 	for lod: int in lod_count:
-		current_origins[lod] = world_to_texel(target_transform.origin, lod)
+		var origin = world_to_texel(target_transform.origin, lod)
+		
+		current_origins[lod] = origin
 	
 	var buffer_size := get_buffer_size()
 	
@@ -392,7 +395,6 @@ func _update_compute_threaded() -> void:
 		
 		var delta_abs := delta.abs()
 		
-		# I don't understand this formula but it works perfectly for each LOD and texels_per_vertex, so don't touch it.
 		var top_corner := origin - (buffer_size / 2 - _texels_per_vertex)
 		
 		var full_region := Rect2i(top_corner, buffer_size)

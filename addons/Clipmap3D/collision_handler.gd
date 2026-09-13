@@ -36,7 +36,11 @@ var target_transform: Transform3D:
 	set(value):
 		if target_transform == value:
 			return
+		if target_transform.basis != value.basis:
+			# Scale has changed
+			_shape_needs_rebuild = true
 		target_transform = value
+		
 		_data_needs_update = true
 		_schedule_update()
 
@@ -101,6 +105,15 @@ var debug_visible_collision_shapes: bool:
 		debug_visible_collision_shapes = value
 		_shape_needs_rebuild = true
 		_schedule_update()
+
+var debug_collision_shape_color: Color:
+	set(value):
+		if debug_collision_shape_color == value:
+			return
+		debug_collision_shape_color = value
+		if debug_visible_collision_shapes:
+			_shape_needs_rebuild = true
+			_schedule_update()
 		
 var _grid_to_face_indices: Array[PackedInt32Array]
 var _faces: PackedVector3Array
@@ -200,7 +213,7 @@ func _create_shape():
 	var grid := PackedVector3Array()
 	for z: int in range(-mesh_radius.y, mesh_radius.y + 1):
 		for x: int in range(-mesh_radius.x, mesh_radius.x + 1):
-			grid.append(Vector3(float(x) * scale, 0.0, float(z) * scale))
+			grid.append(Vector3(float(x) * scale * target_transform.basis.x.x, 0.0, float(z) * scale * target_transform.basis.z.z))
 	
 	for z: int in 2 * mesh_radius.y:
 		for x: int in 2 * mesh_radius.x:
@@ -280,6 +293,8 @@ func _create_body():
 		_debug_body.add_child(collision_shape)
 		collision_shape.transform = Transform3D.IDENTITY
 		collision_shape.owner = _debug_body
+		collision_shape.debug_color = debug_collision_shape_color
+		collision_shape.debug_fill = true
 		
 	else:
 		_body_rid = PhysicsServer3D.body_create()
