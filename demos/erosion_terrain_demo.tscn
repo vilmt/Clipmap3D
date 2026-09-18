@@ -79,17 +79,18 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073 node_paths=PackedStringArray("follow_target")]
+transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 0, 0, 188.45677)
 script = ExtResource("1_e348m")
 follow_target = NodePath("../Player")
 compute_data = SubResource("Resource_p1oah")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("4_ob4lt"), ExtResource("5_vsihy"), ExtResource("6_p1oah"), ExtResource("7_r2ioa")])
 mesh_lod_count = 10
-mesh_tile_size = Vector2i(48, 48)
 material = ExtResource("9_p1oah")
 aabb_height = 6000.0
 collision_lod = 1
 collision_mesh_radius = Vector2i(6, 6)
 collision_physics_material = SubResource("PhysicsMaterial_r2ioa")
+debug_visible_collision_shapes = true
 metadata/_custom_type_script = "uid://wudkpxu6xggb"
 
 [node name="Water (bad)" type="MeshInstance3D" parent="Clipmap3D" unique_id=1963552221]
@@ -99,4 +100,4 @@ material_override = SubResource("StandardMaterial3D_r2ioa")
 mesh = SubResource("PlaneMesh_186hp")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1639.797, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1639.797, 188.45677)

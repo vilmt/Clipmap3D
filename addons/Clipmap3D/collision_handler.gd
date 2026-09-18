@@ -32,15 +32,22 @@ var instance_id: int:
 		_body_needs_update = true
 		_schedule_update()
 
-var target_transform: Transform3D:
+var target_position: Vector3:
 	set(value):
-		if target_transform == value:
+		if target_position == value:
 			return
-		if target_transform.basis != value.basis:
-			# Scale has changed
-			_shape_needs_rebuild = true
-		target_transform = value
+		target_position = value
 		
+		_data_needs_update = true
+		_schedule_update()
+
+var vertex_spacing: Vector2:
+	set(value):
+		if vertex_spacing == value:
+			return
+		vertex_spacing = value
+		
+		_shape_needs_rebuild = true
 		_data_needs_update = true
 		_schedule_update()
 
@@ -213,7 +220,7 @@ func _create_shape():
 	var grid := PackedVector3Array()
 	for z: int in range(-mesh_radius.y, mesh_radius.y + 1):
 		for x: int in range(-mesh_radius.x, mesh_radius.x + 1):
-			grid.append(Vector3(float(x) * scale * target_transform.basis.x.x, 0.0, float(z) * scale * target_transform.basis.z.z))
+			grid.append(Vector3(float(x) * scale * vertex_spacing.x, 0.0, float(z) * scale * vertex_spacing.y))
 	
 	for z: int in 2 * mesh_radius.y:
 		for x: int in 2 * mesh_radius.x:
@@ -399,7 +406,7 @@ func _on_height_data_received(data: PackedByteArray):
 func _get_desired_region() -> Rect2i:
 	if not compute_handler:
 		return Rect2i()
-	var texel := compute_handler.world_to_texel(target_transform.origin, collision_lod)
+	var texel := compute_handler.world_to_texel(target_position, collision_lod)
 	var radius_texels := mesh_radius * compute_handler.get_texels_per_vertex()
 	return Rect2i(texel - radius_texels, 2 * radius_texels)
 

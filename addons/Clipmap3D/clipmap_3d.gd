@@ -2,6 +2,8 @@
 @tool
 class_name Clipmap3D extends Node3D
 
+# TODO: fix error on enabling debug collision shapes
+
 ## The Node3D which the terrain snaps to on the X and Z axes. If unassigned, camera is used.
 @export var follow_target: Node3D
 
@@ -34,6 +36,14 @@ class_name Clipmap3D extends Node3D
 		mesh_tile_size = value.clampi(1, 128)
 		_mesh_handler.tile_size = mesh_tile_size
 		_compute_handler.tile_size = mesh_tile_size
+
+## The distance between vertices in the 
+@export_custom(PROPERTY_HINT_LINK, "") var mesh_vertex_spacing := Vector2.ONE:
+	set(value):
+		mesh_vertex_spacing = value.maxf(0.001)
+		_mesh_handler.vertex_spacing = mesh_vertex_spacing
+		_compute_handler.vertex_spacing = mesh_vertex_spacing
+		_collision_handler.vertex_spacing = mesh_vertex_spacing
 
 @export_group("Rendering")
 
@@ -129,6 +139,7 @@ func _ready():
 	_compute_handler.lod_count = mesh_lod_count
 	_compute_handler.tile_size = mesh_tile_size
 	_compute_handler.material = material
+	_compute_handler.vertex_spacing = mesh_vertex_spacing
 
 	_mesh_handler.scenario_rid = get_world_3d().scenario
 	_mesh_handler.tile_size = mesh_tile_size
@@ -138,6 +149,7 @@ func _ready():
 	_mesh_handler.material = material
 	_mesh_handler.visible = is_visible_in_tree()
 	_mesh_handler.aabb_height = aabb_height
+	_mesh_handler.vertex_spacing = mesh_vertex_spacing
 	
 	_texture_handler.texture_assets = texture_assets
 	_texture_handler.material = material
@@ -152,6 +164,7 @@ func _ready():
 	_collision_handler.instance_id = get_instance_id()
 	_collision_handler.debug_visible_collision_shapes = debug_visible_collision_shapes
 	_collision_handler.debug_collision_shape_color = debug_collision_shape_color
+	_collision_handler.vertex_spacing = mesh_vertex_spacing
 	
 	_update_position()
 	
@@ -194,8 +207,6 @@ func _update_position():
 			global_position.x = camera.global_position.x
 			global_position.z = camera.global_position.z
 	
-	_compute_handler.target_transform = global_transform
-	_mesh_handler.target_transform = global_transform
-	_collision_handler.target_transform = global_transform
-	if material:
-		material.set_shader_parameter(&"_target_transform", global_transform)
+	_mesh_handler.target_position = global_position
+	_compute_handler.target_position = global_position
+	_collision_handler.target_position = global_position

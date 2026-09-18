@@ -3,7 +3,6 @@ render_mode blend_mix, skip_vertex_transform;
 
 /*
 TODO:
-- Support arbitrary rotation
 */
 
 const uint MAX_TEXTURE_COUNT = 16u;
@@ -28,8 +27,9 @@ uniform float lod_blend_ratio: hint_range(0.0, 0.2928932188134525) = 0.2;
 
 group_uniforms private;
 
+uniform vec3 _target_position;
+uniform vec2 _vertex_spacing;
 uniform ivec2 _texels_per_vertex;
-uniform mat4 _target_transform;
 
 uniform sampler2DArray _albedo_textures: source_color, repeat_enable, filter_linear_mipmap_anisotropic;
 uniform int[MAX_TEXTURE_COUNT] _albedo_remap;
@@ -73,10 +73,9 @@ void vertex() {
 	// Scale and LOD from transform
 	
 	vec2 scale = vec2(MODEL_MATRIX[0][0], MODEL_MATRIX[2][2]);
-	vec2 target_scale = vec2(_target_transform[0][0], _target_transform[2][2]);
-	float lod_floor = log2(scale.x / target_scale.x);
+	float lod_floor = log2(scale.x / _vertex_spacing.x);
 	
-	vec2 target_texel = _target_transform[3].xz * vec2(_texels_per_vertex) / scale;
+	vec2 target_texel = _target_position.xz * vec2(_texels_per_vertex) / scale;
 	vec2 texel = world_position.xz * vec2(_texels_per_vertex) / scale;
 	
 	// Vertex LOD (circular LOD pattern)
@@ -116,7 +115,7 @@ void vertex() {
 	
 	VERTEX = (VIEW_MATRIX * vec4(world_position, 1.0)).xyz;
 	
-	world_position.xz /= target_scale;
+	world_position.xz /= _vertex_spacing;
 }
 
 struct Material {
@@ -317,7 +316,7 @@ void fragment() {
 	vec2 gradient_1 = texture(_gradient_buffer, vec3(uv_1, lod_1)).rg;
 	vec2 gradient = mix(gradient_0, gradient_1, lod_fract);
 	
-	gradient /= vec2(_target_transform[0][0], _target_transform[2][2]); // Apply scale to normals. TODO: also apply rotation
+	gradient /= _vertex_spacing;
 	
 	// Construct normal from gradient
 	

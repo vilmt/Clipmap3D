@@ -57,12 +57,22 @@ var render_layer: int:
 		_instances_need_update = true
 		_schedule_update()
 
-var target_transform: Transform3D:
+var target_position: Vector3:
 	set(value):
-		if target_transform == value:
+		if target_position == value:
 			return
-		target_transform = value
+		target_position = value
 		_instances_need_update = true
+		_material_needs_update = true
+		_schedule_update()
+
+var vertex_spacing: Vector2:
+	set(value):
+		if vertex_spacing == value:
+			return
+		vertex_spacing = value
+		_instances_need_update = true
+		_material_needs_update = true
 		_schedule_update()
 
 var aabb_height: float:
@@ -99,12 +109,14 @@ var _built: bool = false
 var _meshes_need_rebuild: bool = false
 var _meshes_need_update: bool = false
 var _instances_need_update: bool = false
+var _material_needs_update: bool = false
 
 func build():
 	_built = true
 	_meshes_need_rebuild = true
 	_meshes_need_update = true
 	_instances_need_update = true
+	_material_needs_update = true
 	_schedule_update()
 
 func clear():
@@ -112,6 +124,7 @@ func clear():
 	_meshes_need_rebuild = false
 	_meshes_need_update = false
 	_instances_need_update = false
+	_material_needs_update = false
 	_clear_instances()
 	_clear_meshes()
 
@@ -139,6 +152,10 @@ func _update():
 	if _instances_need_update:
 		_update_instances()
 		_instances_need_update = false
+	
+	if _material_needs_update:
+		_update_material()
+		_material_needs_update = false
 
 #region meshes
 func _create_meshes():
@@ -270,25 +287,25 @@ func _update_instances() -> void:
 		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, cast_shadows)
 		RenderingServer.instance_set_layer_mask(instance_rid, render_layer)
 		
-	var world_position := Vector2(target_transform.origin.x, target_transform.origin.z)
+	var world_position := Vector2(target_position.x, target_position.z)
 	
 	# HACK: The scale is applied component-wise manually. Ideally, the transformation
 	# would be applied using matrix multiplication so that rotation would also work.
-	
-	var target_scale = Vector2(target_transform.basis.x.x, target_transform.basis.z.z)
 	
 	var instance_index_start: int = 0
 	var instance_index_end: int = LOD_0_INSTANCE_COUNT
 	
 	for lod: int in lod_count:
-		var lod_scale := float(1 << lod)
-		var lod_position := (world_position / target_scale / lod_scale).floor()
+		var lod_scale := vertex_spacing * float(1 << lod)
+		var lod_position := (world_position / lod_scale).floor()
 		var edge_parity := Vector2i(lod_position).abs() % 2
 		
-		var transform_snapped := target_transform
-		transform_snapped.origin.x = lod_position.x * target_scale.x * lod_scale
-		transform_snapped.origin.y = target_transform.origin.y
-		transform_snapped.origin.z = lod_position.y * target_scale.y * lod_scale
+		lod_position *= lod_scale
+		
+		var transform_snapped := Transform3D.IDENTITY
+		transform_snapped.origin.x = lod_position.x
+		transform_snapped.origin.y = target_position.y
+		transform_snapped.origin.z = lod_position.y
 		
 		var mesh_type_count: Dictionary[MeshType, int] = {}
 		
@@ -305,8 +322,9 @@ func _update_instances() -> void:
 				_:
 					offset = _instance_offsets[instance_mesh_type][instance_count]
 			
-			var instance_transform := Transform3D(Basis.IDENTITY, offset).scaled(Vector3(lod_scale, 1.0, lod_scale))
+			var instance_transform := Transform3D(Basis.IDENTITY, offset).scaled(Vector3(lod_scale.x, 1.0, lod_scale.y))
 			instance_transform = transform_snapped * instance_transform
+			# could just be a vector offset?
 			
 			RenderingServer.instance_set_transform(instance_rid, instance_transform)
 			RenderingServer.instance_teleport(instance_rid)
@@ -334,4 +352,16 @@ func _create_instance(type: MeshType) -> void:
 	RenderingServer.instance_set_base(instance_rid, _mesh_rids[type])
 	_instance_rids.append(instance_rid)
 	_instance_mesh_types.append(type)
+#endregion
+
+#region material
+
+func _update_material() -> void:
+	if not material:
+		return
+	
+	var material_rid := material.get_rid()
+	RenderingServer.material_set_param(material_rid, &"_target_position", target_position)
+	RenderingServer.material_set_param(material_rid, &"_vertex_spacing", vertex_spacing)
+
 #endregion

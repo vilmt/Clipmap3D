@@ -51,11 +51,20 @@ var tile_size: Vector2i:
 		_material_needs_update = true
 		_schedule_update()
 
-var target_transform: Transform3D:
+var vertex_spacing: Vector2:
 	set(value):
-		if target_transform == value:
+		if vertex_spacing == value:
 			return
-		target_transform = value
+		vertex_spacing = value
+		
+		_compute_needs_update = true
+		_schedule_update()
+
+var target_position: Vector3:
+	set(value):
+		if target_position == value:
+			return
+		target_position = value
 		
 		_compute_needs_update = true
 		_schedule_update()
@@ -177,13 +186,12 @@ func get_safe_region(lod: int) -> Rect2i:
 func world_to_texel(world_position: Vector3, lod: int) -> Vector2i:
 	# TODO: document why the snap is 2 texels wide
 	var snap := 2.0 * Vector2.ONE
-	# HACK: transform is applied component-wise. Should use matrix multiplication for rotation to also work
-	var vertex_position := Vector2(world_position.x / target_transform.basis.x.x, world_position.z / target_transform.basis.z.z) / float(1 << lod)
+	var vertex_position := Vector2(world_position.x / vertex_spacing.x, world_position.z / vertex_spacing.y) / float(1 << lod)
 	return Vector2i((vertex_position / snap).floor() * snap) * _texels_per_vertex
 
 func texel_to_world(texel_position: Vector2i, lod: int) -> Vector3:
 	var s = Vector2(texel_position) / Vector2(_texels_per_vertex) * float(1 << lod)
-	return Vector3(s.x * target_transform.basis.x.x, 0.0, s.y * target_transform.basis.z.z)
+	return Vector3(s.x * vertex_spacing.x, 0.0, s.y * vertex_spacing.y)
 
 func _schedule_update() -> void:
 	RenderingServer.call_on_render_thread(_update_threaded)
@@ -380,7 +388,7 @@ func _update_compute_threaded() -> void:
 		_previous_origins.fill(Vector2i(-1e10, -1e10))
 	
 	for lod: int in lod_count:
-		var origin = world_to_texel(target_transform.origin, lod)
+		var origin = world_to_texel(target_position, lod)
 		
 		current_origins[lod] = origin
 	
