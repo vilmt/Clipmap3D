@@ -5,11 +5,13 @@
 [ext_resource type="RDShaderFile" uid="uid://xjxu5li6gpx" path="res://demos/compute_shaders/erosion_terrain.glsl" id="2_p1oah"]
 [ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="3_4ispy"]
 [ext_resource type="Script" uid="uid://d20stuy1e0ig" path="res://addons/Clipmap3D/compute_data.gd" id="3_p1oah"]
-[ext_resource type="Resource" uid="uid://dw1xfupljk0rh" path="res://demos/assets/textures/grass/grass_asset.tres" id="4_ob4lt"]
-[ext_resource type="Resource" uid="uid://gmucl8qwvxxo" path="res://demos/assets/textures/cliff/cliff_asset.tres" id="5_vsihy"]
-[ext_resource type="Resource" uid="uid://deandw8b7vm76" path="res://demos/assets/textures/snow/snow_asset.tres" id="6_p1oah"]
-[ext_resource type="Resource" uid="uid://di8rne3ikvw1g" path="res://demos/assets/textures/moss/moss_asset.tres" id="7_r2ioa"]
+[ext_resource type="Resource" uid="uid://8mjot2doejqf" path="res://demos/assets/textures/grass004/grass004.tres" id="6_gwnk7"]
+[ext_resource type="Resource" uid="uid://be5eqyys4v2ip" path="res://demos/assets/textures/rocks007/rocks007.tres" id="7_6b21n"]
+[ext_resource type="Resource" uid="uid://bomqkluxa08aw" path="res://demos/assets/textures/snow006/snow006.tres" id="8_thxwv"]
 [ext_resource type="Material" uid="uid://dvqdrhnugsl3r" path="res://demos/shaders/full.tres" id="9_p1oah"]
+[ext_resource type="Resource" uid="uid://b0i51xc28u6ib" path="res://demos/assets/textures/ground067/ground067.tres" id="9_wujal"]
+[ext_resource type="Script" uid="uid://fhog5k66ckc1" path="res://demos/debug_material_switcher.gd" id="12_186hp"]
+[ext_resource type="Material" uid="uid://c5n1l2yma6i8s" path="res://demos/shaders/full_optimized.tres" id="13_gwnk7"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://demos/scenes/player/player.tscn" id="14_ew5cq"]
 
 [sub_resource type="Sky" id="Sky_b7n1i"]
@@ -78,19 +80,17 @@ outline_modulate = Color(0, 0, 0, 0)
 text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
-[node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073 node_paths=PackedStringArray("follow_target")]
-transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 0, 0, 188.45677)
+[node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
+transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 7952.331, 0, 3204.4192)
 script = ExtResource("1_e348m")
-follow_target = NodePath("../Player")
 compute_data = SubResource("Resource_p1oah")
-texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("4_ob4lt"), ExtResource("5_vsihy"), ExtResource("6_p1oah"), ExtResource("7_r2ioa")])
+texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("6_gwnk7"), ExtResource("7_6b21n"), ExtResource("8_thxwv"), ExtResource("9_wujal")])
 mesh_lod_count = 10
-material = ExtResource("9_p1oah")
+material = ExtResource("13_gwnk7")
 aabb_height = 6000.0
 collision_lod = 1
 collision_mesh_radius = Vector2i(6, 6)
 collision_physics_material = SubResource("PhysicsMaterial_r2ioa")
-debug_visible_collision_shapes = true
 metadata/_custom_type_script = "uid://wudkpxu6xggb"
 
 [node name="Water (bad)" type="MeshInstance3D" parent="Clipmap3D" unique_id=1963552221]
@@ -101,3 +101,16 @@ mesh = SubResource("PlaneMesh_186hp")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1639.797, 188.45677)
+
+[node name="DebugMaterialSwitcher" type="Node" parent="." unique_id=2115864266 node_paths=PackedStringArray("clipmap")]
+script = ExtResource("12_186hp")
+clipmap = NodePath("../Clipmap3D")
+material_a = ExtResource("9_p1oah")
+material_b = ExtResource("13_gwnk7")
+
+[node name="Label" type="Label" parent="DebugMaterialSwitcher" unique_id=96221593]
+offset_top = 209.0
+offset_right = 40.0
+offset_bottom = 232.0
+theme_override_colors/font_color = Color(1, 0, 0, 1)
+theme_override_constants/outline_size = 4

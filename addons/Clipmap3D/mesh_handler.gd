@@ -23,6 +23,7 @@ var material: ShaderMaterial:
 			return
 		material = value
 		_meshes_need_update = true
+		_material_needs_update = true
 		_schedule_update()
 		
 var scenario_rid: RID:

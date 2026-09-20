@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Clipmap3DTextureAsset" format=3 uid="uid://be5eqyys4v2ip"]
+
+[ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="1_nixsc"]
+[ext_resource type="Texture2D" uid="uid://ch5jhnsp3rgrl" path="res://demos/assets/textures/rocks007/rocks007_albedo_r.png" id="1_thgnv"]
+[ext_resource type="Texture2D" uid="uid://bixia11g0vplw" path="res://demos/assets/textures/rocks007/rocks007_normal_h_ao.png" id="2_17lgt"]
+
+[resource]
+script = ExtResource("1_nixsc")
+uv_scale = Vector3(0.1, 0.1, 0.1)
+albedo_texture = ExtResource("1_thgnv")
+normal_texture = ExtResource("2_17lgt")
+normal_depth = 1.282
+flags = 3
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"

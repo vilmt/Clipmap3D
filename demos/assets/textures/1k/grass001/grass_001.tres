@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Clipmap3DTextureAsset" format=3 uid="uid://tbny3orpa1b1"]
+
+[ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="1_5fa40"]
+[ext_resource type="Texture2D" uid="uid://butrkxf2afl3m" path="res://demos/assets/textures/1k/grass001/grass001_albedo_roughness.png" id="1_d8m8r"]
+[ext_resource type="Texture2D" uid="uid://bol4guyblj6ri" path="res://demos/assets/textures/1k/grass001/grass001_normal_height_ao.png" id="2_qsexb"]
+
+[resource]
+script = ExtResource("1_5fa40")
+uv_scale = Vector3(0.05, 0.05, 0.05)
+albedo_texture = ExtResource("1_d8m8r")
+roughness_offset = 0.22100000000000009
+normal_texture = ExtResource("2_qsexb")
+normal_depth = 2.423
+flags = 2
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"

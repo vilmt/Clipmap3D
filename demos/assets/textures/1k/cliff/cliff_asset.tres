@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Clipmap3DTextureAsset" format=3 uid="uid://gmucl8qwvxxo"]
+
+[ext_resource type="Texture2D" uid="uid://tffov2a3ri4h" path="res://demos/assets/textures/1k/cliff/cliff_albedo_roughness.png" id="1_yymv0"]
+[ext_resource type="Texture2D" uid="uid://cx1exp18lt4c2" path="res://demos/assets/textures/1k/cliff/cliff_normal_height_ao.png" id="2_kh35h"]
+[ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="3_1yi5k"]
+
+[resource]
+script = ExtResource("3_1yi5k")
+uv_scale = Vector3(0.1, 0.1, 0.1)
+albedo_texture = ExtResource("1_yymv0")
+albedo_modulate = Color(0.88120085, 0.8680145, 0.8416278, 1)
+normal_texture = ExtResource("2_kh35h")
+normal_depth = 3.0
+flags = 15
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"

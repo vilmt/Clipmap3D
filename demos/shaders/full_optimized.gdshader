@@ -3,12 +3,12 @@ render_mode blend_mix, skip_vertex_transform;
 
 /*
 TODO:
+- Fix gpu sort (increasing max texture count should reduce performance)
+- Add height-based blending
+- Look at normal-based blending
 */
 
-const uint MAX_TEXTURE_COUNT = 16u;
-
-const vec4 ALBEDO_DEFAULT = vec4(0.8, 0.8, 0.8, 1.0);
-const vec4 NORMAL_DEFAULT = vec4(0.5, 0.5, 1.0, 1.0);
+const uint MAX_TEXTURE_COUNT = 32u;
 
 const uint FLAG_STOCHASTIC_OFFSET = 1u << 0u;
 const uint FLAG_STOCHASTIC_ROTATION = 1u << 1u;
@@ -23,7 +23,8 @@ uniform bool use_mip_lod = true;
 
 uniform float mip_bias: hint_range(-3.0, 3.0) = 0.0;
 uniform float triplanar_sharpness: hint_range(1.0, 100.0) = 30.0;
-uniform float lod_blend_ratio: hint_range(0.0, 0.2928932188134525) = 0.2;
+
+uniform float lod_blend_ratio: hint_range(0.0, 0.5) = 0.2;
 
 group_uniforms private;
 
@@ -78,15 +79,15 @@ void vertex() {
 	vec2 target_texel = _target_position.xz * vec2(_texels_per_vertex) / scale;
 	vec2 texel = world_position.xz * vec2(_texels_per_vertex) / scale;
 	
-	// Vertex LOD (circular LOD pattern)
+	// Vertex LOD (LOD transition mask)
 	
-	vec2 lod_origin = texel - target_texel;
 	vec2 half_size = vec2(buffer_size.xy / 2 - _texels_per_vertex); // Half formula from compute_handler.gd
-	float blend_mask = length(lod_origin / half_size);
+	vec2 lod_origin = (texel - target_texel) / half_size;
+	float blend_mask = max(abs(lod_origin.x), abs(lod_origin.y));
 	float lod_fract = smoothstep(1.0 - lod_blend_ratio, 1.0, blend_mask);
 	lod_fract = int(lod_floor) >= buffer_size.z - 1 ? 0.0 : lod_fract; // Ensure outer LOD does not blend
 	
-	vertex_lod = lod_floor + lod_fract;
+	vertex_lod = lod_floor + lod_fract + 1e-5;
 	
 	/* LOD Geo-morphing
 	- Without any consideration for the transition regions between the clipmap rings N and N+1, there
@@ -130,6 +131,9 @@ struct Material {
 
 void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3 dPdx, vec3 dPdy, vec3 power_normal,
 	vec2 offset_A, mat2 rotation_A, vec2 offset_B, mat2 rotation_B, float blend_AB) {
+		
+	if (weight < 0.01)
+		return;
 	
 	int albedo_id = _albedo_remap[id];
 	int normal_id = _normal_remap[id];
@@ -162,12 +166,12 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 		y_dBdy *= rotation_B;
 	}
 	
-	vec4 y_albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(y_A, float(albedo_id)), y_dAdx, y_dAdy);
-	vec4 y_normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(y_A, float(normal_id)), y_dAdx, y_dAdy);
+	vec4 y_albedo_r_A = textureGrad(_albedo_textures, vec3(y_A, float(albedo_id)), y_dAdx, y_dAdy);
+	vec4 y_normal_h_ao_A = textureGrad(_normal_textures, vec3(y_A, float(normal_id)), y_dAdx, y_dAdy);
 	y_normal_h_ao_A.rg = fma(y_normal_h_ao_A.rg, vec2(2.0), vec2(-1.0));
 	
-	vec4 y_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(y_B, float(albedo_id)), y_dBdx, y_dBdy);
-	vec4 y_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(y_B, float(normal_id)), y_dBdx, y_dBdy);
+	vec4 y_albedo_r_B = textureGrad(_albedo_textures, vec3(y_B, float(albedo_id)), y_dBdx, y_dBdy);
+	vec4 y_normal_h_ao_B = textureGrad(_normal_textures, vec3(y_B, float(normal_id)), y_dBdx, y_dBdy);
 	y_normal_h_ao_B.rg = fma(y_normal_h_ao_B.rg, vec2(2.0), vec2(-1.0));
 	
 	if (bool(flags & FLAG_STOCHASTIC_ROTATION)) {
@@ -224,20 +228,20 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 			z_dBdy *= rotation_B;
 		}
 		
-		vec4 x_albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(x_A, float(albedo_id)), x_dAdx, x_dAdy);
-		vec4 x_normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(x_A, float(normal_id)), x_dAdx, x_dAdy);
+		vec4 x_albedo_r_A = textureGrad(_albedo_textures, vec3(x_A, float(albedo_id)), x_dAdx, x_dAdy);
+		vec4 x_normal_h_ao_A = textureGrad(_normal_textures, vec3(x_A, float(normal_id)), x_dAdx, x_dAdy);
 		x_normal_h_ao_A.rg = fma(x_normal_h_ao_A.gr, vec2(2.0), vec2(-1.0));
 		
-	    vec4 x_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(x_B, float(albedo_id)), x_dBdx, x_dBdy);
-	    vec4 x_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(x_B, float(normal_id)), x_dBdx, x_dBdy);
+	    vec4 x_albedo_r_B = textureGrad(_albedo_textures, vec3(x_B, float(albedo_id)), x_dBdx, x_dBdy);
+	    vec4 x_normal_h_ao_B = textureGrad(_normal_textures, vec3(x_B, float(normal_id)), x_dBdx, x_dBdy);
 		x_normal_h_ao_B.rg = fma(x_normal_h_ao_B.gr, vec2(2.0), vec2(-1.0));
 		
-		vec4 z_albedo_r_A = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(z_A, float(albedo_id)), z_dAdx, z_dAdy);
-		vec4 z_normal_h_ao_A = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(z_A, float(normal_id)), z_dAdx, z_dAdy);
+		vec4 z_albedo_r_A = textureGrad(_albedo_textures, vec3(z_A, float(albedo_id)), z_dAdx, z_dAdy);
+		vec4 z_normal_h_ao_A = textureGrad(_normal_textures, vec3(z_A, float(normal_id)), z_dAdx, z_dAdy);
 		z_normal_h_ao_A.rg = fma(z_normal_h_ao_A.gr, vec2(2.0), vec2(-1.0));
 		
-	    vec4 z_albedo_r_B = albedo_id == -1 ? ALBEDO_DEFAULT : textureGrad(_albedo_textures, vec3(z_B, float(albedo_id)), z_dBdx, z_dBdy);
-	    vec4 z_normal_h_ao_B = normal_id == -1 ? NORMAL_DEFAULT : textureGrad(_normal_textures, vec3(z_B, float(normal_id)), z_dBdx, z_dBdy);
+	    vec4 z_albedo_r_B = textureGrad(_albedo_textures, vec3(z_B, float(albedo_id)), z_dBdx, z_dBdy);
+	    vec4 z_normal_h_ao_B = textureGrad(_normal_textures, vec3(z_B, float(normal_id)), z_dBdx, z_dBdy);
 		z_normal_h_ao_B.rg = fma(z_normal_h_ao_B.gr, vec2(2.0), vec2(-1.0));
 		
 		if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_ROTATION)) {
@@ -268,9 +272,7 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 	mat.roughness += clamp(albedo_r.a + _roughness_offsets[id], 0.0, 1.0) * weight;
 	mat.normal_depth += _normal_depths[id] * weight;
 	
-	// TODO: check if this channel is even fucking used
 	vec3 n = vec3(normal_h_ao.r, 0.0, normal_h_ao.g);
-	n.y = sqrt(1.0 - dot(n.xz, n.xz));
 	
 	mat.normal += n * weight;
 	
@@ -299,7 +301,7 @@ void fragment() {
 	vec2 mip_uv = (world_position.xz * vec2(_texels_per_vertex) + 0.5) / vec2(buffer_size.xy);
 	float mip_lod = use_mip_lod ? textureQueryLod(_gradient_buffer, mip_uv).y : vertex_lod;
 	
-	float lod = clamp(mip_lod + mip_bias, vertex_lod, float(buffer_size.z - 1)) + 1e-5;
+	float lod = clamp(mip_lod + mip_bias, vertex_lod, float(buffer_size.z - 1));
 	float lod_0 = floor(lod);
 	float lod_1 = lod_0 + 1.0;
 	float lod_fract = fract(lod);
@@ -321,8 +323,8 @@ void fragment() {
 	// Construct normal from gradient
 	
 	vec3 normal = normalize(vec3(-gradient.x, 1.0, -gradient.y));
-	vec3 tangent = cross(normal, vec3(0.0, 0.0, 1.0));
-	vec3 binormal = cross(normal, tangent);
+	vec3 tangent = normalize(cross(normal, vec3(0.0, 0.0, 1.0)));
+	vec3 binormal = normalize(cross(normal, tangent));
 	
 	NORMAL = (VIEW_MATRIX * vec4(normal, 0.0)).xyz;
 	TANGENT = (VIEW_MATRIX * vec4(tangent, 0.0)).xyz;
@@ -417,10 +419,11 @@ void fragment() {
 	float index_A = floor(random + 0.5);
 	float index_B = floor(random);
 	
+	
 	// Coordinate space A
 	
-	vec2 offset_A = sin(vec2(3.0, 13.0) * index_A);
-	float angle_A = 7.0 * index_A;
+	vec2 offset_A = sin(vec2(3.0, 13.0) * index_A); // TODO: use better hash. Could use constant table.
+	float angle_A = 7.0 * index_A; // TODO: use better hash.
 	float sin_A = sin(angle_A), cos_A = cos(angle_A);
 	mat2 rotation_A = mat2(vec2(cos_A, sin_A), vec2(-sin_A, cos_A));
 	
@@ -431,11 +434,9 @@ void fragment() {
 	float sin_B = sin(angle_B), cos_B = cos(angle_B);
 	mat2 rotation_B = mat2(vec2(cos_B, sin_B), vec2(-sin_B, cos_B));
 	
-	for (uint id = 0u; id < MAX_TEXTURE_COUNT; id++) {
-		float weight = weights[id];
-		if (weight > 0.01)
-			accumulate_material(mat, id, weight, P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
-	}
+	// NOTE: this is bad for GPU blending. Should define upper bound of number of textures better.
+	for (uint id = 0u; id < MAX_TEXTURE_COUNT; id++)
+		accumulate_material(mat, id, weights[id], P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
 	
 	// Normalize accumulated material
 	
@@ -454,5 +455,5 @@ void fragment() {
 	NORMAL_MAP_DEPTH = mat.normal_depth;
 	AO = mat.ao;
 	
-	//ALBEDO = debug_albedo;
+	//ALBEDO = vec3(fract(vertex_lod));
 }

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Clipmap3DTextureAsset" format=3 uid="uid://bomqkluxa08aw"]
+
+[ext_resource type="Texture2D" uid="uid://b2kski287ykbk" path="res://demos/assets/textures/snow006/snow006_albedo_roughness.png" id="1_2nojw"]
+[ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="1_cm7l4"]
+[ext_resource type="Texture2D" uid="uid://cc0q8qb1jdtmf" path="res://demos/assets/textures/snow006/snow006_normal_height_ao.png" id="2_vtggt"]
+
+[resource]
+script = ExtResource("1_cm7l4")
+uv_scale = Vector3(0.1, 0.1, 0.1)
+albedo_texture = ExtResource("1_2nojw")
+normal_texture = ExtResource("2_vtggt")
+normal_depth = 2.127
+flags = 2
+metadata/_custom_type_script = "uid://bt3djwqnt64i8"
