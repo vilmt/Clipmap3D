@@ -345,17 +345,7 @@ void fragment() {
 	vec4 weights_0 = get_bilinear_weights(texel_0);
 	vec4 weights_1 = get_bilinear_weights(texel_1);
 	
-	uvec4 controls_0 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_0, lod_0), 0).wzxy);
-	uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_1, lod_1), 0).wzxy);
 	
-	// Texture weight accumulation from control
-	
-	uvec4 id_0_0 = controls_0 >> uvec4(27u) & uvec4(0x1Fu);
-	uvec4 id_1_0 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
-	vec4 weights_id_1_0 = vec4(controls_0 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
-	vec4 weights_id_0_0 = 1.0 - weights_id_1_0;
-	weights_id_0_0 *= weights_0;// * (1.0 - lod_fract);
-	weights_id_1_0 *= weights_0;// * (1.0 - lod_fract);
 	
 	//uvec2 texture_ids[4] = uvec2[4](
 		//uvec2(id_0_0.x, id_1_0.x),
@@ -385,12 +375,7 @@ void fragment() {
 		//texture_weights[3] += fma(w_0, vec2(equal(texture_ids[3], id_0_vec)), w_1 * vec2(equal(texture_ids[3], id_1_vec)));
 	//}
 	
-	//uvec4 id_0_1 = controls_1 >> uvec4(27u) & uvec4(0x1Fu);
-	//uvec4 id_1_1 = controls_1 >> uvec4(22u) & uvec4(0x1Fu);
-	//vec4 weights_id_1_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
-	//vec4 weights_id_0_1 = 1.0 - weights_id_1_1;
-	//weights_id_0_1 *= weights_1 * lod_fract;
-	//weights_id_1_1 *= weights_1 * lod_fract;
+	
 	//
 	//uvec2 texture_ids2[4] = uvec2[4](
 		//uvec2(id_0_0.x, id_1_0.x),
@@ -474,9 +459,51 @@ void fragment() {
 	
 	*/
 	
+	uvec4 controls_0 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_0, lod_0), 0).wzxy);
+	uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_1, lod_1), 0).wzxy);
+	
+	// Texture weight accumulation from control
+	
+	uvec4 id_0_0 = controls_0 >> uvec4(27u) & uvec4(0x1Fu);
+	uvec4 id_1_0 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
+	vec4 weights_id_1_0 = vec4(controls_0 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
+	vec4 weights_id_0_0 = 1.0 - weights_id_1_0;
+	weights_id_0_0 *= weights_0;// * (1.0 - lod_fract);
+	weights_id_1_0 *= weights_0;// * (1.0 - lod_fract);
+	
+	//uvec4 id_0_1 = controls_1 >> uvec4(27u) & uvec4(0x1Fu);
+	//uvec4 id_1_1 = controls_1 >> uvec4(22u) & uvec4(0x1Fu);
+	//vec4 weights_id_1_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
+	//vec4 weights_id_0_1 = 1.0 - weights_id_1_1;
+	//weights_id_0_1 *= weights_1 * lod_fract;
+	//weights_id_1_1 *= weights_1 * lod_fract;
+	
+	uvec2 ids[4] = uvec2[4](
+		uvec2(id_0_0[0], id_1_0[0]),
+		uvec2(id_0_0[1], id_1_0[1]),
+		uvec2(id_0_0[2], id_1_0[2]),
+		uvec2(id_0_0[3], id_1_0[3])
+	);
+	
+	vec2 weights[4] = vec2[4](
+		vec2(weights_id_0_0[0], weights_id_1_0[0]),
+		vec2(weights_id_0_0[1], weights_id_1_0[1]),
+		vec2(weights_id_0_0[2], weights_id_1_0[2]),
+		vec2(weights_id_0_0[3], weights_id_1_0[3])
+	);
+	
 	for (uint i = 0u; i < 4u; i++) {
-		accumulate_material(mat, id_0_0[i], weights_id_0_0[i], P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
-		accumulate_material(mat, id_1_0[i], weights_id_1_0[i], P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
+		for (uint j = i + 1u; j < 4u; j++) {
+			float eq_i_j = float(all(equal(ids[i], ids[j])));
+	
+			weights[i] += weights[j] * eq_i_j;
+			weights[j] *= 1.0 - eq_i_j;
+		}
+	}
+	
+	for (uint i = 0u; i < 4u; i++) {
+		accumulate_material(mat, ids[i].x, weights[i].x, P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
+		accumulate_material(mat, ids[i].y, weights[i].y, P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
 	}
 	
 	//for (uint i = 0u; i < 4u; i++) {

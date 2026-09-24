@@ -1,0 +1,24 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://b5qtq2ro6m8j8"]
+
+[ext_resource type="Shader" uid="uid://cakusvqsbjpup" path="res://demos/shaders/full_optimized4_devastating.gdshader" id="1_8d08l"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_8d08l")
+shader_parameter/enable = true
+shader_parameter/show_texels = false
+shader_parameter/show_grid_mask = false
+shader_parameter/stochastic_blend_bias = 0.1
+shader_parameter/mip_bias = 0.0
+shader_parameter/triplanar_sharpness = 30.0
+shader_parameter/lod_blend_ratio = 0.2000000095
+shader_parameter/_target_position = Vector3(0, 0, 0)
+shader_parameter/_vertex_spacing = Vector2(0, 0)
+shader_parameter/_texels_per_vertex = Vector2i(0, 0)
+shader_parameter/_albedo_remap = PackedInt32Array(0, 1, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
+shader_parameter/_normal_remap = PackedInt32Array(0, 1, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
+shader_parameter/_uv_scales = PackedVector3Array(0.05, 0.05, 0.05, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+shader_parameter/_albedo_modulates = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+shader_parameter/_roughness_offsets = PackedFloat32Array(0.498, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_normal_depths = PackedFloat32Array(1, 1.282, 2.127, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+shader_parameter/_flags = PackedInt32Array(0, 3, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)

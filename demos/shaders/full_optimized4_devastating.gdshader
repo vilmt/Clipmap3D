@@ -16,10 +16,13 @@ const uint FLAG_TRIPLANAR = 1u << 2u;
 const uint FLAG_TRIPLANAR_STOCHASTIC_OFFSET = 1u << 3u;
 const uint FLAG_TRIPLANAR_STOCHASTIC_ROTATION = 1u << 4u;
 
+uniform bool enable = true;
+uniform bool show_texels = true;
+uniform bool show_grid_mask = true;
+
+
 uniform sampler2D stochastic_noise: filter_linear;
 uniform float stochastic_blend_bias = 0.1; // TODO: should be material parameter
-
-uniform bool use_mip_lod = true;
 
 uniform float mip_bias: hint_range(-3.0, 3.0) = 0.0;
 uniform float triplanar_sharpness: hint_range(1.0, 100.0) = 30.0;
@@ -49,7 +52,8 @@ uniform highp sampler2DArray _control_buffer: hint_default_black, repeat_enable,
 
 varying vec3 world_position;
 
-varying float vertex_lod;
+varying flat int vertex_lod_floor;
+varying float vertex_lod_fract;
 
 varying flat vec3 debug_albedo;
 
@@ -84,10 +88,15 @@ void vertex() {
 	vec2 half_size = vec2(buffer_size.xy / 2 - _texels_per_vertex); // Half formula from compute_handler.gd
 	vec2 lod_origin = (texel - target_texel) / half_size;
 	float blend_mask = max(abs(lod_origin.x), abs(lod_origin.y));
+	
 	float lod_fract = smoothstep(1.0 - lod_blend_ratio, 1.0, blend_mask);
 	lod_fract = int(lod_floor) >= buffer_size.z - 1 ? 0.0 : lod_fract; // Ensure outer LOD does not blend
+	lod_fract = max(0.0, lod_fract - 1e-5);
 	
-	vertex_lod = round(lod_floor) + 1e-5 + max(0.0, lod_fract - 1e-5);
+	vertex_lod_floor = int(lod_floor + 0.5);
+	vertex_lod_fract = lod_fract;
+	
+	debug_albedo = sin(vec3(lod_floor) * 70.0) * 0.5 + 0.5;
 	
 	/* LOD Geo-morphing
 	- Without any consideration for the transition regions between the clipmap rings N and N+1, there
@@ -111,8 +120,6 @@ void vertex() {
 	
 	vec2 uv = get_uv(texel, vec2(buffer_size.xy));
 	world_position.y = texture(_height_buffer, vec3(uv, lod_floor)).r;
-	
-	debug_albedo = vec3(lod_floor);
 	
 	VERTEX = (VIEW_MATRIX * vec4(world_position, 1.0)).xyz;
 	
@@ -185,89 +192,6 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 	vec4 albedo_r = mix(y_albedo_r_A, y_albedo_r_B, y_blend);
 	vec4 normal_h_ao = mix(y_normal_h_ao_A, y_normal_h_ao_B, y_blend);
 	
-	//if (bool(flags & FLAG_TRIPLANAR)) {
-		//vec2 x_A = -P.zy;
-		//vec2 x_dAdx = -dPdx.zy;
-		//vec2 x_dAdy = -dPdy.zy;
-		//
-		//vec2 x_B = -P.zy;
-		//vec2 x_dBdx = -dPdx.zy;
-		//vec2 x_dBdy = -dPdy.zy;
-		//
-		//vec2 z_A = -P.xy;
-		//vec2 z_dAdx = -dPdx.xy;
-		//vec2 z_dAdy = -dPdy.xy;
-		//
-		//vec2 z_B = -P.xy;
-		//vec2 z_dBdx = -dPdx.xy;
-		//vec2 z_dBdy = -dPdy.xy;
-		//
-		//// NOTE: offsets may have to have their sign flipped for consistency
-		//
-		//if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_OFFSET)) {
-			//x_A -= offset_A;
-			//x_B -= offset_B;
-			//
-			//z_A -= offset_A;
-			//z_B -= offset_B;
-		//}
-		//
-		//if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_ROTATION)) {
-			//x_A *= rotation_A;
-			//x_dAdx *= rotation_A;
-			//x_dAdy *= rotation_A;
-			//x_B *= rotation_B;
-			//x_dBdx *= rotation_B;
-			//x_dBdy *= rotation_B;
-			//
-			//z_A *= rotation_A;
-			//z_dAdx *= rotation_A;
-			//z_dAdy *= rotation_A;
-			//z_B *= rotation_B;
-			//z_dBdx *= rotation_B;
-			//z_dBdy *= rotation_B;
-		//}
-		//
-		//vec4 x_albedo_r_A = textureGrad(_albedo_textures, vec3(x_A, float(albedo_id)), x_dAdx, x_dAdy);
-		//vec4 x_normal_h_ao_A = textureGrad(_normal_textures, vec3(x_A, float(normal_id)), x_dAdx, x_dAdy);
-		//x_normal_h_ao_A.rg = fma(x_normal_h_ao_A.gr, vec2(2.0), vec2(-1.0));
-		//
-	    //vec4 x_albedo_r_B = textureGrad(_albedo_textures, vec3(x_B, float(albedo_id)), x_dBdx, x_dBdy);
-	    //vec4 x_normal_h_ao_B = textureGrad(_normal_textures, vec3(x_B, float(normal_id)), x_dBdx, x_dBdy);
-		//x_normal_h_ao_B.rg = fma(x_normal_h_ao_B.gr, vec2(2.0), vec2(-1.0));
-		//
-		//vec4 z_albedo_r_A = textureGrad(_albedo_textures, vec3(z_A, float(albedo_id)), z_dAdx, z_dAdy);
-		//vec4 z_normal_h_ao_A = textureGrad(_normal_textures, vec3(z_A, float(normal_id)), z_dAdx, z_dAdy);
-		//z_normal_h_ao_A.rg = fma(z_normal_h_ao_A.gr, vec2(2.0), vec2(-1.0));
-		//
-	    //vec4 z_albedo_r_B = textureGrad(_albedo_textures, vec3(z_B, float(albedo_id)), z_dBdx, z_dBdy);
-	    //vec4 z_normal_h_ao_B = textureGrad(_normal_textures, vec3(z_B, float(normal_id)), z_dBdx, z_dBdy);
-		//z_normal_h_ao_B.rg = fma(z_normal_h_ao_B.gr, vec2(2.0), vec2(-1.0));
-		//
-		//if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_ROTATION)) {
-			//x_normal_h_ao_A.gr *= rotation_A;
-			//x_normal_h_ao_B.gr *= rotation_B;
-			//
-			//z_normal_h_ao_A.gr *= rotation_A;
-			//z_normal_h_ao_B.gr *= rotation_B;
-		//}
-		//
-		//float x_bias = stochastic_blend_bias * dot(x_albedo_r_A.rgb - x_albedo_r_B.rgb, vec3(1.0));
-		//float x_blend = smoothstep(0.2, 0.8, blend_AB - x_bias); // TODO: add blend sharpness parameter here
-		//
-	    //vec4 x_albedo_r = mix(x_albedo_r_A, x_albedo_r_B, x_blend);
-		//vec4 x_normal_h_ao = mix(x_normal_h_ao_A, x_normal_h_ao_B, x_blend);
-		//
-		//float z_bias = stochastic_blend_bias * dot(z_albedo_r_A.rgb - z_albedo_r_B.rgb, vec3(1.0));
-		//float z_blend = smoothstep(0.2, 0.8, blend_AB - z_bias); // TODO: add blend sharpness parameter here
-		//
-	    //vec4 z_albedo_r = mix(z_albedo_r_A, z_albedo_r_B, z_blend);
-		//vec4 z_normal_h_ao = mix(z_normal_h_ao_A, z_normal_h_ao_B, z_blend);
-		//
-		//albedo_r = x_albedo_r * power_normal.x + albedo_r * power_normal.y + z_albedo_r * power_normal.z;
-		//normal_h_ao = x_normal_h_ao * power_normal.x + normal_h_ao * power_normal.y + z_normal_h_ao * power_normal.z;
-	//}
-	//
 	mat.albedo += albedo_r.rgb * _albedo_modulates[id] * weight;
 	mat.roughness += clamp(albedo_r.a + _roughness_offsets[id], 0.0, 1.0) * weight;
 	mat.normal_depth += _normal_depths[id] * weight;
@@ -279,6 +203,41 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 	mat.ao += normal_h_ao.a * weight;
 	
 	mat.total_weight += weight;
+}
+
+// TODO: optimize
+vec2 geomorph(vec2 texel, float mask) {
+	float x_f = texel.x * 0.5;
+        
+    float x_fl = floor(x_f);
+    float x_fr = fract(x_f);
+	
+	if (x_fr - (0.5 + 0.5 * mask) > 0.0) {
+        // uv is above the mask
+        texel.x += -2.0 * x_fr + 1.0 + (x_fr - (0.5 + mask * 0.5)) / (0.5 - mask * 0.5);
+    } else {
+        // uv is below the mask
+        texel.x += -2.0 * x_fr + x_fr / (0.5 + mask * 0.5);
+    }
+	
+	float y_f = texel.y * 0.5;
+    
+    float y_fl = floor(y_f);
+    float y_fr = fract(y_f);
+	
+	if (y_fr - (0.5 + 0.5 * mask) > 0.0) {
+        // uv is above the mask
+        texel.y += -2.0 * y_fr + 1.0 + (y_fr - (0.5 + mask * 0.5)) / (0.5 - mask * 0.5);
+    } else {
+        // uv is below the mask
+        texel.y += -2.0 * y_fr + y_fr / (0.5 + mask * 0.5);
+    }
+	
+	return texel;
+}
+
+vec2 inverse_geomorph(vec2 morphed_texel, float mask) {
+	return morphed_texel + mask * (1.0 - abs(2.0 * fract(0.5 * morphed_texel) - 1.0));
 }
 
 void fragment() {
@@ -299,26 +258,75 @@ void fragment() {
 	*/
 	
 	vec2 mip_uv = (world_position.xz * vec2(_texels_per_vertex) + 0.5) / vec2(buffer_size.xy);
-	float mip_lod = use_mip_lod ? textureQueryLod(_gradient_buffer, mip_uv).y : vertex_lod;
+	float mip_lod = textureQueryLod(_gradient_buffer, mip_uv).y;
+	
+	float vertex_lod = float(vertex_lod_floor) + vertex_lod_fract;
 	
 	float lod = clamp(mip_lod + mip_bias, vertex_lod, float(buffer_size.z - 1));
-	float lod_0 = floor(lod);
-	float lod_1 = lod_0 + 1.0;
+	float lod_floor = floor(lod);
 	float lod_fract = fract(lod);
 	
-	vec2 texel_0 = world_position.xz * vec2(_texels_per_vertex) * exp2(-lod_0);
-	vec2 texel_1 = texel_0 * 0.5;
+	vec2 texel = world_position.xz * vec2(_texels_per_vertex) * exp2(-lod_floor);
 	
 	// Gradient (normal) lookups
 	
-	vec2 uv_0 = get_uv(texel_0, vec2(buffer_size.xy));
-	vec2 uv_1 = get_uv(texel_1, vec2(buffer_size.xy));
+	vec2 uv = get_uv(texel, vec2(buffer_size.xy));
 	
-	vec2 gradient_0 = texture(_gradient_buffer, vec3(uv_0, lod_0)).rg;
-	vec2 gradient_1 = texture(_gradient_buffer, vec3(uv_1, lod_1)).rg;
-	vec2 gradient = mix(gradient_0, gradient_1, lod_fract);
+	
+	// NOTE: it should be possible to do this in one sample, since we are using bilinear position.
+	// This transformation is nonlinear though, which may make this difficult.
+	
+	// Ok, this will probably not work. Next optimization: reduce control fetches from 8 -> 7, still pretty good.
+	
+	vec2 texel_morphed = geomorph(texel, lod_fract);
+	//
+	vec2 corner_0_0 = inverse_geomorph(floor(texel_morphed) + vec2(0.0, 0.0), lod_fract);
+	vec2 corner_1_0 = inverse_geomorph(floor(texel_morphed) + vec2(1.0, 0.0), lod_fract);
+	vec2 corner_0_1 = inverse_geomorph(floor(texel_morphed) + vec2(0.0, 1.0), lod_fract);
+	vec2 corner_1_1 = inverse_geomorph(floor(texel_morphed) + vec2(1.0, 1.0), lod_fract);
+	
+	// dx0 == dx1, dy0 == dy1. This transformation is affine.
+	vec2 dx0 = corner_1_0 - corner_0_0;
+	vec2 dx1 = corner_1_1 - corner_0_1;
+	vec2 dy0 = corner_0_1 - corner_0_0;
+	vec2 dy1 = corner_1_1 - corner_1_0;
+	
+	vec2 uv_0_0 = get_uv(corner_0_0, vec2(buffer_size.xy));
+	vec2 uv_1_0 = get_uv(corner_1_0, vec2(buffer_size.xy));
+	vec2 uv_0_1 = get_uv(corner_0_1, vec2(buffer_size.xy));
+	vec2 uv_1_1 = get_uv(corner_1_1, vec2(buffer_size.xy));
+	
+	vec4 bilinear_weights = get_bilinear_weights(texel_morphed);
+	
+	// Not using texel centers. We are basically taking 4 bilinear samples and doing bilinear interp on them again.
+	vec2 grad_0_0 = texture(_gradient_buffer, vec3(uv_0_0, lod_floor)).rg;
+	vec2 grad_1_0 = texture(_gradient_buffer, vec3(uv_1_0, lod_floor)).rg;
+	vec2 grad_0_1 = texture(_gradient_buffer, vec3(uv_0_1, lod_floor)).rg;
+	vec2 grad_1_1 = texture(_gradient_buffer, vec3(uv_1_1, lod_floor)).rg;
+	
+	// This will not work in the current state because coordinates are not centered on texels 
+	//if (use_texelfetch) {
+		//grad_0_0 = texelFetch(_gradient_buffer, ivec3(ivec2(corner_0_0) % buffer_size.xy, int(lod_floor)), 0).rg;
+		//grad_1_0 = texelFetch(_gradient_buffer, ivec3(ivec2(corner_1_0) % buffer_size.xy, int(lod_floor)), 0).rg;
+		//grad_0_1 = texelFetch(_gradient_buffer, ivec3(ivec2(corner_0_1) % buffer_size.xy, int(lod_floor)), 0).rg;
+		//grad_1_1 = texelFetch(_gradient_buffer, ivec3(ivec2(corner_1_1) % buffer_size.xy, int(lod_floor)), 0).rg;
+	//}
+	//
+	vec2 gradient = vec2(
+		dot(vec4(grad_0_0.x, grad_1_0.x, grad_0_1.x, grad_1_1.x), bilinear_weights),
+		dot(vec4(grad_0_0.y, grad_1_0.y, grad_0_1.y, grad_1_1.y), bilinear_weights)
+	);
+	
+	if (enable)
+	gradient = texture(_gradient_buffer, vec3(get_uv(texel, vec2(buffer_size.xy)), lod_floor)).rg;
+	
+	
+	// Sample normals on vertex scale
+	//vec3 normal_0 = texture(_gradient_buffer)
 	
 	gradient /= _vertex_spacing;
+	
+	//gradient *= 2.0;
 	
 	// Construct normal from gradient
 	
@@ -340,78 +348,8 @@ void fragment() {
 	- The .wzxy swizzle arranges the values into the standard (0, 0), (1, 0), (0, 1), (1, 1) order
 	*/ 
 	
-	vec2 bilinear_uv_0 = get_bilinear_uv(texel_0, vec2(buffer_size.xy));
-	vec2 bilinear_uv_1 = get_bilinear_uv(texel_1, vec2(buffer_size.xy));
-	vec4 weights_0 = get_bilinear_weights(texel_0);
-	vec4 weights_1 = get_bilinear_weights(texel_1);
-	
-	uvec4 controls_0 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_0, lod_0), 0).wzxy);
-	uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_1, lod_1), 0).wzxy);
-	
-	// Texture weight accumulation from control
-	
-	uvec4 id_0_0 = controls_0 >> uvec4(27u) & uvec4(0x1Fu);
-	uvec4 id_1_0 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
-	vec4 weights_id_1_0 = vec4(controls_0 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
-	vec4 weights_id_0_0 = 1.0 - weights_id_1_0;
-	weights_id_0_0 *= weights_0;// * (1.0 - lod_fract);
-	weights_id_1_0 *= weights_0;// * (1.0 - lod_fract);
-	
-	//uvec2 texture_ids[4] = uvec2[4](
-		//uvec2(id_0_0.x, id_1_0.x),
-		//uvec2(id_0_0.y, id_1_0.y),
-		//uvec2(id_0_0.z, id_1_0.z),
-		//uvec2(id_0_0.w, id_1_0.w)
-	//);
-	//
-	//vec2 texture_weights[4] = vec2[4](
-		//vec2(0.0),
-		//vec2(0.0),
-		//vec2(0.0),
-		//vec2(0.0)
-	//);
-	//
-	//// TODO: Find out why this is not proper bilinear blending.
-	//
-	//for (uint i = 0u; i < 4u; i++) {
-		//vec2 w_0 = vec2(weights_id_0_0[i]);
-		//vec2 w_1 = vec2(weights_id_1_0[i]);
-		//uvec2 id_0_vec = uvec2(id_0_0[i]);
-		//uvec2 id_1_vec = uvec2(id_1_0[i]);
-		//
-		//texture_weights[0] += fma(w_0, vec2(equal(texture_ids[0], id_0_vec)), w_1 * vec2(equal(texture_ids[0], id_1_vec)));
-		//texture_weights[1] += fma(w_0, vec2(equal(texture_ids[1], id_0_vec)), w_1 * vec2(equal(texture_ids[1], id_1_vec)));
-		//texture_weights[2] += fma(w_0, vec2(equal(texture_ids[2], id_0_vec)), w_1 * vec2(equal(texture_ids[2], id_1_vec)));
-		//texture_weights[3] += fma(w_0, vec2(equal(texture_ids[3], id_0_vec)), w_1 * vec2(equal(texture_ids[3], id_1_vec)));
-	//}
-	
-	//uvec4 id_0_1 = controls_1 >> uvec4(27u) & uvec4(0x1Fu);
-	//uvec4 id_1_1 = controls_1 >> uvec4(22u) & uvec4(0x1Fu);
-	//vec4 weights_id_1_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
-	//vec4 weights_id_0_1 = 1.0 - weights_id_1_1;
-	//weights_id_0_1 *= weights_1 * lod_fract;
-	//weights_id_1_1 *= weights_1 * lod_fract;
-	//
-	//uvec2 texture_ids2[4] = uvec2[4](
-		//uvec2(id_0_0.x, id_1_0.x),
-		//uvec2(id_0_0.y, id_1_0.y),
-		//uvec2(id_0_0.z, id_1_0.z),
-		//uvec2(id_0_0.w, id_1_0.w)
-	//);
-	
-	//for (uint i = 0u; i < 4u; i++) {
-		//vec2 w_0 = vec2(weights_id_0_1[i]);
-		//vec2 w_1 = vec2(weights_id_1_1[i]);
-		//uvec2 id_0_vec = uvec2(id_0_1[i]);
-		//uvec2 id_1_vec = uvec2(id_1_1[i]);
-		//
-		//texture_weights[0] += fma(w_0, vec2(equal(texture_ids[0], id_0_vec)), w_1 * vec2(equal(texture_ids[0], id_1_vec)));
-		//texture_weights[1] += fma(w_0, vec2(equal(texture_ids[1], id_0_vec)), w_1 * vec2(equal(texture_ids[1], id_1_vec)));
-		//texture_weights[2] += fma(w_0, vec2(equal(texture_ids[2], id_0_vec)), w_1 * vec2(equal(texture_ids[2], id_1_vec)));
-		//texture_weights[3] += fma(w_0, vec2(equal(texture_ids[3], id_0_vec)), w_1 * vec2(equal(texture_ids[3], id_1_vec)));
-	//}
-	//
-	//
+	vec2 bilinear_uv_0 = get_bilinear_uv(texel, vec2(buffer_size.xy));
+	vec4 weights_0 = get_bilinear_weights(texel);
 	
 	// Material accumulation from accumulated texture weights
 	
@@ -461,33 +399,47 @@ void fragment() {
 	float sin_B = sin(angle_B), cos_B = cos(angle_B);
 	mat2 rotation_B = mat2(vec2(cos_B, sin_B), vec2(-sin_B, cos_B));
 	
-	/*
-	2 ways to blend all textures:
+	uvec4 controls_0 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_0, lod_floor), 0).wzxy);
 	
-	1. Accumulate all weights for all textures. Iterate over max texture count, and accumulate. This does not work because it relies on divergent GPU branching.
+	// Texture weight accumulation from control
 	
-	2. Determine the upper bound of unique ids, and sample those.
+	uvec4 id_0_0 = controls_0 >> uvec4(27u) & uvec4(0x1Fu);
+	uvec4 id_1_0 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
+	vec4 weights_id_1_0 = vec4(controls_0 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
+	vec4 weights_id_0_0 = 1.0 - weights_id_1_0;
+	weights_id_0_0 *= weights_0;// * (1.0 - lod_fract);
+	weights_id_1_0 *= weights_0;// * (1.0 - lod_fract);
 	
-	(1 albedo + 1 normal) * 2 stochastic coordinate spaces * 2 texture indices per corner * 4 bilinear corners * 2 LODs
-	= 64 samples.
-	Each time a texture is triplanar, +4 samples.
+	uvec2 ids_0[4] = uvec2[4](
+		uvec2(id_0_0[0], id_1_0[0]),
+		uvec2(id_0_0[1], id_1_0[1]),
+		uvec2(id_0_0[2], id_1_0[2]),
+		uvec2(id_0_0[3], id_1_0[3])
+	);
 	
-	*/
+	vec2 id_weights_0[4] = vec2[4](
+		vec2(weights_id_0_0[0], weights_id_1_0[0]),
+		vec2(weights_id_0_0[1], weights_id_1_0[1]),
+		vec2(weights_id_0_0[2], weights_id_1_0[2]),
+		vec2(weights_id_0_0[3], weights_id_1_0[3])
+	);
 	
 	for (uint i = 0u; i < 4u; i++) {
-		accumulate_material(mat, id_0_0[i], weights_id_0_0[i], P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
-		accumulate_material(mat, id_1_0[i], weights_id_1_0[i], P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
+		for (uint j = i + 1u; j < 4u; j++) {
+			// TODO: add a bitmask to skip the samples entirely.
+			float eq_i_j = float(ids_0[i] == ids_0[j]);
+			id_weights_0[i] += id_weights_0[j] * eq_i_j;
+			id_weights_0[j] *= 1.0 - eq_i_j;
+		}
 	}
 	
-	//for (uint i = 0u; i < 4u; i++) {
-		//uvec2 ids = texture_ids[i];
-		//vec2 weights = texture_weights[i];
-		//
-		//accumulate_material(mat, ids.x, weights.x * weights_0[i], P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
-		//accumulate_material(mat, ids.y, weights.y * weights_1[i], P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
-	//}
+	for (uint i = 0u; i < 4u; i++) {
+		accumulate_material(mat, ids_0[i].x, id_weights_0[i].x, P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
+		accumulate_material(mat, ids_0[i].y, id_weights_0[i].y, P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
+	}
 	
-	// BUG: texel boundary is not defined properly.
+	// This is good, but it feels like the sampling strategy could be smarter. We already have a bilinear blend, so maybe the sampling points themselves
+	// could be morphed at lod boundaries, similarly to the height sampling. Also, try to use projection. It is better than triplanar in every way.
 	
 	// Normalize accumulated material
 	
@@ -500,11 +452,45 @@ void fragment() {
 	
 	// PBR
 	
-	ALBEDO = mat.albedo;
-	ROUGHNESS = mat.roughness;
-	NORMAL_MAP = fma(mat.normal.xzy, vec3(0.5), vec3(0.5));
-	NORMAL_MAP_DEPTH = mat.normal_depth;
-	AO = mat.ao;
+	//ALBEDO = mat.albedo;
+	//ROUGHNESS = mat.roughness;
+	//NORMAL_MAP = fma(mat.normal.xzy, vec3(0.5), vec3(0.5));
+	//NORMAL_MAP_DEPTH = mat.normal_depth;
+	//AO = mat.ao;
 	
-	//ALBEDO = vec3(fract(vertex_lod));
+	ALBEDO = vec3(1.0);
+	
+	if (show_texels) {
+		
+		ALBEDO = vec3(0.0);
+		ALBEDO.r = smoothstep(0.11, 0.1, length(texel - corner_0_0));
+		ALBEDO.r = max(ALBEDO.r, smoothstep(0.11, 0.1, length(texel - corner_1_0)));
+		ALBEDO.r = max(ALBEDO.r, smoothstep(0.11, 0.1, length(texel - corner_0_1)));
+		ALBEDO.r = max(ALBEDO.r, smoothstep(0.11, 0.1, length(texel - corner_1_1)));
+		vec2 grid2 = abs(2.0 * fract(texel_morphed - 0.5) - 1.0);
+		float grid = min(grid2.x, grid2.y);
+		
+		ALBEDO.r = max(ALBEDO.r, smoothstep(0.05, 0.0, grid));
+		if (show_grid_mask) {
+			ALBEDO.r = grid2.y;
+			ALBEDO.r = fract(texel_morphed.y);
+			//ALBEDO = vec3(0.0);
+		}
+			
+			//ALBEDO.r = grid2.y;
+			//ALBEDO.r = fract(texel_0.y * 0.5) * lod_fract;
+			//ALBEDO.r = lod_fract * mod(floor(texel_0.y), 2.0) * (1.0 - fract(texel_0.y));
+			//ALBEDO.r = fract(texel_shifted.y);
+		
+		//ALBEDO.b = get_texel_parity_smooth2(texel_0).y * lod_fract;
+	}
+	
+	//ALBEDO.g = 0.0;
+	
+	//ALBEDO = vec3(geomorph_amount.y, 0.0, 0.0);
+	
+	//ALBEDO.r = get_texel_parity(floor(texel_0)).y;
+	//if (use_offset) {
+		//ALBEDO.r = get_texel_parity_smooth(texel_0).y;
+	//}
 }
