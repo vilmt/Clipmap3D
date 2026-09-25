@@ -9,6 +9,5 @@ script = ExtResource("1_nixsc")
 uv_scale = Vector3(0.1, 0.1, 0.1)
 albedo_texture = ExtResource("1_thgnv")
 normal_texture = ExtResource("2_17lgt")
-normal_depth = 1.282
-flags = 2
+flags = 3
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"

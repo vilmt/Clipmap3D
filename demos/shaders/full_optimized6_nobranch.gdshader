@@ -8,6 +8,8 @@ TODO:
 - Look at normal-based blending
 */
 
+uniform bool enable_depth_blending = true;
+
 const uint MAX_TEXTURE_COUNT = 32u;
 
 const uint FLAG_STOCHASTIC_OFFSET = 1u << 0u;
@@ -41,6 +43,7 @@ uniform vec3[MAX_TEXTURE_COUNT] _uv_scales;
 uniform vec3[MAX_TEXTURE_COUNT] _albedo_modulates: source_color;
 uniform float[MAX_TEXTURE_COUNT] _roughness_offsets;
 uniform float[MAX_TEXTURE_COUNT] _normal_depths;
+uniform float[MAX_TEXTURE_COUNT] _height_amplifications;
 uniform uint[MAX_TEXTURE_COUNT] _flags;
 
 uniform highp sampler2DArray _height_buffer: hint_default_black, repeat_enable, filter_linear;
@@ -121,9 +124,17 @@ struct Material {
 void accumulate_material(inout Material mat, uvec2 ids, float w, float blend, vec3 P, vec3 dPdx, vec3 dPdy, vec3 power_normal,
 	vec2 offset_A, mat2 rotation_A, vec2 offset_B, mat2 rotation_B, float blend_AB) {
 		
-	if (blend < 0.99) {
+	// Material accumulation for the base and overlay id. Only the blend value influences branching.
+	
+	vec3 albedo_0 = vec3(0.0);
+	float roughness_0 = 0.0;
+	vec3 normal_0 = vec3(0.0);
+	float height_0 = 0.0;
+	float ao_0 = 0.0;
+	float normal_depth_0 = 0.0;
+	
+	if (blend < 0.999) {
 		uint id = ids[0];
-		float weight = w * (1.0 - blend);
 		
 		int albedo_id = _albedo_remap[id];
 		int normal_id = _normal_remap[id];
@@ -175,105 +186,24 @@ void accumulate_material(inout Material mat, uvec2 ids, float w, float blend, ve
 		vec4 albedo_r = mix(y_albedo_r_A, y_albedo_r_B, y_blend);
 		vec4 normal_h_ao = mix(y_normal_h_ao_A, y_normal_h_ao_B, y_blend);
 		
-		//if (bool(flags & FLAG_TRIPLANAR)) {
-			//vec2 x_A = -Ps.zy;
-			//vec2 x_dAdx = -dPsdx.zy;
-			//vec2 x_dAdy = -dPsdy.zy;
-			//
-			//vec2 x_B = -Ps.zy;
-			//vec2 x_dBdx = -dPsdx.zy;
-			//vec2 x_dBdy = -dPsdy.zy;
-			//
-			//vec2 z_A = -Ps.xy;
-			//vec2 z_dAdx = -dPsdx.xy;
-			//vec2 z_dAdy = -dPsdy.xy;
-			//
-			//vec2 z_B = -Ps.xy;
-			//vec2 z_dBdx = -dPsdx.xy;
-			//vec2 z_dBdy = -dPsdy.xy;
-			//
-			//// NOTE: offsets may have to have their sign flipped for consistency
-			//
-			//if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_OFFSET)) {
-				//x_A -= offset_A;
-				//x_B -= offset_B;
-				//
-				//z_A -= offset_A;
-				//z_B -= offset_B;
-			//}
-			//
-			//if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_ROTATION)) {
-				//x_A *= rotation_A;
-				//x_dAdx *= rotation_A;
-				//x_dAdy *= rotation_A;
-				//x_B *= rotation_B;
-				//x_dBdx *= rotation_B;
-				//x_dBdy *= rotation_B;
-				//
-				//z_A *= rotation_A;
-				//z_dAdx *= rotation_A;
-				//z_dAdy *= rotation_A;
-				//z_B *= rotation_B;
-				//z_dBdx *= rotation_B;
-				//z_dBdy *= rotation_B;
-			//}
-			//
-			//vec4 x_albedo_r_A = textureGrad(_albedo_textures, vec3(x_A, float(albedo_id)), x_dAdx, x_dAdy);
-			//vec4 x_normal_h_ao_A = textureGrad(_normal_textures, vec3(x_A, float(normal_id)), x_dAdx, x_dAdy);
-			//x_normal_h_ao_A.rg = fma(x_normal_h_ao_A.gr, vec2(2.0), vec2(-1.0));
-			//
-		    //vec4 x_albedo_r_B = textureGrad(_albedo_textures, vec3(x_B, float(albedo_id)), x_dBdx, x_dBdy);
-		    //vec4 x_normal_h_ao_B = textureGrad(_normal_textures, vec3(x_B, float(normal_id)), x_dBdx, x_dBdy);
-			//x_normal_h_ao_B.rg = fma(x_normal_h_ao_B.gr, vec2(2.0), vec2(-1.0));
-			//
-			//vec4 z_albedo_r_A = textureGrad(_albedo_textures, vec3(z_A, float(albedo_id)), z_dAdx, z_dAdy);
-			//vec4 z_normal_h_ao_A = textureGrad(_normal_textures, vec3(z_A, float(normal_id)), z_dAdx, z_dAdy);
-			//z_normal_h_ao_A.rg = fma(z_normal_h_ao_A.gr, vec2(2.0), vec2(-1.0));
-			//
-		    //vec4 z_albedo_r_B = textureGrad(_albedo_textures, vec3(z_B, float(albedo_id)), z_dBdx, z_dBdy);
-		    //vec4 z_normal_h_ao_B = textureGrad(_normal_textures, vec3(z_B, float(normal_id)), z_dBdx, z_dBdy);
-			//z_normal_h_ao_B.rg = fma(z_normal_h_ao_B.gr, vec2(2.0), vec2(-1.0));
-			//
-			//if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_ROTATION)) {
-				//x_normal_h_ao_A.gr *= rotation_A;
-				//x_normal_h_ao_B.gr *= rotation_B;
-				//
-				//z_normal_h_ao_A.gr *= rotation_A;
-				//z_normal_h_ao_B.gr *= rotation_B;
-			//}
-			//
-			//float x_bias = stochastic_blend_bias * dot(x_albedo_r_A.rgb - x_albedo_r_B.rgb, vec3(1.0));
-			//float x_blend = smoothstep(0.2, 0.8, blend_AB - x_bias); // TODO: add blend sharpness parameter here
-			//
-		    //vec4 x_albedo_r = mix(x_albedo_r_A, x_albedo_r_B, x_blend);
-			//vec4 x_normal_h_ao = mix(x_normal_h_ao_A, x_normal_h_ao_B, x_blend);
-			//
-			//float z_bias = stochastic_blend_bias * dot(z_albedo_r_A.rgb - z_albedo_r_B.rgb, vec3(1.0));
-			//float z_blend = smoothstep(0.2, 0.8, blend_AB - z_bias); // TODO: add blend sharpness parameter here
-			//
-		    //vec4 z_albedo_r = mix(z_albedo_r_A, z_albedo_r_B, z_blend);
-			//vec4 z_normal_h_ao = mix(z_normal_h_ao_A, z_normal_h_ao_B, z_blend);
-			//
-			//albedo_r = x_albedo_r * power_normal.x + albedo_r * power_normal.y + z_albedo_r * power_normal.z;
-			//normal_h_ao = x_normal_h_ao * power_normal.x + normal_h_ao * power_normal.y + z_normal_h_ao * power_normal.z;
-		//}
-		
-		mat.albedo += albedo_r.rgb * _albedo_modulates[id] * weight;
-		mat.roughness += clamp(albedo_r.a + _roughness_offsets[id], 0.0, 1.0) * weight;
-		mat.normal_depth += _normal_depths[id] * weight;
-		
-		vec3 n = vec3(normal_h_ao.r, 0.0, normal_h_ao.g);
-		
-		mat.normal += n * weight;
-		
-		mat.ao += normal_h_ao.a * weight;
-		
-		mat.total_weight += weight;
+		albedo_0 = albedo_r.rgb * _albedo_modulates[id];
+		roughness_0 = clamp(albedo_r.a + _roughness_offsets[id], 0.0, 1.0);
+		normal_0 = vec3(normal_h_ao.r, 0.0, normal_h_ao.g);
+		//normal_0.y = sqrt(1.0 - dot(normal_0.xz, normal_0.xz));
+		height_0 = normal_h_ao.b;
+		ao_0 = normal_h_ao.a;
+		normal_depth_0 = _normal_depths[id];
 	}
 	
-	if (blend > 0.01) {
+	vec3 albedo_1 = vec3(0.0);
+	float roughness_1 = 0.0;
+	vec3 normal_1 = vec3(0.0);
+	float height_1 = 0.0;
+	float ao_1 = 0.0;
+	float normal_depth_1 = 0.0;
+	
+	if (blend > 0.001) {
 		uint id = ids[1];
-		float weight = w * blend;
 		
 		int albedo_id = _albedo_remap[id];
 		int normal_id = _normal_remap[id];
@@ -325,102 +255,39 @@ void accumulate_material(inout Material mat, uvec2 ids, float w, float blend, ve
 		vec4 albedo_r = mix(y_albedo_r_A, y_albedo_r_B, y_blend);
 		vec4 normal_h_ao = mix(y_normal_h_ao_A, y_normal_h_ao_B, y_blend);
 		
-		//if (bool(flags & FLAG_TRIPLANAR)) {
-			//vec2 x_A = -Ps.zy;
-			//vec2 x_dAdx = -dPsdx.zy;
-			//vec2 x_dAdy = -dPsdy.zy;
-			//
-			//vec2 x_B = -Ps.zy;
-			//vec2 x_dBdx = -dPsdx.zy;
-			//vec2 x_dBdy = -dPsdy.zy;
-			//
-			//vec2 z_A = -Ps.xy;
-			//vec2 z_dAdx = -dPsdx.xy;
-			//vec2 z_dAdy = -dPsdy.xy;
-			//
-			//vec2 z_B = -Ps.xy;
-			//vec2 z_dBdx = -dPsdx.xy;
-			//vec2 z_dBdy = -dPsdy.xy;
-			//
-			//// NOTE: offsets may have to have their sign flipped for consistency
-			//
-			//if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_OFFSET)) {
-				//x_A -= offset_A;
-				//x_B -= offset_B;
-				//
-				//z_A -= offset_A;
-				//z_B -= offset_B;
-			//}
-			//
-			//if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_ROTATION)) {
-				//x_A *= rotation_A;
-				//x_dAdx *= rotation_A;
-				//x_dAdy *= rotation_A;
-				//x_B *= rotation_B;
-				//x_dBdx *= rotation_B;
-				//x_dBdy *= rotation_B;
-				//
-				//z_A *= rotation_A;
-				//z_dAdx *= rotation_A;
-				//z_dAdy *= rotation_A;
-				//z_B *= rotation_B;
-				//z_dBdx *= rotation_B;
-				//z_dBdy *= rotation_B;
-			//}
-			//
-			//vec4 x_albedo_r_A = textureGrad(_albedo_textures, vec3(x_A, float(albedo_id)), x_dAdx, x_dAdy);
-			//vec4 x_normal_h_ao_A = textureGrad(_normal_textures, vec3(x_A, float(normal_id)), x_dAdx, x_dAdy);
-			//x_normal_h_ao_A.rg = fma(x_normal_h_ao_A.gr, vec2(2.0), vec2(-1.0));
-			//
-		    //vec4 x_albedo_r_B = textureGrad(_albedo_textures, vec3(x_B, float(albedo_id)), x_dBdx, x_dBdy);
-		    //vec4 x_normal_h_ao_B = textureGrad(_normal_textures, vec3(x_B, float(normal_id)), x_dBdx, x_dBdy);
-			//x_normal_h_ao_B.rg = fma(x_normal_h_ao_B.gr, vec2(2.0), vec2(-1.0));
-			//
-			//vec4 z_albedo_r_A = textureGrad(_albedo_textures, vec3(z_A, float(albedo_id)), z_dAdx, z_dAdy);
-			//vec4 z_normal_h_ao_A = textureGrad(_normal_textures, vec3(z_A, float(normal_id)), z_dAdx, z_dAdy);
-			//z_normal_h_ao_A.rg = fma(z_normal_h_ao_A.gr, vec2(2.0), vec2(-1.0));
-			//
-		    //vec4 z_albedo_r_B = textureGrad(_albedo_textures, vec3(z_B, float(albedo_id)), z_dBdx, z_dBdy);
-		    //vec4 z_normal_h_ao_B = textureGrad(_normal_textures, vec3(z_B, float(normal_id)), z_dBdx, z_dBdy);
-			//z_normal_h_ao_B.rg = fma(z_normal_h_ao_B.gr, vec2(2.0), vec2(-1.0));
-			//
-			//if (bool(flags & FLAG_TRIPLANAR_STOCHASTIC_ROTATION)) {
-				//x_normal_h_ao_A.gr *= rotation_A;
-				//x_normal_h_ao_B.gr *= rotation_B;
-				//
-				//z_normal_h_ao_A.gr *= rotation_A;
-				//z_normal_h_ao_B.gr *= rotation_B;
-			//}
-			//
-			//float x_bias = stochastic_blend_bias * dot(x_albedo_r_A.rgb - x_albedo_r_B.rgb, vec3(1.0));
-			//float x_blend = smoothstep(0.2, 0.8, blend_AB - x_bias); // TODO: add blend sharpness parameter here
-			//
-		    //vec4 x_albedo_r = mix(x_albedo_r_A, x_albedo_r_B, x_blend);
-			//vec4 x_normal_h_ao = mix(x_normal_h_ao_A, x_normal_h_ao_B, x_blend);
-			//
-			//float z_bias = stochastic_blend_bias * dot(z_albedo_r_A.rgb - z_albedo_r_B.rgb, vec3(1.0));
-			//float z_blend = smoothstep(0.2, 0.8, blend_AB - z_bias); // TODO: add blend sharpness parameter here
-			//
-		    //vec4 z_albedo_r = mix(z_albedo_r_A, z_albedo_r_B, z_blend);
-			//vec4 z_normal_h_ao = mix(z_normal_h_ao_A, z_normal_h_ao_B, z_blend);
-			//
-			//albedo_r = x_albedo_r * power_normal.x + albedo_r * power_normal.y + z_albedo_r * power_normal.z;
-			//normal_h_ao = x_normal_h_ao * power_normal.x + normal_h_ao * power_normal.y + z_normal_h_ao * power_normal.z;
-		//}
-		
-		mat.albedo += albedo_r.rgb * _albedo_modulates[id] * weight;
-		mat.roughness += clamp(albedo_r.a + _roughness_offsets[id], 0.0, 1.0) * weight;
-		mat.normal_depth += _normal_depths[id] * weight;
-		
-		vec3 n = vec3(normal_h_ao.r, 0.0, normal_h_ao.g);
-		
-		mat.normal += n * weight;
-		
-		mat.ao += normal_h_ao.a * weight;
-		
-		mat.total_weight += weight;
+		albedo_1 = albedo_r.rgb * _albedo_modulates[id];
+		roughness_1 = clamp(albedo_r.a + _roughness_offsets[id], 0.0, 1.0);
+		normal_1 = vec3(normal_h_ao.r, 0.0, normal_h_ao.g);
+		//normal_1.y = sqrt(1.0 - dot(normal_1.xz, normal_1.xz));
+		height_1 = normal_h_ao.b;
+		ao_1 = normal_h_ao.a;
+		normal_depth_1 = _normal_depths[id];
 	}
 	
+	// Height-based texture blending
+	
+	const float amplify = 20.0;
+	const float depth = 0.1;
+	
+	height_0 = fma(height_0 + 0.5, amplify * _height_amplifications[ids[0]], -0.5);
+	height_1 = fma(height_1 + 0.5, amplify * _height_amplifications[ids[1]], -0.5);
+	
+	float value_0 = height_0 + (1.0 - blend);
+	float value_1 = height_1 + blend;
+	
+	float max_height = max(value_0, value_1);
+	float relative_height_0 = max(value_0 - max_height + depth, 0.0);
+	float relative_height_1 = max(value_1 - max_height + depth, 0.0);
+	
+	blend = relative_height_1 / (relative_height_0 + relative_height_1);
+	
+	mat.albedo += mix(albedo_0, albedo_1, blend) * w;
+	mat.roughness += mix(roughness_0, roughness_1, blend) * w;
+	mat.normal += mix(normal_0, normal_1, blend) * w;
+	mat.ao += mix(ao_0, ao_1, blend) * w;
+	mat.normal_depth += mix(normal_depth_0, normal_depth_1, blend) * w;
+	
+	mat.total_weight += w;
 	
 }
 
@@ -463,10 +330,6 @@ void fragment() {
 	TANGENT = (VIEW_MATRIX * vec4(tangent, 0.0)).xyz;
 	BINORMAL = (VIEW_MATRIX * vec4(binormal, 0.0)).xyz;
 	
-	// Control lookups
-	
-	
-	
 	// Material accumulation from accumulated texture weights
 	
 	Material mat = Material(vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0);
@@ -476,21 +339,12 @@ void fragment() {
 	vec3 dPdy = dFdyCoarse(world_position);
 	
 	// Triplanar
+	
 	vec3 power_normal = pow(abs(normal), vec3(triplanar_sharpness));
 	power_normal /= dot(power_normal, vec3(1.0));
 	
-	/* Stochastic sampling
-	- A low-frequency noise texture is sampled and scaled to the range (0, 8)
-	- Two adjacent indices, A and B, are picked from 0-8 using the noise value
-	- These indices are used to seed a random offset and rotation, creating 8
-		virtual texture coordinate spaces that cycle with the noise
-	- 2 of these coordinate spaces are sampled and blended in accumulate_material()
-	
-	Implementation notes:
-	- The stochastic noise texture should not use mipmaps or else the regions will change with distance
-	
-	Source: https://iquilezles.org/articles/texturerepetition/, Technique 3
-	*/
+	// Stochastic sampling. 
+	// Technique 3 from https://iquilezles.org/articles/texturerepetition/
 	
 	float random = 8.0 * texture(stochastic_noise, 0.0005 * P.xz).r;
 	
@@ -500,8 +354,9 @@ void fragment() {
 	float index_A = floor(random + 0.5);
 	float index_B = floor(random);
 	
-	
 	// Coordinate space A
+	
+	// TODO: use constant table for offsets and angles. Also profile this change.
 	
 	vec2 offset_A = sin(vec2(3.0, 13.0) * index_A); // TODO: use better hash. Could use constant table.
 	float angle_A = 7.0 * index_A; // TODO: use better hash.
@@ -515,22 +370,13 @@ void fragment() {
 	float sin_B = sin(angle_B), cos_B = cos(angle_B);
 	mat2 rotation_B = mat2(vec2(cos_B, sin_B), vec2(-sin_B, cos_B));
 	
+	// Control lookups
 	
 	vec2 bilinear_uv_0 = get_bilinear_uv(texel_0, vec2(buffer_size.xy));
-	vec2 bilinear_uv_1 = get_bilinear_uv(texel_1, vec2(buffer_size.xy));
 	vec4 weights_0 = get_bilinear_weights(texel_0) * (1.0 - lod_fract);
-	vec4 weights_1 = get_bilinear_weights(texel_1) * lod_fract;
-	
 	uvec4 controls_0 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_0, lod_0), 0).wzxy);
 	
-	
 	// Texture weight accumulation from control
-	
-	vec2 parity = mod(floor(texel_0), 2.0);
-	float duplicate = parity.x + 2.0 * parity.y;
-	uint d = uint(duplicate);
-	
-	// NOTE: should not branch due to bilinear samples. Should only branch based on control blend weight.
 	
 	uvec4 id_0_0 = controls_0 >> uvec4(27u) & uvec4(0x1Fu);
 	uvec4 id_1_0 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
@@ -545,64 +391,85 @@ void fragment() {
 	
 	uint skip = 0u;
 	
-	for (uint i = 0u; i < 4u; i++) {
-		for (uint j = i + 1u; j < 4u; j++) {
-			bool eq_i_j = ids_0[i] == ids_0[j];
-			
-			// There should be a better way to do this.
-			float sum = weights_0[i] + weights_0[j];
-       		float t = weights_0[j] / sum;
-			blend_0[i] = eq_i_j ? mix(blend_0[i], blend_0[j], t) : blend_0[i];
-			
-			weights_0[i] = fma(weights_0[j], float(eq_i_j), weights_0[i]);
-			weights_0[j] *= float(!eq_i_j);
-			
-			skip |= uint(eq_i_j) << j;
-		}
-	}
+	// NOTE: since blend is no longer a linear curve, it cannot be lerped well.
+	// However, it is possible to combine blend values deterministically with the right structure.
+	// The texture accumulation will always be the same for duplicate IDs. The only problem is the blend
+	// value is normalized.
+	
+	// TODO: maybe have a separate blend weight for both ids. Then they can be accumulated separately without
+	// normalization, and then it is also possible to define a deterministic blending algorithm.
+	
+	//for (uint i = 0u; i < 4u; i++) {
+		//for (uint j = i + 1u; j < 4u; j++) {
+			//bool eq_i_j = ids_0[i] == ids_0[j];
+			//
+			//float w_i = weights_0[i];
+			//float w_j = weights_0[j];
+			//
+			//float b_i = blend_0[i];
+			//float b_j = blend_0[j];
+			//
+			//float blend = b_i + (b_j - b_i) * w_j / (w_i + w_j);
+			//
+			//blend_0[i] = eq_i_j ? blend : blend_0[i];
+			//
+			//weights_0[i] = fma(weights_0[j], float(eq_i_j), weights_0[i]);
+			//weights_0[j] *= float(!eq_i_j);
+			//
+			//skip |= uint(eq_i_j) << j;
+		//}
+	//}
 	
 	// This branch is good.
-	//if (lod_fract > 0.01) {
-		//uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_1, lod_1), 0).wzxy);
-			//
-		//uvec4 id_0_1 = controls_1 >> uvec4(27u) & uvec4(0x1Fu);
-		//uvec4 id_1_1 = controls_1 >> uvec4(22u) & uvec4(0x1Fu);
-		//vec4 blend_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
-		//
-		//// This index shit may actually be slower cause of all this indexing
-		//uvec4 index = (uvec4(0u, 1u, 2u, 3u) + d) % 4u;
-		//
-		//uvec2 ids_1[3] = uvec2[3](
-			//uvec2(id_0_1[index[1]], id_1_1[index[1]]),
-			//uvec2(id_0_1[index[2]], id_1_1[index[2]]),
-			//uvec2(id_0_1[index[3]], id_1_1[index[3]])
-		//);
-		//
-		//vec4 dumb_weights1 = weights_1 * lod_fract;
-		//
-		//vec2 id_weights_1[3] = vec2[3](
-			//vec2(dumb_weights1[index[1]], dumb_weights1[index[1]]),
-			//vec2(dumb_weights1[index[2]], dumb_weights1[index[2]]),
-			//vec2(dumb_weights1[index[3]], dumb_weights1[index[3]])
-		//);
-		//
-		//id_weights_0[d] += vec2(dumb_weights1[index[0]], dumb_weights1[index[0]]);
+	if (lod_fract > 0.01) {
+		vec2 bilinear_uv_1 = get_bilinear_uv(texel_1, vec2(buffer_size.xy));
+		vec4 weights_1 = get_bilinear_weights(texel_1) * lod_fract;
+		uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_1, lod_1), 0).wzxy);
+			
+		uvec4 id_0_1 = controls_1 >> uvec4(27u) & uvec4(0x1Fu);
+		uvec4 id_1_1 = controls_1 >> uvec4(22u) & uvec4(0x1Fu);
+		vec4 blend_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
+		
+		uvec2 ids_1[4] = uvec2[4](
+			uvec2(id_0_1[0], id_1_1[0]),
+			uvec2(id_0_1[1], id_1_1[1]),
+			uvec2(id_0_1[2], id_1_1[2]),
+			uvec2(id_0_1[3], id_1_1[3])
+		);
+		
+		//uint skip_1 = 0u;
 		//
 		//for (uint i = 0u; i < 3u; i++) {
 			//for (uint j = i + 1u; j < 3u; j++) {
-				//float eq_i_j = float(ids_1[i] == ids_1[j]);
-				//id_weights_1[i] += id_weights_1[j] * eq_i_j;
-				//id_weights_1[j] *= 1.0 - eq_i_j;
+				//bool eq_i_j = ids_1[i] == ids_1[j];
+			//
+				//float w_i = weights_1[i];
+				//float w_j = weights_1[j];
+				//
+				//float b_i = blend_1[i];
+				//float b_j = blend_1[j];
+				//
+				//float blend = b_i + (b_j - b_i) * w_j / (w_i + w_j);
+				//
+				//blend_1[i] = eq_i_j ? blend : blend_1[i];
+				//
+				//weights_1[i] = fma(weights_1[j], float(eq_i_j), weights_1[i]);
+				//weights_1[j] *= float(!eq_i_j);
+				//
+				//skip_1 |= uint(eq_i_j) << j;
 			//}
 		//}
-	//
-		//for (uint i = 0u; i < 3u; i++)
-			//accumulate_material(mat, ids_1[i], id_weights_1[i], blend_1[i], P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
-	//}
+	
+		for (uint i = 0u; i < 4u; i++) {
+			//if (bool((skip_1 >> i) & 1u))
+				//continue;
+			accumulate_material(mat, ids_1[i], weights_1[i], blend_1[i], P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
+		}
+	}
 	
 	for (uint i = 0u; i < 4u; i++) {
-		if (bool((skip >> i) & 1u))
-			continue;
+		//if (bool((skip >> i) & 1u))
+			//continue;
 		accumulate_material(mat, ids_0[i], weights_0[i], blend_0[i], P, dPdx, dPdy, power_normal, offset_A, rotation_A, offset_B, rotation_B, blend_AB);
 	}
 		

@@ -10,4 +10,5 @@ uv_scale = Vector3(0.05, 0.05, 0.05)
 albedo_texture = ExtResource("1_dm55k")
 roughness_offset = 0.498
 normal_texture = ExtResource("2_w8b0k")
+flags = 2
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"

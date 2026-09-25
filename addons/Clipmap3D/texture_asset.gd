@@ -5,6 +5,7 @@ const UV_SCALE_DEFAULT := Vector3.ONE
 const ALBEDO_MODULATE_DEFAULT := Color.WHITE
 const ROUGHNESS_OFFSET_DEFAULT: float = 0.0
 const NORMAL_DEPTH_DEFAULT: float = 1.0
+const HEIGHT_AMPLIFICATION_DEFAULT: float = 1.0
 const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 
 @export_custom(PROPERTY_HINT_LINK, "") var uv_scale := UV_SCALE_DEFAULT:
@@ -39,6 +40,11 @@ const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 @export_range(0.0, 20.0) var normal_depth := NORMAL_DEPTH_DEFAULT:
 	set(value):
 		normal_depth = value
+		emit_changed()
+
+@export_range(0.0, 10.0) var height_amplification := HEIGHT_AMPLIFICATION_DEFAULT:
+	set(value):
+		height_amplification = value
 		emit_changed()
 
 @export_flags(

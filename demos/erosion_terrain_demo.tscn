@@ -42,6 +42,7 @@ dof_blur_far_transition = 765.43
 script = ExtResource("3_p1oah")
 compute_shader = ExtResource("2_p1oah")
 compute_seed = 1
+texels_per_vertex = Vector2i(6, 6)
 metadata/_custom_type_script = "uid://d20stuy1e0ig"
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_r2ioa"]
@@ -80,11 +81,12 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
-transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 5953.388, 0, 2367.024)
+transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 5143.476, 0, 977.7793)
 script = ExtResource("1_e348m")
 compute_data = SubResource("Resource_p1oah")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("6_gwnk7"), ExtResource("7_6b21n"), ExtResource("8_thxwv"), ExtResource("9_wujal")])
 mesh_lod_count = 10
+mesh_tile_size = Vector2i(48, 48)
 material = ExtResource("13_gwnk7")
 aabb_height = 6000.0
 collision_lod = 1
@@ -99,7 +101,7 @@ material_override = SubResource("StandardMaterial3D_r2ioa")
 mesh = SubResource("PlaneMesh_186hp")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5690.8657, 1639.797, 2497.9167)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5146.3105, 2099.3276, 1110.0863)
 
 [node name="DebugMaterialSwitcher" type="Node" parent="." unique_id=2115864266 node_paths=PackedStringArray("clipmap")]
 script = ExtResource("12_186hp")

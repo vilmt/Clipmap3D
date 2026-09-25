@@ -10,5 +10,6 @@ uv_scale = Vector3(0.1, 0.1, 0.1)
 albedo_texture = ExtResource("1_2nojw")
 normal_texture = ExtResource("2_vtggt")
 normal_depth = 2.127
+height_amplification = 0.624
 flags = 2
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"

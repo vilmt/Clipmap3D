@@ -1,7 +1,7 @@
 @tool
 class_name Clipmap3DTextureHandler
 
-const MAX_TEXTURE_COUNT: int = 16
+const MAX_TEXTURE_COUNT: int = 32
 
 var texture_assets: Array[Clipmap3DTextureAsset]:
 	set(value):
@@ -60,6 +60,7 @@ var _uv_scales := PackedVector3Array()
 var _albedo_modulates := PackedColorArray()
 var _roughness_offsets := PackedFloat32Array()
 var _normal_depths := PackedFloat32Array()
+var _height_amplifications := PackedFloat32Array()
 var _flags := PackedInt32Array()
 
 func _rebuild_textures():
@@ -90,6 +91,9 @@ func _rebuild_textures():
 	_normal_depths.resize(MAX_TEXTURE_COUNT)
 	_normal_depths.fill(Clipmap3DTextureAsset.NORMAL_DEPTH_DEFAULT)
 	
+	_height_amplifications.resize(MAX_TEXTURE_COUNT)
+	_height_amplifications.fill(Clipmap3DTextureAsset.HEIGHT_AMPLIFICATION_DEFAULT)
+	
 	_flags.resize(MAX_TEXTURE_COUNT)
 	_flags.fill(Clipmap3DTextureAsset.FLAGS_DEFAULT)
 	
@@ -102,6 +106,7 @@ func _rebuild_textures():
 		_albedo_modulates[i] = texture_asset.albedo_modulate
 		_roughness_offsets[i] = texture_asset.roughness_offset
 		_normal_depths[i] = texture_asset.normal_depth
+		_height_amplifications[i] = texture_asset.height_amplification
 		_flags[i] = texture_asset.flags
 		
 		if texture_asset.albedo_texture:
@@ -152,6 +157,7 @@ func _update_material_parameters():
 	material.set_shader_parameter(&"_albedo_modulates", _albedo_modulates)
 	material.set_shader_parameter(&"_roughness_offsets", _roughness_offsets)
 	material.set_shader_parameter(&"_normal_depths", _normal_depths)
+	material.set_shader_parameter(&"_height_amplifications", _height_amplifications)
 	material.set_shader_parameter(&"_flags", _flags)
 
 func _clear_textures():
@@ -166,6 +172,7 @@ func _clear_textures():
 	_albedo_modulates = PackedColorArray()
 	_roughness_offsets = PackedFloat32Array()
 	_normal_depths = PackedFloat32Array()
+	_height_amplifications = PackedFloat32Array()
 	_flags = PackedInt32Array()
 
 func _on_texture_asset_changed():
