@@ -128,6 +128,7 @@ void accumulate_material(inout Material mat, uint id, float weight, vec3 P, vec3
 	int normal_id = _normal_remap[id];
 	uint flags = _flags[id];
 	vec3 s = _uv_scales[id];
+	s.z = 0.1;
 	
 	P *= s;
 	dPdx *= s;

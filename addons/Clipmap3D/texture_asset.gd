@@ -1,7 +1,7 @@
 @tool
 class_name Clipmap3DTextureAsset extends Resource
 
-const UV_SCALE_DEFAULT := Vector3.ONE
+const UV_SCALE_DEFAULT := Vector2.ONE
 const ALBEDO_MODULATE_DEFAULT := Color.WHITE
 const ROUGHNESS_OFFSET_DEFAULT: float = 0.0
 const NORMAL_DEPTH_DEFAULT: float = 1.0
@@ -48,11 +48,10 @@ const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 		emit_changed()
 
 @export_flags(
-	"Stochastic Offset", # Offset for XZ axes
-	"Stochastic Rotation", # Rotation for Y axis
-	"Triplanar",
-	"Triplanar Stochastic Offset", # Offset for Y axis
-	"Triplanar Stochastic Rotation", # Rotation for XZ axes
+	"Stochastic Offset",
+	"Stochastic Rotation",
+	"Projected Stochastic Offset",
+	"Projected Stochastic Rotation",
 ) var flags := FLAGS_DEFAULT:
 	set(value):
 		flags = value

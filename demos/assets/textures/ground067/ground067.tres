@@ -6,8 +6,7 @@
 
 [resource]
 script = ExtResource("1_3sum2")
-uv_scale = Vector3(0.1, 0.1, 0.1)
+uv_scale = Vector2(0.1, 0.1)
 albedo_texture = ExtResource("1_8h2ya")
 normal_texture = ExtResource("2_8tkvn")
-flags = 2
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"

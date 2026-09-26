@@ -56,7 +56,7 @@ var _albedo_remap := PackedInt32Array()
 var _normal_textures_rid: RID
 var _normal_remap := PackedInt32Array()
 
-var _uv_scales := PackedVector3Array()
+var _uv_scales := PackedVector2Array()
 var _albedo_modulates := PackedColorArray()
 var _roughness_offsets := PackedFloat32Array()
 var _normal_depths := PackedFloat32Array()
@@ -168,7 +168,7 @@ func _clear_textures():
 		RenderingServer.free_rid(_normal_textures_rid)
 	_normal_remap = PackedInt32Array()
 	
-	_uv_scales = PackedVector3Array()
+	_uv_scales = PackedVector2Array()
 	_albedo_modulates = PackedColorArray()
 	_roughness_offsets = PackedFloat32Array()
 	_normal_depths = PackedFloat32Array()
