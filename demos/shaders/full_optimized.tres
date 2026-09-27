@@ -1,7 +1,0 @@
-[gd_resource type="ShaderMaterial" format=3 uid="uid://c5n1l2yma6i8s"]
-
-[ext_resource type="Shader" uid="uid://djusu8dpmbn04" path="res://demos/shaders/full_optimized.gdshader" id="1_cm6j7"]
-
-[resource]
-render_priority = 0
-shader = ExtResource("1_cm6j7")

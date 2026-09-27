@@ -9,9 +9,9 @@
 [ext_resource type="Resource" uid="uid://be5eqyys4v2ip" path="res://demos/assets/textures/rocks007/rocks007.tres" id="7_6b21n"]
 [ext_resource type="Resource" uid="uid://bomqkluxa08aw" path="res://demos/assets/textures/snow006/snow006.tres" id="8_thxwv"]
 [ext_resource type="Resource" uid="uid://b0i51xc28u6ib" path="res://demos/assets/textures/ground067/ground067.tres" id="9_wujal"]
-[ext_resource type="Material" uid="uid://cxjf3ff7ycecd" path="res://demos/shaders/full_optimized7_texelfetch.tres" id="10_thxwv"]
+[ext_resource type="Material" uid="uid://cxjf3ff7ycecd" path="res://demos/shaders/lowest_no_seams.tres" id="10_thxwv"]
 [ext_resource type="Script" uid="uid://fhog5k66ckc1" path="res://demos/debug_material_switcher.gd" id="12_186hp"]
-[ext_resource type="Material" uid="uid://1v70fd5mkht7" path="res://demos/shaders/full_optimized6_nobranch.tres" id="13_gwnk7"]
+[ext_resource type="Material" uid="uid://1v70fd5mkht7" path="res://demos/shaders/full.tres" id="13_gwnk7"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://demos/scenes/player/player.tscn" id="14_ew5cq"]
 
 [sub_resource type="Sky" id="Sky_b7n1i"]
@@ -80,14 +80,13 @@ outline_modulate = Color(0, 0, 0, 0)
 text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
-[node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073 node_paths=PackedStringArray("follow_target")]
-transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 4788.9766, 0, 2315.0132)
+[node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
+transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 5096.467, 0, 3300.2126)
 script = ExtResource("1_e348m")
-follow_target = NodePath("../Player")
 compute_data = SubResource("Resource_p1oah")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("6_gwnk7"), ExtResource("7_6b21n"), ExtResource("8_thxwv"), ExtResource("9_wujal")])
 mesh_lod_count = 10
-material = ExtResource("10_thxwv")
+material = ExtResource("13_gwnk7")
 aabb_height = 6000.0
 collision_lod = 1
 collision_mesh_radius = Vector2i(6, 6)
@@ -101,7 +100,7 @@ material_override = SubResource("StandardMaterial3D_r2ioa")
 mesh = SubResource("PlaneMesh_186hp")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4788.9766, 2099.3276, 2315.0132)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5439.8545, 1362.7587, 2658.7224)
 
 [node name="DebugMaterialSwitcher" type="Node" parent="." unique_id=2115864266 node_paths=PackedStringArray("clipmap")]
 script = ExtResource("12_186hp")

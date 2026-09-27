@@ -52,6 +52,7 @@ const FLAGS_DEFAULT: int = 0b00000000_00000000_00000000_00000000
 	"Stochastic Rotation",
 	"Projected Stochastic Offset",
 	"Projected Stochastic Rotation",
+	"Dual Scaling"
 ) var flags := FLAGS_DEFAULT:
 	set(value):
 		flags = value
