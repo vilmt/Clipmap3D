@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://cq6vicc6yy7nc"]
 
 [ext_resource type="Script" uid="uid://wudkpxu6xggb" path="res://addons/Clipmap3D/clipmap_3d.gd" id="1_e348m"]
-[ext_resource type="Material" uid="uid://mhduws1ksl1j" path="res://demos/assets/sky/sky.tres" id="1_r2ioa"]
 [ext_resource type="RDShaderFile" uid="uid://xjxu5li6gpx" path="res://demos/compute_shaders/erosion_terrain.glsl" id="2_p1oah"]
 [ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="3_4ispy"]
 [ext_resource type="Script" uid="uid://d20stuy1e0ig" path="res://addons/Clipmap3D/compute_data.gd" id="3_p1oah"]
@@ -9,19 +8,21 @@
 [ext_resource type="Resource" uid="uid://be5eqyys4v2ip" path="res://demos/assets/textures/rocks007/rocks007.tres" id="7_6b21n"]
 [ext_resource type="Resource" uid="uid://bomqkluxa08aw" path="res://demos/assets/textures/snow006/snow006.tres" id="8_thxwv"]
 [ext_resource type="Resource" uid="uid://b0i51xc28u6ib" path="res://demos/assets/textures/ground067/ground067.tres" id="9_wujal"]
-[ext_resource type="Material" uid="uid://cxjf3ff7ycecd" path="res://demos/shaders/lowest_no_seams.tres" id="10_thxwv"]
 [ext_resource type="Script" uid="uid://fhog5k66ckc1" path="res://demos/debug_material_switcher.gd" id="12_186hp"]
+[ext_resource type="Material" uid="uid://basyiehpt2ucv" path="res://demos/shaders/texelfetch_no_gradient.tres" id="13_6b21n"]
 [ext_resource type="Material" uid="uid://1v70fd5mkht7" path="res://demos/shaders/full.tres" id="13_gwnk7"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://demos/scenes/player/player.tscn" id="14_ew5cq"]
 
-[sub_resource type="Sky" id="Sky_b7n1i"]
-sky_material = ExtResource("1_r2ioa")
-process_mode = 2
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_186hp"]
+
+[sub_resource type="Sky" id="Sky_gwnk7"]
+sky_material = SubResource("ProceduralSkyMaterial_186hp")
 
 [sub_resource type="Environment" id="Environment_thxwv"]
 background_mode = 2
-background_energy_multiplier = 1.5
-sky = SubResource("Sky_b7n1i")
+background_energy_multiplier = 0.65
+sky = SubResource("Sky_gwnk7")
+ambient_light_source = 3
 tonemap_mode = 4
 fog_mode = 1
 fog_light_color = Color(0.36743686, 0.4808933, 0.7203126, 1)
@@ -61,7 +62,7 @@ environment = SubResource("Environment_thxwv")
 camera_attributes = SubResource("CameraAttributesPractical_wujal")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1953520136]
-transform = Transform3D(0.99957883, -0.022207726, -0.018682102, 0.02902075, 0.76491386, 0.6434786, 0, -0.6437497, 0.7652362, 224.93452, 1615.8408, -479.7566)
+transform = Transform3D(0.45261753, 0.56391644, -0.69075, 0.029020755, 0.7649139, 0.6434785, 0.8912324, -0.31129566, 0.32984832, 224.93452, 1615.8408, -479.7566)
 light_intensity_lux = 71129.28
 light_temperature = 2989.0
 light_energy = 3.0
@@ -80,9 +81,10 @@ outline_modulate = Color(0, 0, 0, 0)
 text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
-[node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
-transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 5096.467, 0, 3300.2126)
+[node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073 node_paths=PackedStringArray("follow_target")]
+transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 1670.2014, 0, 5204.8823)
 script = ExtResource("1_e348m")
+follow_target = NodePath("../Player")
 compute_data = SubResource("Resource_p1oah")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("6_gwnk7"), ExtResource("7_6b21n"), ExtResource("8_thxwv"), ExtResource("9_wujal")])
 mesh_lod_count = 10
@@ -100,13 +102,13 @@ material_override = SubResource("StandardMaterial3D_r2ioa")
 mesh = SubResource("PlaneMesh_186hp")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5439.8545, 1362.7587, 2658.7224)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1670.2014, 1362.7587, 5204.8823)
 
 [node name="DebugMaterialSwitcher" type="Node" parent="." unique_id=2115864266 node_paths=PackedStringArray("clipmap")]
 script = ExtResource("12_186hp")
 clipmap = NodePath("../Clipmap3D")
 material_a = ExtResource("13_gwnk7")
-material_b = ExtResource("10_thxwv")
+material_b = ExtResource("13_6b21n")
 
 [node name="Label" type="Label" parent="DebugMaterialSwitcher" unique_id=96221593]
 offset_top = 209.0

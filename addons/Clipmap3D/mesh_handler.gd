@@ -97,6 +97,7 @@ const LOD_0_INSTANCE_COUNT: int = 19
 const LOD_X_INSTANCE_COUNT: int = 18
 
 var _mesh_rids: Dictionary[MeshType, RID]
+var _shadow_mesh_rids: Dictionary[MeshType, RID]
 
 var _instance_rids: Array[RID]
 var _instance_mesh_types: Array[MeshType]
@@ -177,7 +178,11 @@ func _clear_meshes():
 	for mesh_rid: RID in _mesh_rids.values():
 		if mesh_rid.is_valid():
 			RenderingServer.free_rid(mesh_rid)
+	for mesh_rid: RID in _shadow_mesh_rids.values():
+		if mesh_rid.is_valid():
+			RenderingServer.free_rid(mesh_rid)
 	_mesh_rids.clear()
+	_shadow_mesh_rids.clear()
 
 func _create_mesh(type: MeshType, size: Vector2i) -> void:
 	var mesh_arrays: Array = []
@@ -208,6 +213,11 @@ func _create_mesh(type: MeshType, size: Vector2i) -> void:
 			indices.append(t_r)
 	mesh_arrays[RenderingServer.ARRAY_INDEX] = indices
 	
+	# Separate shadow meshes without normals or tangents are faster.
+	var shadow_mesh := RenderingServer.mesh_create()
+	RenderingServer.mesh_add_surface_from_arrays(shadow_mesh, RenderingServer.PRIMITIVE_TRIANGLES, mesh_arrays)
+	_shadow_mesh_rids[type] = shadow_mesh
+	
 	var normals := PackedVector3Array()
 	normals.resize(vertices.size())
 	normals.fill(Vector3.UP)
@@ -220,10 +230,13 @@ func _create_mesh(type: MeshType, size: Vector2i) -> void:
 	
 	var mesh := RenderingServer.mesh_create()
 	RenderingServer.mesh_add_surface_from_arrays(mesh, RenderingServer.PRIMITIVE_TRIANGLES, mesh_arrays)
+	RenderingServer.mesh_set_shadow_mesh(mesh, shadow_mesh)
 	_mesh_rids[type] = mesh
 	
 	var aabb := AABB(-half_size, Vector3(float(size.x), aabb_height, float(size.y)))
 	RenderingServer.mesh_set_custom_aabb(mesh, aabb)
+	
+	
 #endregion
 
 #region instances

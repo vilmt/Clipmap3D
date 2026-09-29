@@ -17,11 +17,10 @@ const uint FLAG_DUAL_SCALING = 1u << 4u;
 uniform int dual_scaling_lod: hint_range(0, 10) = 3;
 uniform float dual_scaling_factor = 0.2;
 
-uniform sampler2D stochastic_noise: filter_nearest;
-
 uniform float mip_bias: hint_range(-3.0, 3.0) = 0.0;
-
 uniform float lod_blend_ratio: hint_range(0.0, 0.5) = 0.2;
+
+uniform sampler2D stochastic_noise: filter_nearest;
 
 group_uniforms private;
 
@@ -41,31 +40,45 @@ uniform float[MAX_TEXTURE_COUNT] _normal_depths;
 uniform float[MAX_TEXTURE_COUNT] _height_amplifications;
 uniform uint[MAX_TEXTURE_COUNT] _flags;
 
-uniform highp sampler2DArray _height_buffer: hint_default_black, repeat_enable, filter_linear;
-//uniform highp sampler2DArray _gradient_buffer: hint_normal, repeat_enable, filter_nearest;
-uniform highp sampler2DArray _control_buffer: hint_default_black, repeat_enable, filter_nearest;
+uniform highp sampler2DArray _height_buffer: hint_default_black, filter_nearest;
+//uniform highp sampler2DArray _gradient_buffer: hint_normal, filter_nearest;
+uniform highp sampler2DArray _control_buffer: hint_default_black, filter_nearest;
 
 varying vec3 world_position;
 
-varying vec3 texture_sampling_uvw;
-
-varying flat int vertex_lod_floor;
+varying flat int vertex_lod;
 varying float vertex_lod_fract;
 
 varying flat vec3 debug_albedo;
 
-vec2 get_uv(vec2 texel, vec2 sampler_size) {
-	return (texel + 0.5) / sampler_size;
+ivec3 imod(ivec3 x, ivec3 y) {
+	uvec3 x_u = uvec3(x), x_s = x_u >> 31u;
+	uvec3 y_u = uvec3(y), y_s = y_u >> 31u;
+    
+	uvec3 x_a = (x_u ^ -x_s) + x_s;
+	uvec3 y_a = (y_u ^ -y_s) + y_s;
+    
+	uvec3 q = x_a / y_a, q_s = x_s ^ y_s;
+	q += q_s & uvec3(notEqual(x_a, y_a * q));
+	q = (q ^ -q_s) + q_s;
+	return x - y * ivec3(q);
 }
 
-vec2 get_bilinear_uv(vec2 texel, vec2 sampler_size) {
-	return (floor(texel) + 0.5) / sampler_size;
+ivec4 imod(ivec4 x, ivec4 y) {
+	uvec4 x_u = uvec4(x), x_s = x_u >> 31u;
+	uvec4 y_u = uvec4(y), y_s = y_u >> 31u;
+    
+	uvec4 x_a = (x_u ^ -x_s) + x_s;
+	uvec4 y_a = (y_u ^ -y_s) + y_s;
+    
+	uvec4 q = x_a / y_a, q_s = x_s ^ y_s;
+	q += q_s & uvec4(notEqual(x_a, y_a * q));
+	q = (q ^ -q_s) + q_s;
+	return x - y * ivec4(q);
 }
 
-vec4 get_bilinear_weights(vec2 texel) {
-	vec2 w = fract(texel);
-	//w = w * w * (3.0 - 2.0 * w); // smoothstep interpolant
-	vec2 w_inv = 1.0 - w;
+vec4 get_bilinear_weights(vec2 position) {
+	vec2 w = fract(position), w_inv = 1.0 - w;
 	return vec4(w_inv.x, w.x, w_inv.x, w.x) * vec4(w_inv.y, w_inv.y, w.y, w.y);
 }
 
@@ -76,41 +89,50 @@ void vertex() {
 	
 	// Scale and LOD from transform
 	
-	// Scale includes the LOD exp2 and vertex spacing.
 	vec2 scale = vec2(MODEL_MATRIX[0][0], MODEL_MATRIX[2][2]);
-	float lod_floor = log2(scale.x / _vertex_spacing.x);
+	int lod = int(log2(scale.x / _vertex_spacing.x) + 1e-5);
 	
 	vec2 target_texel = _target_position.xz * vec2(_texels_per_vertex) / scale;
-	vec2 texel = world_position.xz * vec2(_texels_per_vertex) / scale;
+	vec2 position = world_position.xz * vec2(_texels_per_vertex) / scale;
 	
 	// Vertex LOD (LOD transition mask)
 	
 	vec2 half_size = vec2(buffer_size.xy / 2 - _texels_per_vertex); // Half formula from compute_handler.gd
-	vec2 lod_origin = (texel - target_texel) / half_size;
+	vec2 lod_origin = (position - target_texel) / half_size;
 	float blend_mask = max(abs(lod_origin.x), abs(lod_origin.y));
 	float lod_fract = smoothstep(1.0 - lod_blend_ratio, 1.0, blend_mask);
-	lod_fract = int(lod_floor) >= buffer_size.z - 1 ? 0.0 : lod_fract; // Ensure outer LOD does not blend
+	lod_fract = lod >= buffer_size.z - 1 ? 0.0 : lod_fract; // Ensure outer LOD does not blend
 	lod_fract = max(0.0, lod_fract - 1e-5);
 	
-	vertex_lod_floor = int(lod_floor + 0.5);
+	vertex_lod = lod;
 	vertex_lod_fract = lod_fract;
 	
 	// LOD Geo-morphing
 	
 	vec2 geomorph = lod_fract * mod(floor(world_position.xz / scale + 0.5), 2.0);
 	world_position.xz += geomorph * scale;
-	texel += geomorph * vec2(_texels_per_vertex);
+	position += geomorph * vec2(_texels_per_vertex);
 	
 	// Height sampling
 	
-	vec2 uv = get_uv(texel, vec2(buffer_size.xy));
-	world_position.y = texture(_height_buffer, vec3(uv, lod_floor)).r;
+	ivec2 texel = ivec2(floor(position));
+	vec4 bilinear_weights = get_bilinear_weights(position);
+	ivec4 wrapped = imod(ivec4(texel, texel + ivec2(1)), buffer_size.xyxy);
+	ivec4 texels_x = wrapped.xzxz;
+	ivec4 texels_y = wrapped.yyww;
+	
+	vec4 heights = vec4(
+		texelFetch(_height_buffer, ivec3(texels_x.x, texels_y.x, lod), 0).r,
+		texelFetch(_height_buffer, ivec3(texels_x.y, texels_y.y, lod), 0).r,
+		texelFetch(_height_buffer, ivec3(texels_x.z, texels_y.z, lod), 0).r,
+		texelFetch(_height_buffer, ivec3(texels_x.w, texels_y.w, lod), 0).r
+	);
+	
+	world_position.y = dot(heights, bilinear_weights);
 	
 	VERTEX = (VIEW_MATRIX * vec4(world_position, 1.0)).xyz;
 	
-	// Buffer sampling position
-	
-	UV = world_position.xz * vec2(_texels_per_vertex) / _vertex_spacing;
+	world_position.xz /= _vertex_spacing;
 }
 
 struct Material {
@@ -119,9 +141,11 @@ struct Material {
 	vec2 normal_map;
 	float normal_map_depth;
 	float ao;
+	
+	float total_weight;
 };
 
-void accumulate_material(inout Material mat, uvec2 ids, float weight, float blend, vec3 N, vec3 P, vec3 dPdx, vec3 dPdy, float seed, float lod) {
+void accumulate_material(inout Material mat, uvec2 ids, float weight, float blend, vec3 N, vec3 P, vec3 dPdx, vec3 dPdy, float seed, int lod) {
 	uint flags_0 = _flags[ids[0]];
 	uint flags_1 = _flags[ids[1]];
 		
@@ -166,7 +190,7 @@ void accumulate_material(inout Material mat, uvec2 ids, float weight, float blen
 		int normal_id = _normal_remap[id];
 		
 		vec2 s = _uv_scales[id];
-		s *= lod > float(dual_scaling_lod) - 0.5 && bool(flags_0 & FLAG_DUAL_SCALING) ? dual_scaling_factor : 1.0;
+		s *= lod >= dual_scaling_lod && bool(flags_0 & FLAG_DUAL_SCALING) ? dual_scaling_factor : 1.0;
 		
 		float angle = 0.0;//seed * TAU * angle_mult_0;
 		float angle_cos = cos(angle), angle_sin = sin(angle);
@@ -209,7 +233,7 @@ void accumulate_material(inout Material mat, uvec2 ids, float weight, float blen
 		int normal_id = _normal_remap[id];
 		
 		vec2 s = _uv_scales[id];
-		s *= lod > float(dual_scaling_lod) - 0.5 && bool(flags_1 & FLAG_DUAL_SCALING) ? dual_scaling_factor : 1.0;
+		s *= lod >= dual_scaling_lod && bool(flags_1 & FLAG_DUAL_SCALING) ? dual_scaling_factor : 1.0;
 		
 		float angle = 0.0;//seed * TAU * angle_mult_1;
 		float angle_cos = cos(angle), angle_sin = sin(angle);
@@ -272,85 +296,112 @@ void fragment() {
 	
 	// LOD selection
 	
-	vec2 mip_uv = (UV + 0.5) / vec2(buffer_size.xy);
+	vec2 mip_uv = (world_position.xz * vec2(_texels_per_vertex) + 0.5) / vec2(buffer_size.xy);
 	float mip_lod = textureQueryLod(_height_buffer, mip_uv).y + mip_bias;
 	
-	float vertex_lod = float(vertex_lod_floor) + vertex_lod_fract;
+	int lod_0 = clamp(int(floor(mip_lod)), vertex_lod, buffer_size.z - 1);
+	int lod_1 = lod_0 + 1;
+	float lod_fract = fract(clamp(mip_lod, float(vertex_lod) + vertex_lod_fract, float(buffer_size.z - 1)));
 	
-	float lod = clamp(mip_lod, vertex_lod, float(buffer_size.z - 1));
-	float lod_0 = floor(lod);
-	float lod_1 = lod_0 + 1.0;
-	float lod_fract = fract(lod);
+	// Sampling coordinate space
 	
-	vec2 texel_0 = UV * exp2(-lod_0);
-	vec2 texel_1 = texel_0 * 0.5;
+	vec2 position_0 = world_position.xz * vec2(_texels_per_vertex) * exp2(-float(lod_0));
+	vec4 bilinear_weights_0 = get_bilinear_weights(position_0);
+	ivec2 texel_0 = ivec2(floor(position_0));
 	
-	// Sampling space
+	// Every fourth sample in lod_1 can be found in lod_0. Reduces samples from 8 -> 7 in a lot of cases
+	ivec2 parity = texel_0 & ivec2(1);
+	uint duplicate_index = uint(parity.x + 2 * parity.y);
 	
-	vec2 bilinear_uv_0 = get_bilinear_uv(texel_0, vec2(buffer_size.xy));
-	vec4 bilinear_weights_0 = get_bilinear_weights(texel_0);
+	vec2 position_1 = position_0 * 0.5;
+	vec4 bilinear_weights_1 = get_bilinear_weights(position_1);
+	ivec2 texel_1 = ivec2(floor(position_1));
 	
-	vec2 bilinear_uv_1 = get_bilinear_uv(texel_1, vec2(buffer_size.xy));
-	vec4 bilinear_weights_1 = get_bilinear_weights(texel_1);
+	// Wrapping using integer modulus
 	
-	// Gradient (normal) lookups
-	vec2 gradient_scale = 1.0 / _vertex_spacing;
 	
-	// Offset is same for both lods since using uv coordinates
-	vec2 offset = 1.0 / vec2(buffer_size.xy);
+	//ivec4 wrapped_0 = imod(ivec4(texel_0, texel_0 + ivec2(1)), buffer_size.xyxy);
+	//ivec4 texels_x_0 = wrapped_0.xzxz;
+	//ivec4 texels_y_0 = wrapped_0.yyww;
+	//
+	//ivec4 wrapped_1 = imod(ivec4(texel_1, texel_1 + ivec2(1)), buffer_size.xyxy);
+	//ivec4 texels_x_1 = wrapped_1.xzxz;
+	//ivec4 texels_y_1 = wrapped_1.yyww;
 	
-	// LOD N gradients
+	// TODO: instead of swizzling here, first determine the parity, then swizzle the offsets themselves.
+	// Swizzle to make duplicate index first
+	//for (uint i = 0u; i < duplicate_index; i++) {
+		//bilinear_weights_1 = bilinear_weights_1.yzwx;
+		//texels_x_1 = texels_x_1.yzwx;
+		//texels_y_1 = texels_y_1.yzwx;
+	//}
+	//
+	ivec3 texels_x_0 = imod(texel_0.x + ivec3(0, 1, 2), buffer_size.xxx);
+	ivec3 texels_y_0 = imod(texel_0.y + ivec3(0, 1, 2), buffer_size.yyy);
 	
-	vec4 heights_00_0 = textureGather(_height_buffer, vec3(bilinear_uv_0, lod_0), 0).wzxy;
-	vec4 heights_10_0 = textureGather(_height_buffer, vec3(bilinear_uv_0 + vec2(offset.x, 0.0), lod_0), 0).wzxy;
-	vec4 heights_01_0 = textureGather(_height_buffer, vec3(bilinear_uv_0 + vec2(0.0, offset.y), lod_0), 0).wzxy;
-	vec4 heights_11_0 = textureGather(_height_buffer, vec3(bilinear_uv_0 + offset, lod_0), 0).wzxy;
+	ivec3 texels_x_1 = imod(texel_1.x + ivec3(0, 1, 2), buffer_size.xxx);
+	ivec3 texels_y_1 = imod(texel_1.y + ivec3(0, 1, 2), buffer_size.yyy);
 	
-	vec4 h00_0 = vec4(heights_00_0.x, heights_10_0.x, heights_01_0.x, heights_11_0.x);
-	vec4 h10_0 = vec4(heights_00_0.y, heights_10_0.y, heights_01_0.y, heights_11_0.y);
-	vec4 h01_0 = vec4(heights_00_0.z, heights_10_0.z, heights_01_0.z, heights_11_0.z);
+	// Height lookups for normals
 	
-	vec2 gradient_scale_0 = vec2(_texels_per_vertex) * exp2(-lod_0) / _vertex_spacing;
+	// TODO: 8 texturegathers. May be faster for no reason. Also would make swizzling possible.
 	
-	vec4 gradients_x_0 = (h10_0 - h00_0) * gradient_scale_0.x;
-	vec4 gradients_y_0 = (h01_0 - h00_0) * gradient_scale_0.y;
+	float height_00_0 = texelFetch(_height_buffer, ivec3(texels_x_0[0], texels_y_0[0], lod_0), 0).r;
+	float height_10_0 = texelFetch(_height_buffer, ivec3(texels_x_0[1], texels_y_0[0], lod_0), 0).r;
+	float height_01_0 = texelFetch(_height_buffer, ivec3(texels_x_0[0], texels_y_0[1], lod_0), 0).r;
+	float height_20_0 = texelFetch(_height_buffer, ivec3(texels_x_0[2], texels_y_0[0], lod_0), 0).r;
+	float height_11_0 = texelFetch(_height_buffer, ivec3(texels_x_0[1], texels_y_0[1], lod_0), 0).r;
+	float height_02_0 = texelFetch(_height_buffer, ivec3(texels_x_0[0], texels_y_0[2], lod_0), 0).r;
+	float height_21_0 = texelFetch(_height_buffer, ivec3(texels_x_0[2], texels_y_0[1], lod_0), 0).r;
+	float height_12_0 = texelFetch(_height_buffer, ivec3(texels_x_0[1], texels_y_0[2], lod_0), 0).r;
+	
+	float height_00_1 = texelFetch(_height_buffer, ivec3(texels_x_1[0], texels_y_1[0], lod_1), 0).r;
+	float height_10_1 = texelFetch(_height_buffer, ivec3(texels_x_1[1], texels_y_1[0], lod_1), 0).r;
+	float height_01_1 = texelFetch(_height_buffer, ivec3(texels_x_1[0], texels_y_1[1], lod_1), 0).r;
+	float height_20_1 = texelFetch(_height_buffer, ivec3(texels_x_1[2], texels_y_1[0], lod_1), 0).r;
+	float height_11_1 = texelFetch(_height_buffer, ivec3(texels_x_1[1], texels_y_1[1], lod_1), 0).r;
+	float height_02_1 = texelFetch(_height_buffer, ivec3(texels_x_1[0], texels_y_1[2], lod_1), 0).r;
+	float height_21_1 = texelFetch(_height_buffer, ivec3(texels_x_1[2], texels_y_1[1], lod_1), 0).r;
+	float height_12_1 = texelFetch(_height_buffer, ivec3(texels_x_1[1], texels_y_1[2], lod_1), 0).r;
+	
+	vec2 gradient_scale_0 = vec2(_texels_per_vertex) * exp2(-float(lod_0)) / _vertex_spacing;
+	
+	vec2 gradient_scale_1 = vec2(_texels_per_vertex) * exp2(-float(lod_1)) / _vertex_spacing;
+	
+	vec4 gradients_x_0 = vec4(
+		height_10_0 - height_00_0,
+		height_20_0 - height_10_0,
+		height_11_0 - height_01_0,
+		height_21_0 - height_11_0
+	) * gradient_scale_0.x;
+	vec4 gradients_y_0 = vec4(
+		height_01_0 - height_00_0,
+		height_11_0 - height_10_0,
+		height_02_0 - height_01_0,
+		height_12_0 - height_11_0
+	) * gradient_scale_0.y;
+	
+	vec4 gradients_x_1 = vec4(
+		height_10_1 - height_00_1,
+		height_20_1 - height_10_1,
+		height_11_1 - height_01_1,
+		height_21_1 - height_11_1
+	) * gradient_scale_1.x;
+	vec4 gradients_y_1 = vec4(
+		height_01_1 - height_00_1,
+		height_11_1 - height_10_1,
+		height_02_1 - height_01_1,
+		height_12_1 - height_11_1
+	) * gradient_scale_1.y;
 	
 	vec2 gradient_0 = vec2(dot(gradients_x_0, bilinear_weights_0), dot(gradients_y_0, bilinear_weights_0));
-	
-	// LOD N+1 gradients
-	
-	vec4 heights_00_1 = textureGather(_height_buffer, vec3(bilinear_uv_1, lod_1), 0).wzxy;
-	vec4 heights_10_1 = textureGather(_height_buffer, vec3(bilinear_uv_1 + vec2(offset.x, 0.0), lod_1), 0).wzxy;
-	vec4 heights_01_1 = textureGather(_height_buffer, vec3(bilinear_uv_1 + vec2(0.0, offset.y), lod_1), 0).wzxy;
-	vec4 heights_11_1 = textureGather(_height_buffer, vec3(bilinear_uv_1 + offset, lod_1), 0).wzxy;
-	
-	vec4 h00_1 = vec4(heights_00_1.x, heights_10_1.x, heights_01_1.x, heights_11_1.x);
-	vec4 h10_1 = vec4(heights_00_1.y, heights_10_1.y, heights_01_1.y, heights_11_1.y);
-	vec4 h01_1 = vec4(heights_00_1.z, heights_10_1.z, heights_01_1.z, heights_11_1.z);
-	
-	vec2 gradient_scale_1 = vec2(_texels_per_vertex) * exp2(-lod_1) / _vertex_spacing;
-	
-	vec4 gradients_x_1 = (h10_1 - h00_1) * gradient_scale_1.x;
-	vec4 gradients_y_1 = (h01_1 - h00_1) * gradient_scale_1.y;
-	
 	vec2 gradient_1 = vec2(dot(gradients_x_1, bilinear_weights_1), dot(gradients_y_1, bilinear_weights_1));
-	
-	// Final blended gradient
-	
 	vec2 gradient = mix(gradient_0, gradient_1, lod_fract);
 	
-	// Normals for lighting
-	
+	// Interpolated normal for lighting
 	vec3 normal = normalize(vec3(-gradient.x, 1.0, -gradient.y));
-	vec3 tangent = normalize(cross(normal, vec3(0.0, 0.0, 1.0)));
-	vec3 binormal = normalize(cross(normal, tangent));
-	
-	NORMAL = (VIEW_MATRIX * vec4(normal, 0.0)).xyz;
-	TANGENT = (VIEW_MATRIX * vec4(tangent, 0.0)).xyz;
-	BINORMAL = (VIEW_MATRIX * vec4(binormal, 0.0)).xyz;
 	
 	// Separate normals for projection
-	
 	vec3 normals_0[4] = {
 		normalize(vec3(-gradients_x_0.x, 1.0, -gradients_y_0.x)),
 		normalize(vec3(-gradients_x_0.y, 1.0, -gradients_y_0.y)),
@@ -365,19 +416,54 @@ void fragment() {
 		normalize(vec3(-gradients_x_1.w, 1.0, -gradients_y_1.w))
 	};
 	
+	// TODO: based on the sampling pattern, should be able to replace more LOD N+1 lookups.
+	// ^ This is problematic because height-based normals may not be deterministic between LODs
+	
+	// Total unique cases: 8
+	
+	vec3 tangent = normalize(cross(normal, vec3(0.0, 0.0, 1.0)));
+	vec3 binormal = normalize(cross(normal, tangent));
+	
+	NORMAL = (VIEW_MATRIX * vec4(normal, 0.0)).xyz;
+	TANGENT = (VIEW_MATRIX * vec4(tangent, 0.0)).xyz;
+	BINORMAL = (VIEW_MATRIX * vec4(binormal, 0.0)).xyz;
+	
+	// Separate normals for projection
+	
 	// Material accumulation from accumulated texture weights
 	
-	Material mat = Material(vec3(0.0), 0.0, vec2(0.0), 0.0, 0.0);
-	
-	// Texture sampling space
+	Material mat = Material(vec3(0.0), 0.0, vec2(0.0), 0.0, 0.0, 0.0);
 	
 	vec3 P = world_position;
-	vec3 dPdx = dFdxCoarse(P);
-	vec3 dPdy = dFdyCoarse(P);
+	vec3 dPdx = dFdxCoarse(world_position);
+	vec3 dPdy = dFdyCoarse(world_position);
+	
+	// TODO
+	vec4 seeds_0 = vec4(0.0);
+	vec4 seeds_1 = vec4(0.0);
 	
 	// Control lookups
 	
-	uvec4 controls_0 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_0, lod_0), 0).wzxy);
+	uvec4 controls_0 = floatBitsToUint(vec4(
+		texelFetch(_control_buffer, ivec3(texels_x_0[0], texels_y_0[0], lod_0), 0).r,
+		texelFetch(_control_buffer, ivec3(texels_x_0[1], texels_y_0[0], lod_0), 0).r,
+		texelFetch(_control_buffer, ivec3(texels_x_0[0], texels_y_0[1], lod_0), 0).r,
+		texelFetch(_control_buffer, ivec3(texels_x_0[1], texels_y_0[1], lod_0), 0).r
+	));
+	
+	uvec4 controls_1 = floatBitsToUint(vec4(
+		texelFetch(_control_buffer, ivec3(texels_x_1[0], texels_y_1[0], lod_1), 0).r,
+		texelFetch(_control_buffer, ivec3(texels_x_1[1], texels_y_1[0], lod_1), 0).r,
+		texelFetch(_control_buffer, ivec3(texels_x_1[0], texels_y_1[1], lod_1), 0).r,
+		texelFetch(_control_buffer, ivec3(texels_x_1[1], texels_y_1[1], lod_1), 0).r
+	));
+	
+	//uvec4 controls_1 = uvec4(
+		//0u, floatBitsToUint(vec3(
+		//texelFetch(_control_buffer, ivec3(texels_x_1.y, texels_y_1.y, lod_1), 0).r,
+		//texelFetch(_control_buffer, ivec3(texels_x_1.z, texels_y_1.z, lod_1), 0).r,
+		//texelFetch(_control_buffer, ivec3(texels_x_1.w, texels_y_1.w, lod_1), 0).r
+	//)));
 	
 	// Texture weight accumulation from control
 	
@@ -394,22 +480,20 @@ void fragment() {
 	
 	vec4 weights_0 = bilinear_weights_0 * (1.0 - lod_fract);
 	
+	uvec4 ids_0_1 = controls_1 >> uvec4(27u) & uvec4(0x1Fu);
+	uvec4 ids_1_1 = controls_1 >> uvec4(22u) & uvec4(0x1Fu);
+	vec4 blends_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
+	
+	uvec2 ids_1[4] = uvec2[4](
+		uvec2(ids_0_1[0], ids_1_1[0]),
+		uvec2(ids_0_1[1], ids_1_1[1]),
+		uvec2(ids_0_1[2], ids_1_1[2]),
+		uvec2(ids_0_1[3], ids_1_1[3])
+	);
+	
+	vec4 weights_1 = bilinear_weights_1 * lod_fract;
+
 	if (lod_fract > 0.001) {
-		uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_1, lod_1), 0).wzxy);
-			
-		uvec4 ids_0_1 = controls_1 >> uvec4(27u) & uvec4(0x1Fu);
-		uvec4 ids_1_1 = controls_1 >> uvec4(22u) & uvec4(0x1Fu);
-		vec4 blends_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
-		
-		vec4 weights_1 = bilinear_weights_1 * lod_fract;
-		
-		uvec2 ids_1[4] = uvec2[4](
-			uvec2(ids_0_1[0], ids_1_1[0]),
-			uvec2(ids_0_1[1], ids_1_1[1]),
-			uvec2(ids_0_1[2], ids_1_1[2]),
-			uvec2(ids_0_1[3], ids_1_1[3])
-		);
-		
 		accumulate_material(mat, ids_1[0], weights_1[0], blends_1[0], normals_1[0], P, dPdx, dPdy, 0.0, lod_1);
 		accumulate_material(mat, ids_1[1], weights_1[1], blends_1[1], normals_1[1], P, dPdx, dPdy, 0.0, lod_1);
 		accumulate_material(mat, ids_1[2], weights_1[2], blends_1[2], normals_1[2], P, dPdx, dPdy, 0.0, lod_1);
@@ -428,4 +512,13 @@ void fragment() {
 	NORMAL_MAP.rg = fma(mat.normal_map, vec2(0.5), vec2(0.5));
 	NORMAL_MAP_DEPTH = mat.normal_map_depth;
 	AO = mat.ao;
+	
+	//ALBEDO = vec3(float(bool(lod_fract > 0.001)));
+	//
+	//ALBEDO = debug_albedo;
+	
+	//ALBEDO = vec3(float(accumulations)) * 0.25;
+	
+	//ALBEDO = vec3(float(seeds_0[0]));
+	
 }

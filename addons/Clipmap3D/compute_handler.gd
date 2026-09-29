@@ -6,11 +6,9 @@ class_name Clipmap3DComputeHandler
 const LOCAL_SIZE := Vector3i(16, 16, 1)
 
 const HEIGHT_BUFFER_BINDING: int = 0
-const GRADIENT_BUFFER_BINDING: int = 1
-const CONTROL_BUFFER_BINDING: int = 2
+const CONTROL_BUFFER_BINDING: int = 1
 
 const HEIGHT_BUFFER_FORMAT := RenderingDevice.DATA_FORMAT_R32_SFLOAT
-const GRADIENT_BUFFER_FORMAT := RenderingDevice.DATA_FORMAT_R16G16_SFLOAT
 const CONTROL_BUFFER_FORMAT := RenderingDevice.DATA_FORMAT_R32_SFLOAT
 
 signal region_updated(lod: int, new_safe_region: Rect2i)
@@ -126,13 +124,11 @@ var _uniform_set_rid: RID
 
 # RD buffers are used to get data from compute
 var _height_buffer_rd_rid: RID
-var _gradient_buffer_rd_rid: RID
 var _control_buffer_rd_rid: RID
 
 # TextureRD buffers expose the RD buffers to vertex and fragment
 # TODO: check if this still works when using a local RenderingDevice
 var _height_buffer_rid: RID
-var _gradient_buffer_rid: RID
 var _control_buffer_rid: RID
 
 # Used for calculating the changed region of the buffers
@@ -288,8 +284,7 @@ func _ensure_buffers_threaded() -> bool:
 	height_format.usage_bits = \
 		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
 		_rd.TEXTURE_USAGE_STORAGE_BIT | \
-		_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT | \
-		_rd.TEXTURE_USAGE_CAN_COPY_TO_BIT
+		_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT # Needed for GPU -> CPU transfer in collision handler
 	
 	_height_buffer_rd_rid = _rd.texture_create(height_format, RDTextureView.new())
 	_height_buffer_rid = RenderingServer.texture_rd_create(_height_buffer_rd_rid, RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
@@ -298,28 +293,6 @@ func _ensure_buffers_threaded() -> bool:
 	height_uniform.uniform_type = _rd.UNIFORM_TYPE_IMAGE
 	height_uniform.binding = HEIGHT_BUFFER_BINDING
 	height_uniform.add_id(_height_buffer_rd_rid)
-	
-	# Gradient buffer
-	
-	var gradient_format := RDTextureFormat.new()
-	gradient_format.format = GRADIENT_BUFFER_FORMAT
-	gradient_format.texture_type = _rd.TEXTURE_TYPE_2D_ARRAY
-	gradient_format.width = buffer_size.x
-	gradient_format.height = buffer_size.y
-	gradient_format.array_layers = lod_count
-	gradient_format.usage_bits = \
-		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
-		_rd.TEXTURE_USAGE_STORAGE_BIT | \
-		_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT | \
-		_rd.TEXTURE_USAGE_CAN_COPY_TO_BIT
-	
-	_gradient_buffer_rd_rid = _rd.texture_create(gradient_format, RDTextureView.new())
-	_gradient_buffer_rid = RenderingServer.texture_rd_create(_gradient_buffer_rd_rid, RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
-	
-	var gradient_uniform := RDUniform.new()
-	gradient_uniform.uniform_type = _rd.UNIFORM_TYPE_IMAGE
-	gradient_uniform.binding = GRADIENT_BUFFER_BINDING
-	gradient_uniform.add_id(_gradient_buffer_rd_rid)
 	
 	# Control buffer
 	
@@ -331,9 +304,7 @@ func _ensure_buffers_threaded() -> bool:
 	control_format.array_layers = lod_count
 	control_format.usage_bits = \
 		_rd.TEXTURE_USAGE_SAMPLING_BIT | \
-		_rd.TEXTURE_USAGE_STORAGE_BIT | \
-		_rd.TEXTURE_USAGE_CAN_COPY_FROM_BIT | \
-		_rd.TEXTURE_USAGE_CAN_COPY_TO_BIT
+		_rd.TEXTURE_USAGE_STORAGE_BIT
 	
 	_control_buffer_rd_rid = _rd.texture_create(control_format, RDTextureView.new())
 	_control_buffer_rid = RenderingServer.texture_rd_create(_control_buffer_rd_rid, RenderingServer.TEXTURE_LAYERED_2D_ARRAY)
@@ -343,7 +314,7 @@ func _ensure_buffers_threaded() -> bool:
 	control_uniform.binding = CONTROL_BUFFER_BINDING
 	control_uniform.add_id(_control_buffer_rd_rid)
 	
-	var uniforms: Array[RDUniform] = [height_uniform, gradient_uniform, control_uniform]
+	var uniforms: Array[RDUniform] = [height_uniform, control_uniform]
 	_uniform_set_rid = _rd.uniform_set_create(uniforms, _shader_rid, 0)
 	
 	_buffers_need_rebuild = false
@@ -358,9 +329,6 @@ func _free_buffers_threaded() -> void:
 	if _height_buffer_rid.is_valid():
 		RenderingServer.free_rid(_height_buffer_rid)
 		_height_buffer_rid = RID()
-	if _gradient_buffer_rid.is_valid():
-		RenderingServer.free_rid(_gradient_buffer_rid)
-		_gradient_buffer_rid = RID()
 	if _control_buffer_rid.is_valid():
 		RenderingServer.free_rid(_control_buffer_rid)
 		_control_buffer_rid = RID()
@@ -368,9 +336,6 @@ func _free_buffers_threaded() -> void:
 	if _height_buffer_rd_rid.is_valid():
 		_rd.free_rid(_height_buffer_rd_rid)
 		_height_buffer_rd_rid = RID()
-	if _gradient_buffer_rd_rid.is_valid():
-		_rd.free_rid(_gradient_buffer_rd_rid)
-		_gradient_buffer_rd_rid = RID()
 	if _control_buffer_rd_rid.is_valid():
 		_rd.free_rid(_control_buffer_rd_rid)
 		_control_buffer_rd_rid = RID()
@@ -476,7 +441,6 @@ func _update_material() -> void:
 	var material_rid := material.get_rid()
 	RenderingServer.material_set_param(material_rid, &"_texels_per_vertex", _texels_per_vertex)
 	RenderingServer.material_set_param(material_rid, &"_height_buffer", _height_buffer_rid)
-	RenderingServer.material_set_param(material_rid, &"_gradient_buffer", _gradient_buffer_rid)
 	RenderingServer.material_set_param(material_rid, &"_control_buffer", _control_buffer_rid)
 	
 	_material_needs_update = false

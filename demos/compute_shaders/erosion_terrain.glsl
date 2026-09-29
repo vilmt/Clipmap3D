@@ -4,7 +4,6 @@
 /*
 TODO:
 
-- Support arbitrary transform
 - More painting helpers (maybe use a shader include)
 - Color map? Could create new buffers or write to control.
 
@@ -13,8 +12,7 @@ TODO:
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 layout(r32f, binding = 0) restrict uniform image2DArray height_buffers;
-layout(rg16f, binding = 1) restrict uniform image2DArray gradient_buffers;
-layout(r32f, binding = 2) restrict uniform image2DArray control_buffers;
+layout(r32f, binding = 1) restrict uniform image2DArray control_buffers;
 
 layout(push_constant, std430) uniform Parameters {
 	ivec4 region;
@@ -211,7 +209,7 @@ void main() {
 	
 	ivec2 position = parameters.region.xy + id;
 
-	ivec2 wrap_size = imageSize(gradient_buffers).xy;
+	ivec2 wrap_size = imageSize(height_buffers).xy;
 	ivec2 wrapped = position - wrap_size * div_floor(position, wrap_size); // Integer division -> modulo: x - y * q
 	ivec3 texel = ivec3(wrapped, parameters.lod);
 
@@ -221,8 +219,7 @@ void main() {
 	vec3 height = height_map(position, erosion_factor);
 
 	imageStore(height_buffers, texel, vec4(height.x, 0.0, 0.0, 0.0));
-	imageStore(gradient_buffers, texel, vec4(height.yz, 0.0, 0.0));
-	
+		
 	/*
 	Painting: we use painting helper functions and calculated painting parameters to decide two dominant materials.
 	*/
