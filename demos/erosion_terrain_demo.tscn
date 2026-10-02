@@ -81,7 +81,7 @@ text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
 [node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
-transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 1615.2369, 0, -567.5221)
+transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 5846.932, 0, 365.43564)
 script = ExtResource("1_e348m")
 compute_data = SubResource("Resource_p1oah")
 texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("6_gwnk7"), ExtResource("7_6b21n"), ExtResource("8_thxwv"), ExtResource("9_wujal")])

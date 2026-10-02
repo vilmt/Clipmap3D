@@ -3,8 +3,12 @@ render_mode blend_mix, skip_vertex_transform;
 
 /*
 TODO:
-- Look at normal-based blending
-- Attempt to find a non-distracting dithering method for LOD blending. Would result in 2x performance.
+- Implement a multi-leveled version of dual scaling. UV scale should be ~constant as a function of screen UV.
+	- "Terrain Rendering in Far Cry 5" [Moore 2018]
+- Implement hashed LOD blending using the technique described in "Hashed Alpha Testing" [Wyman 2017]
+	- Potential for 2x performance boost in fragment at the cost of some noise
+- Experiment with normal-based blending for accumulate_material()
+
 */
 
 const uint MAX_TEXTURE_COUNT = 32u;
@@ -123,6 +127,8 @@ void accumulate_material(inout Material mat, uvec2 ids, float weight, float blen
 	uint flags_1 = _flags[ids[1]];
 		
 	mat2 projection_align = mat2(1.0);
+	
+	//float dual_scale
 	
 	//float offset_mult_0 = float(flags_0 & FLAG_STOCHASTIC_OFFSET);
 	//float angle_mult_0 = float(flags_0 & FLAG_STOCHASTIC_ROTATION);
