@@ -4,6 +4,7 @@ render_mode blend_mix, skip_vertex_transform;
 /*
 TODO:
 - Look at normal-based blending
+- Attempt to find a non-distracting dithering method for LOD blending. Would result in 2x performance.
 */
 
 const uint MAX_TEXTURE_COUNT = 32u;
@@ -25,6 +26,8 @@ uniform float lod_blend_ratio: hint_range(0.0, 0.5) = 0.2;
 
 group_uniforms private;
 
+instance uniform int _vertex_lod;
+
 uniform vec3 _target_position;
 uniform vec2 _vertex_spacing;
 uniform ivec2 _texels_per_vertex;
@@ -42,14 +45,10 @@ uniform float[MAX_TEXTURE_COUNT] _height_amplifications;
 uniform uint[MAX_TEXTURE_COUNT] _flags;
 
 uniform highp sampler2DArray _height_buffer: hint_default_black, repeat_enable, filter_linear;
-//uniform highp sampler2DArray _gradient_buffer: hint_normal, repeat_enable, filter_nearest;
 uniform highp sampler2DArray _control_buffer: hint_default_black, repeat_enable, filter_nearest;
 
 varying vec3 world_position;
 
-varying vec3 texture_sampling_uvw;
-
-varying flat int vertex_lod_floor;
 varying float vertex_lod_fract;
 
 varying flat vec3 debug_albedo;
@@ -76,9 +75,8 @@ void vertex() {
 	
 	// Scale and LOD from transform
 	
-	// Scale includes the LOD exp2 and vertex spacing.
+	// Scale: exp2(lod) * vertex_spacing
 	vec2 scale = vec2(MODEL_MATRIX[0][0], MODEL_MATRIX[2][2]);
-	float lod_floor = log2(scale.x / _vertex_spacing.x);
 	
 	vec2 target_texel = _target_position.xz * vec2(_texels_per_vertex) / scale;
 	vec2 texel = world_position.xz * vec2(_texels_per_vertex) / scale;
@@ -89,10 +87,9 @@ void vertex() {
 	vec2 lod_origin = (texel - target_texel) / half_size;
 	float blend_mask = max(abs(lod_origin.x), abs(lod_origin.y));
 	float lod_fract = smoothstep(1.0 - lod_blend_ratio, 1.0, blend_mask);
-	lod_fract = int(lod_floor) >= buffer_size.z - 1 ? 0.0 : lod_fract; // Ensure outer LOD does not blend
+	lod_fract = _vertex_lod >= buffer_size.z - 1 ? 0.0 : lod_fract; // Ensure outer LOD does not blend
 	lod_fract = max(0.0, lod_fract - 1e-5);
 	
-	vertex_lod_floor = int(lod_floor + 0.5);
 	vertex_lod_fract = lod_fract;
 	
 	// LOD Geo-morphing
@@ -104,7 +101,7 @@ void vertex() {
 	// Height sampling
 	
 	vec2 uv = get_uv(texel, vec2(buffer_size.xy));
-	world_position.y = texture(_height_buffer, vec3(uv, lod_floor)).r;
+	world_position.y = texture(_height_buffer, vec3(uv, float(_vertex_lod))).r;
 	
 	VERTEX = (VIEW_MATRIX * vec4(world_position, 1.0)).xyz;
 	
@@ -275,7 +272,7 @@ void fragment() {
 	vec2 mip_uv = (UV + 0.5) / vec2(buffer_size.xy);
 	float mip_lod = textureQueryLod(_height_buffer, mip_uv).y + mip_bias;
 	
-	float vertex_lod = float(vertex_lod_floor) + vertex_lod_fract;
+	float vertex_lod = float(_vertex_lod) + vertex_lod_fract;
 	
 	float lod = clamp(mip_lod, vertex_lod, float(buffer_size.z - 1));
 	float lod_0 = floor(lod);
@@ -365,10 +362,6 @@ void fragment() {
 		normalize(vec3(-gradients_x_1.w, 1.0, -gradients_y_1.w))
 	};
 	
-	// Material accumulation from accumulated texture weights
-	
-	Material mat = Material(vec3(0.0), 0.0, vec2(0.0), 0.0, 0.0);
-	
 	// Texture sampling space
 	
 	vec3 P = world_position;
@@ -378,12 +371,15 @@ void fragment() {
 	// Control lookups
 	
 	uvec4 controls_0 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_0, lod_0), 0).wzxy);
+	uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_1, lod_1), 0).wzxy);
 	
 	// Texture weight accumulation from control
 	
 	uvec4 ids_0_0 = controls_0 >> uvec4(27u) & uvec4(0x1Fu);
 	uvec4 ids_1_0 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
 	vec4 blends_0 = vec4(controls_0 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
+	
+	vec4 weights_0 = bilinear_weights_0 * (1.0 - lod_fract);
 	
 	uvec2 ids_0[4] = uvec2[4](
 		uvec2(ids_0_0[0], ids_1_0[0]),
@@ -392,34 +388,35 @@ void fragment() {
 		uvec2(ids_0_0[3], ids_1_0[3])
 	);
 	
-	vec4 weights_0 = bilinear_weights_0 * (1.0 - lod_fract);
+	uvec4 ids_0_1 = controls_1 >> uvec4(27u) & uvec4(0x1Fu);
+	uvec4 ids_1_1 = controls_1 >> uvec4(22u) & uvec4(0x1Fu);
+	vec4 blends_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
 	
-	if (lod_fract > 0.001) {
-		uvec4 controls_1 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_1, lod_1), 0).wzxy);
-			
-		uvec4 ids_0_1 = controls_1 >> uvec4(27u) & uvec4(0x1Fu);
-		uvec4 ids_1_1 = controls_1 >> uvec4(22u) & uvec4(0x1Fu);
-		vec4 blends_1 = vec4(controls_1 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
-		
-		vec4 weights_1 = bilinear_weights_1 * lod_fract;
-		
-		uvec2 ids_1[4] = uvec2[4](
-			uvec2(ids_0_1[0], ids_1_1[0]),
-			uvec2(ids_0_1[1], ids_1_1[1]),
-			uvec2(ids_0_1[2], ids_1_1[2]),
-			uvec2(ids_0_1[3], ids_1_1[3])
-		);
-		
-		accumulate_material(mat, ids_1[0], weights_1[0], blends_1[0], normals_1[0], P, dPdx, dPdy, 0.0, lod_1);
-		accumulate_material(mat, ids_1[1], weights_1[1], blends_1[1], normals_1[1], P, dPdx, dPdy, 0.0, lod_1);
-		accumulate_material(mat, ids_1[2], weights_1[2], blends_1[2], normals_1[2], P, dPdx, dPdy, 0.0, lod_1);
-		accumulate_material(mat, ids_1[3], weights_1[3], blends_1[3], normals_1[3], P, dPdx, dPdy, 0.0, lod_1);
-	}
+	vec4 weights_1 = bilinear_weights_1 * lod_fract;
+	
+	uvec2 ids_1[4] = uvec2[4](
+		uvec2(ids_0_1[0], ids_1_1[0]),
+		uvec2(ids_0_1[1], ids_1_1[1]),
+		uvec2(ids_0_1[2], ids_1_1[2]),
+		uvec2(ids_0_1[3], ids_1_1[3])
+	);
+	
+	// Material accumulation
+	
+	Material mat = Material(vec3(0.0), 0.0, vec2(0.0), 0.0, 0.0);
 	
 	accumulate_material(mat, ids_0[0], weights_0[0], blends_0[0], normals_0[0], P, dPdx, dPdy, 0.0, lod_0);
 	accumulate_material(mat, ids_0[1], weights_0[1], blends_0[1], normals_0[1], P, dPdx, dPdy, 0.0, lod_0);
 	accumulate_material(mat, ids_0[2], weights_0[2], blends_0[2], normals_0[2], P, dPdx, dPdy, 0.0, lod_0);
 	accumulate_material(mat, ids_0[3], weights_0[3], blends_0[3], normals_0[3], P, dPdx, dPdy, 0.0, lod_0);
+	
+	// Good branch
+	if (lod_fract > 0.001) {
+		accumulate_material(mat, ids_1[0], weights_1[0], blends_1[0], normals_1[0], P, dPdx, dPdy, 0.0, lod_1);
+		accumulate_material(mat, ids_1[1], weights_1[1], blends_1[1], normals_1[1], P, dPdx, dPdy, 0.0, lod_1);
+		accumulate_material(mat, ids_1[2], weights_1[2], blends_1[2], normals_1[2], P, dPdx, dPdy, 0.0, lod_1);
+		accumulate_material(mat, ids_1[3], weights_1[3], blends_1[3], normals_1[3], P, dPdx, dPdy, 0.0, lod_1);
+	}
 	
 	// PBR
 	

@@ -2,20 +2,19 @@
 
 [ext_resource type="Shader" uid="uid://qmaocfvmu6pu" path="res://demos/shaders/full.gdshader" id="1_pamdg"]
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_p1oah"]
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_tx34x"]
 noise_type = 5
-frequency = 0.028
-fractal_type = 0
+frequency = 1.0
 
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_r2ioa"]
-noise = SubResource("FastNoiseLite_p1oah")
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_5fph1"]
+noise = SubResource("FastNoiseLite_tx34x")
 
 [resource]
 render_priority = 0
 shader = ExtResource("1_pamdg")
 shader_parameter/dual_scaling_lod = 3
-shader_parameter/dual_scaling_factor = 0.5
-shader_parameter/stochastic_noise = SubResource("NoiseTexture2D_r2ioa")
+shader_parameter/dual_scaling_factor = 0.2
+shader_parameter/stochastic_noise = SubResource("NoiseTexture2D_5fph1")
 shader_parameter/mip_bias = 0.0
 shader_parameter/lod_blend_ratio = 0.2
 shader_parameter/_target_position = Vector3(0, 0, 0)

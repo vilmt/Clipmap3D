@@ -300,7 +300,7 @@ func _update_instances() -> void:
 		RenderingServer.instance_set_visible(instance_rid, visible)
 		RenderingServer.instance_geometry_set_cast_shadows_setting(instance_rid, cast_shadows)
 		RenderingServer.instance_set_layer_mask(instance_rid, render_layer)
-		
+	
 	var world_position := Vector2(target_position.x, target_position.z)
 	
 	# HACK: The scale is applied component-wise manually. Ideally, the transformation
@@ -316,15 +316,15 @@ func _update_instances() -> void:
 		
 		lod_position *= lod_scale
 		
-		var transform_snapped := Transform3D.IDENTITY
-		transform_snapped.origin.x = lod_position.x
-		transform_snapped.origin.y = target_position.y
-		transform_snapped.origin.z = lod_position.y
+		var pos := Vector3(lod_position.x, target_position.y, lod_position.y)
 		
 		var mesh_type_count: Dictionary[MeshType, int] = {}
 		
 		for instance_index: int in range(instance_index_start, instance_index_end):
 			var instance_rid := _instance_rids[instance_index]
+			
+			RenderingServer.instance_geometry_set_shader_parameter(instance_rid, &"_vertex_lod", lod)
+			
 			var instance_mesh_type := _instance_mesh_types[instance_index]
 			var instance_count: int = mesh_type_count.get(instance_mesh_type, 0)
 			var offset: Vector3
@@ -337,8 +337,7 @@ func _update_instances() -> void:
 					offset = _instance_offsets[instance_mesh_type][instance_count]
 			
 			var instance_transform := Transform3D(Basis.IDENTITY, offset).scaled(Vector3(lod_scale.x, 1.0, lod_scale.y))
-			instance_transform = transform_snapped * instance_transform
-			# could just be a vector offset?
+			instance_transform.origin += pos
 			
 			RenderingServer.instance_set_transform(instance_rid, instance_transform)
 			RenderingServer.instance_teleport(instance_rid)
