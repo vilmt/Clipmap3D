@@ -1,6 +1,6 @@
-[gd_resource type="ShaderMaterial" format=3 uid="uid://1v70fd5mkht7"]
+[gd_resource type="ShaderMaterial" format=3 uid="uid://b4cmvis5tigqa"]
 
-[ext_resource type="Shader" uid="uid://qmaocfvmu6pu" path="res://demos/shaders/full.gdshader" id="1_pamdg"]
+[ext_resource type="Shader" uid="uid://cma0efoch0gk8" path="res://demos/shaders/cheap_hash_crap.gdshader" id="1_pihnm"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_tx34x"]
 noise_type = 5
@@ -11,8 +11,9 @@ noise = SubResource("FastNoiseLite_tx34x")
 
 [resource]
 render_priority = 0
-shader = ExtResource("1_pamdg")
-shader_parameter/show_uv = false
+shader = ExtResource("1_pihnm")
+shader_parameter/dual_scaling_lod = 3
+shader_parameter/dual_scaling_factor = 0.2
 shader_parameter/stochastic_noise = SubResource("NoiseTexture2D_5fph1")
 shader_parameter/mip_bias = 0.0
 shader_parameter/lod_blend_ratio = 0.10000000475
@@ -23,7 +24,7 @@ shader_parameter/_albedo_remap = PackedInt32Array(0, 1, 2, 3, -1, -1, -1, -1, -1
 shader_parameter/_normal_remap = PackedInt32Array(0, 1, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
 shader_parameter/_uv_scales = PackedVector2Array(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 shader_parameter/_albedo_modulates = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-shader_parameter/_roughness_offsets = PackedFloat32Array(0.498, 0.229, 0, 0.229, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/_normal_depths = PackedFloat32Array(1, 1.214, 2.127, 1.214, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+shader_parameter/_roughness_offsets = PackedFloat32Array(0.498, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_normal_depths = PackedFloat32Array(1, 1, 2.127, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 shader_parameter/_height_amplifications = PackedFloat32Array(1, 1, 0.72, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-shader_parameter/_flags = PackedInt32Array(2, 16, 10, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/_flags = PackedInt32Array(0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)

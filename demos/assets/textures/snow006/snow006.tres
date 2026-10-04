@@ -11,4 +11,5 @@ albedo_texture = ExtResource("1_2nojw")
 normal_texture = ExtResource("2_vtggt")
 normal_depth = 2.127
 height_amplification = 0.72
+flags = 10
 metadata/_custom_type_script = "uid://bt3djwqnt64i8"

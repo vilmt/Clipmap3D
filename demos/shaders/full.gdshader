@@ -5,11 +5,11 @@ render_mode blend_mix, skip_vertex_transform;
 TODO:
 - Implement a multi-leveled version of dual scaling. UV scale should be ~constant as a function of screen UV.
 	- "Terrain Rendering in Far Cry 5" [Moore 2018]
-- Implement hashed LOD blending using the technique described in "Hashed Alpha Testing" [Wyman 2017]
-	- Potential for 2x performance boost in fragment at the cost of some noise
 - Experiment with normal-based blending for accumulate_material()
 
 */
+
+uniform bool show_uv = false;
 
 const uint MAX_TEXTURE_COUNT = 32u;
 
@@ -18,9 +18,6 @@ const uint FLAG_STOCHASTIC_ROTATION = 1u << 1u;
 const uint FLAG_PROJECTED_STOCHASTIC_OFFSET = 1u << 2u;
 const uint FLAG_PROJECTED_STOCHASTIC_ROTATION = 1u << 3u;
 const uint FLAG_DUAL_SCALING = 1u << 4u;
-
-uniform int dual_scaling_lod: hint_range(0, 10) = 3;
-uniform float dual_scaling_factor = 0.2;
 
 uniform sampler2D stochastic_noise: filter_nearest;
 
@@ -72,6 +69,24 @@ vec4 get_bilinear_weights(vec2 texel) {
 	return vec4(w_inv.x, w.x, w_inv.x, w.x) * vec4(w_inv.y, w_inv.y, w.y, w.y);
 }
 
+vec3 hash(ivec2 position) {
+    uvec3 v = uvec3(uvec2(position), 0u);
+
+    v = v * 1664525u + 1013904223u;
+
+    v.x += v.y*v.z;
+    v.y += v.z*v.x;
+    v.z += v.x*v.y;
+
+    v ^= v >> 16u;
+
+    v.x += v.y*v.z;
+    v.y += v.z*v.x;
+    v.z += v.x*v.y;
+    
+    return vec3(v) / 4294967296.0;
+}
+
 void vertex() {
 	ivec3 buffer_size = textureSize(_height_buffer, 0);
 	
@@ -92,9 +107,8 @@ void vertex() {
 	float blend_mask = max(abs(lod_origin.x), abs(lod_origin.y));
 	float lod_fract = smoothstep(1.0 - lod_blend_ratio, 1.0, blend_mask);
 	lod_fract = _vertex_lod >= buffer_size.z - 1 ? 0.0 : lod_fract; // Ensure outer LOD does not blend
-	lod_fract = max(0.0, lod_fract - 1e-5);
 	
-	vertex_lod_fract = lod_fract;
+	vertex_lod_fract = max(0.0, lod_fract - 1e-5);
 	
 	// LOD Geo-morphing
 	
@@ -122,25 +136,30 @@ struct Material {
 	float ao;
 };
 
-void accumulate_material(inout Material mat, uvec2 ids, float weight, float blend, vec3 N, vec3 P, vec3 dPdx, vec3 dPdy, float seed, float lod) {
+void accumulate_material(
+	inout Material mat, // struct for accumulating values
+	vec2 position, vec3 normal, uvec2 ids, float weight, float blend, float lod, // parameters of the current texel
+	vec3 P, vec3 dPdx, vec3 dPdy // world position of the fragment
+	) {
 	uint flags_0 = _flags[ids[0]];
 	uint flags_1 = _flags[ids[1]];
 		
 	mat2 projection_align = mat2(1.0);
 	
-	//float dual_scale
+	vec2 uv_0 = vec2(0.0);
+	vec2 uv_1 = vec2(0.0);
 	
-	//float offset_mult_0 = float(flags_0 & FLAG_STOCHASTIC_OFFSET);
-	//float angle_mult_0 = float(flags_0 & FLAG_STOCHASTIC_ROTATION);
-	//
-	//float offset_mult_1 = float(flags_1 & FLAG_STOCHASTIC_OFFSET);
-	//float angle_mult_1 = float(flags_1 & FLAG_STOCHASTIC_ROTATION);
+	float offset_mult_0 = float(flags_0 & FLAG_STOCHASTIC_OFFSET);
+	float angle_mult_0 = float(flags_0 & FLAG_STOCHASTIC_ROTATION);
 	
-	if (N.y <= 0.7071067811865475) { // sqrt(0.5)
+	float offset_mult_1 = float(flags_1 & FLAG_STOCHASTIC_OFFSET);
+	float angle_mult_1 = float(flags_1 & FLAG_STOCHASTIC_ROTATION);
+	
+	if (normal.y <= 0.7071067811865475) { // sqrt(0.5)
 		// Projected normal map alignment matrix
-		projection_align = mat2(vec2(N.z, -N.x), vec2(N.x, N.z));
+		projection_align = mat2(vec2(normal.z, -normal.x), vec2(normal.x, normal.z));
 		// Fast 45 degree snapping https://iquilezles.org/articles/noatan/
-		vec2 xz = round(normalize(-N.xz) * 1.3065629648763765); // sqrt(1.0 + sqrt(0.5))
+		vec2 xz = round(normalize(-normal.xz) * 1.3065629648763765); // sqrt(1.0 + sqrt(0.5))
 		xz *= abs(xz.x) + abs(xz.y) > 1.5 ? 0.7071067811865475 : 1.0; // sqrt(0.5)
 		xz = vec2(-xz.y, xz.x);
 		
@@ -148,11 +167,11 @@ void accumulate_material(inout Material mat, uvec2 ids, float weight, float blen
 		dPdx.xz = vec2(dot(dPdx.xz, xz), -dPdx.y);
 		dPdy.xz = vec2(dot(dPdy.xz, xz), -dPdy.y);
 		
-		//offset_mult_0 = float(flags_0 & FLAG_PROJECTED_STOCHASTIC_OFFSET);
-		//angle_mult_0 = float(flags_0 & FLAG_PROJECTED_STOCHASTIC_ROTATION);
-		//
-		//offset_mult_1 = float(flags_1 & FLAG_PROJECTED_STOCHASTIC_OFFSET);
-		//angle_mult_1 = float(flags_1 & FLAG_PROJECTED_STOCHASTIC_ROTATION);
+		offset_mult_0 = float(flags_0 & FLAG_PROJECTED_STOCHASTIC_OFFSET);
+		angle_mult_0 = float(flags_0 & FLAG_PROJECTED_STOCHASTIC_ROTATION);
+		
+		offset_mult_1 = float(flags_1 & FLAG_PROJECTED_STOCHASTIC_OFFSET);
+		angle_mult_1 = float(flags_1 & FLAG_PROJECTED_STOCHASTIC_ROTATION);
 	}
 	
 	vec3 albedo_0 = vec3(0.0);
@@ -162,6 +181,10 @@ void accumulate_material(inout Material mat, uvec2 ids, float weight, float blen
 	float ao_0 = 0.0;
 	float normal_map_depth_0 = 0.0;
 	
+	vec3 seeds = hash(ivec2(floor(position * 0.01)));
+	
+	float stochastic_angle = seeds.z * TAU;
+	
 	if (blend < 0.999) {
 		uint id = ids[0];
 		
@@ -169,10 +192,13 @@ void accumulate_material(inout Material mat, uvec2 ids, float weight, float blen
 		int normal_id = _normal_remap[id];
 		
 		vec2 s = _uv_scales[id];
-		s *= lod > float(dual_scaling_lod) - 0.5 && bool(flags_0 & FLAG_DUAL_SCALING) ? dual_scaling_factor : 1.0;
+		s *= bool(flags_0 & FLAG_DUAL_SCALING) ? exp2(-float(lod)) : 1.0;
+		//s *= lod > float(dual_scaling_lod) - 0.5 && bool(flags_0 & FLAG_DUAL_SCALING) ? dual_scaling_factor : 1.0;
 		
-		float angle = 0.0;//seed * TAU * angle_mult_0;
+		float angle = stochastic_angle * angle_mult_0;
 		float angle_cos = cos(angle), angle_sin = sin(angle);
+		
+		vec2 offset = vec2(0.0) * offset_mult_0;
 		
 		mat2 angle_rot = mat2(vec2(angle_cos, angle_sin), vec2(-angle_sin, angle_cos));
 		
@@ -183,6 +209,10 @@ void accumulate_material(inout Material mat, uvec2 ids, float weight, float blen
 		uv = angle_rot * (uv + 0.5) - 0.5;
 		duvdx = angle_rot * duvdx;
 		duvdy = angle_rot * duvdy;
+		
+		uv += offset;
+		
+		uv_0 = fract(uv);
 		
 		vec4 al_r = textureGrad(_albedo_textures, vec3(uv, float(albedo_id)), duvdx, duvdy);
 		vec4 nr_h_ao = textureGrad(_normal_textures, vec3(uv, float(normal_id)), duvdx, duvdy);
@@ -212,10 +242,13 @@ void accumulate_material(inout Material mat, uvec2 ids, float weight, float blen
 		int normal_id = _normal_remap[id];
 		
 		vec2 s = _uv_scales[id];
-		s *= lod > float(dual_scaling_lod) - 0.5 && bool(flags_1 & FLAG_DUAL_SCALING) ? dual_scaling_factor : 1.0;
+		s *= bool(flags_1 & FLAG_DUAL_SCALING) ? exp2(-float(lod)) : 1.0;
+		//s *= lod > float(dual_scaling_lod) - 0.5 && bool(flags_1 & FLAG_DUAL_SCALING) ? dual_scaling_factor : 1.0;
 		
-		float angle = 0.0;//seed * TAU * angle_mult_1;
+		float angle = stochastic_angle * TAU * angle_mult_1;
 		float angle_cos = cos(angle), angle_sin = sin(angle);
+		
+		vec2 offset = vec2(0.0) * offset_mult_1;
 		
 		mat2 angle_rot = mat2(vec2(angle_cos, angle_sin), vec2(-angle_sin, angle_cos));
 		
@@ -226,6 +259,10 @@ void accumulate_material(inout Material mat, uvec2 ids, float weight, float blen
 		uv = angle_rot * (uv + 0.5) - 0.5;
 		duvdx = angle_rot * duvdx;
 		duvdy = angle_rot * duvdy;
+		
+		uv += offset;
+		
+		uv_1 = fract(uv);
 		
 		vec4 al_r = textureGrad(_albedo_textures, vec3(uv, float(albedo_id)), duvdx, duvdy);
 		vec4 nr_h_ao = textureGrad(_normal_textures, vec3(uv, float(normal_id)), duvdx, duvdy);
@@ -263,7 +300,12 @@ void accumulate_material(inout Material mat, uvec2 ids, float weight, float blen
 	float w0 = (1.0 - blend) * weight;
 	float w1 = blend * weight;
 	
-	mat.albedo = fma(albedo_0, vec3(w0), fma(albedo_1, vec3(w1), mat.albedo));
+	if (show_uv) {
+		mat.albedo.rg = fma(uv_0, vec2(w0), fma(uv_1, vec2(w1), mat.albedo.rg));
+	} else {
+		mat.albedo = fma(albedo_0, vec3(w0), fma(albedo_1, vec3(w1), mat.albedo));
+	}
+	
 	mat.roughness = fma(roughness_0, w0, fma(roughness_1, w1, mat.roughness));
 	mat.normal_map = fma(normal_map_0, vec2(w0), fma(normal_map_1, vec2(w1), mat.normal_map));
 	mat.ao = fma(ao_0, w0, fma(ao_1, w1, mat.ao));
@@ -277,6 +319,7 @@ void fragment() {
 	
 	vec2 mip_uv = (UV + 0.5) / vec2(buffer_size.xy);
 	float mip_lod = textureQueryLod(_height_buffer, mip_uv).y + mip_bias;
+	mip_lod = floor(mip_lod) + min(0.99,smoothstep(0.4, 0.6, fract(mip_lod)));
 	
 	float vertex_lod = float(_vertex_lod) + vertex_lod_fract;
 	
@@ -295,9 +338,6 @@ void fragment() {
 	
 	vec2 bilinear_uv_1 = get_bilinear_uv(texel_1, vec2(buffer_size.xy));
 	vec4 bilinear_weights_1 = get_bilinear_weights(texel_1);
-	
-	// Gradient (normal) lookups
-	vec2 gradient_scale = 1.0 / _vertex_spacing;
 	
 	// Offset is same for both lods since using uv coordinates
 	vec2 offset = 1.0 / vec2(buffer_size.xy);
@@ -374,6 +414,26 @@ void fragment() {
 	vec3 dPdx = dFdxCoarse(P);
 	vec3 dPdy = dFdyCoarse(P);
 	
+	// Seeds
+	
+	vec2 inverse_scale_0 = exp2(lod_0) / vec2(_texels_per_vertex) * _vertex_spacing;
+	
+	vec2 positions_0[4] = {
+		(floor(texel_0) + vec2(0.0, 0.0)) * inverse_scale_0,
+		(floor(texel_0) + vec2(1.0, 0.0)) * inverse_scale_0,
+		(floor(texel_0) + vec2(0.0, 1.0)) * inverse_scale_0,
+		(floor(texel_0) + vec2(1.0, 1.0)) * inverse_scale_0
+	};
+	
+	vec2 inverse_scale_1 = exp2(lod_1) / vec2(_texels_per_vertex) * _vertex_spacing;
+	
+	vec2 positions_1[4] = {
+		(floor(texel_1) + vec2(0.0, 0.0)) * inverse_scale_1,
+		(floor(texel_1) + vec2(1.0, 0.0)) * inverse_scale_1,
+		(floor(texel_1) + vec2(0.0, 1.0)) * inverse_scale_1,
+		(floor(texel_1) + vec2(1.0, 1.0)) * inverse_scale_1
+	};
+	
 	// Control lookups
 	
 	uvec4 controls_0 = floatBitsToUint(textureGather(_control_buffer, vec3(bilinear_uv_0, lod_0), 0).wzxy);
@@ -385,7 +445,7 @@ void fragment() {
 	uvec4 ids_1_0 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
 	vec4 blends_0 = vec4(controls_0 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
 	
-	vec4 weights_0 = bilinear_weights_0 * (1.0 - lod_fract);
+	vec4 weights_0 = bilinear_weights_0;// * (1.0 - lod_fract);
 	
 	uvec2 ids_0[4] = uvec2[4](
 		uvec2(ids_0_0[0], ids_1_0[0]),
@@ -411,18 +471,17 @@ void fragment() {
 	
 	Material mat = Material(vec3(0.0), 0.0, vec2(0.0), 0.0, 0.0);
 	
-	accumulate_material(mat, ids_0[0], weights_0[0], blends_0[0], normals_0[0], P, dPdx, dPdy, 0.0, lod_0);
-	accumulate_material(mat, ids_0[1], weights_0[1], blends_0[1], normals_0[1], P, dPdx, dPdy, 0.0, lod_0);
-	accumulate_material(mat, ids_0[2], weights_0[2], blends_0[2], normals_0[2], P, dPdx, dPdy, 0.0, lod_0);
-	accumulate_material(mat, ids_0[3], weights_0[3], blends_0[3], normals_0[3], P, dPdx, dPdy, 0.0, lod_0);
+	accumulate_material(mat, positions_0[0], normals_0[0], ids_0[0], weights_0[0], blends_0[0], lod_0, P, dPdx, dPdy);
+	accumulate_material(mat, positions_0[1], normals_0[1], ids_0[1], weights_0[1], blends_0[1], lod_0, P, dPdx, dPdy);
+	accumulate_material(mat, positions_0[2], normals_0[2], ids_0[2], weights_0[2], blends_0[2], lod_0, P, dPdx, dPdy);
+	accumulate_material(mat, positions_0[3], normals_0[3], ids_0[3], weights_0[3], blends_0[3], lod_0, P, dPdx, dPdy);
 	
-	// Good branch
-	if (lod_fract > 0.001) {
-		accumulate_material(mat, ids_1[0], weights_1[0], blends_1[0], normals_1[0], P, dPdx, dPdy, 0.0, lod_1);
-		accumulate_material(mat, ids_1[1], weights_1[1], blends_1[1], normals_1[1], P, dPdx, dPdy, 0.0, lod_1);
-		accumulate_material(mat, ids_1[2], weights_1[2], blends_1[2], normals_1[2], P, dPdx, dPdy, 0.0, lod_1);
-		accumulate_material(mat, ids_1[3], weights_1[3], blends_1[3], normals_1[3], P, dPdx, dPdy, 0.0, lod_1);
-	}
+	//if (lod_fract > 0.001) {
+		//accumulate_material(mat, positions_1[0], normals_1[0], ids_1[0], weights_1[0], blends_1[0], lod_1, P, dPdx, dPdy);
+		//accumulate_material(mat, positions_1[1], normals_1[1], ids_1[1], weights_1[1], blends_1[1], lod_1, P, dPdx, dPdy);
+		//accumulate_material(mat, positions_1[2], normals_1[2], ids_1[2], weights_1[2], blends_1[2], lod_1, P, dPdx, dPdy);
+		//accumulate_material(mat, positions_1[3], normals_1[3], ids_1[3], weights_1[3], blends_1[3], lod_1, P, dPdx, dPdy);
+	//}
 	
 	// PBR
 	
@@ -431,4 +490,6 @@ void fragment() {
 	NORMAL_MAP.rg = fma(mat.normal_map, vec2(0.5), vec2(0.5));
 	NORMAL_MAP_DEPTH = mat.normal_map_depth;
 	AO = mat.ao;
+	
+	//ALBEDO = vec3(lod_fract);
 }

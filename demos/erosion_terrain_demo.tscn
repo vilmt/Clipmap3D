@@ -4,15 +4,16 @@
 [ext_resource type="RDShaderFile" uid="uid://xjxu5li6gpx" path="res://demos/compute_shaders/erosion_terrain.glsl" id="2_p1oah"]
 [ext_resource type="Script" uid="uid://bt3djwqnt64i8" path="res://addons/Clipmap3D/texture_asset.gd" id="3_4ispy"]
 [ext_resource type="Script" uid="uid://d20stuy1e0ig" path="res://addons/Clipmap3D/compute_data.gd" id="3_p1oah"]
+[ext_resource type="Resource" uid="uid://62rjv0drlr1x" path="res://demos/assets/textures/rock022/rock022.tres" id="6_186hp"]
 [ext_resource type="Resource" uid="uid://8mjot2doejqf" path="res://demos/assets/textures/grass004/grass004.tres" id="6_gwnk7"]
-[ext_resource type="Resource" uid="uid://be5eqyys4v2ip" path="res://demos/assets/textures/rocks007/rocks007.tres" id="7_6b21n"]
 [ext_resource type="Resource" uid="uid://bomqkluxa08aw" path="res://demos/assets/textures/snow006/snow006.tres" id="8_thxwv"]
-[ext_resource type="Resource" uid="uid://b0i51xc28u6ib" path="res://demos/assets/textures/ground067/ground067.tres" id="9_wujal"]
+[ext_resource type="Material" uid="uid://b4cmvis5tigqa" path="res://demos/shaders/cheap_hash_crap.tres" id="9_186hp"]
 [ext_resource type="Script" uid="uid://fhog5k66ckc1" path="res://demos/debug_material_switcher.gd" id="12_186hp"]
 [ext_resource type="Material" uid="uid://1v70fd5mkht7" path="res://demos/shaders/full.tres" id="13_gwnk7"]
 [ext_resource type="PackedScene" uid="uid://drr32a4jrntnf" path="res://demos/scenes/player/player.tscn" id="14_ew5cq"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_186hp"]
+ground_bottom_color = Color(0.8823534, 0, 0.42233306, 1)
 
 [sub_resource type="Sky" id="Sky_gwnk7"]
 sky_material = SubResource("ProceduralSkyMaterial_186hp")
@@ -41,8 +42,6 @@ dof_blur_far_transition = 765.43
 [sub_resource type="Resource" id="Resource_p1oah"]
 script = ExtResource("3_p1oah")
 compute_shader = ExtResource("2_p1oah")
-compute_seed = 1
-texels_per_vertex = Vector2i(6, 6)
 metadata/_custom_type_script = "uid://d20stuy1e0ig"
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_r2ioa"]
@@ -80,11 +79,12 @@ outline_modulate = Color(0, 0, 0, 0)
 text = "Zoom out to see the terrain.
 Increase view -> settings -> z-far to 16000"
 
-[node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073]
-transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 5846.932, 0, 365.43564)
+[node name="Clipmap3D" type="Node3D" parent="." unique_id=179599073 node_paths=PackedStringArray("follow_target")]
+transform = Transform3D(1, 0, 0, 0, 0.99999976, -1.5099576e-07, 0, 1.5099576e-07, 0.99999976, 21884.504, 0, 1989.8517)
 script = ExtResource("1_e348m")
+follow_target = NodePath("../Player")
 compute_data = SubResource("Resource_p1oah")
-texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("6_gwnk7"), ExtResource("7_6b21n"), ExtResource("8_thxwv"), ExtResource("9_wujal")])
+texture_assets = Array[ExtResource("3_4ispy")]([ExtResource("6_gwnk7"), ExtResource("6_186hp"), ExtResource("8_thxwv"), ExtResource("6_186hp")])
 mesh_lod_count = 10
 material = ExtResource("13_gwnk7")
 aabb_height = 6000.0
@@ -100,12 +100,13 @@ material_override = SubResource("StandardMaterial3D_r2ioa")
 mesh = SubResource("PlaneMesh_186hp")
 
 [node name="Player" parent="." unique_id=917553470 instance=ExtResource("14_ew5cq")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5553.21, 1362.7589, -514.3213)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21884.504, 1222.4766, 1989.8517)
 
 [node name="DebugMaterialSwitcher" type="Node" parent="." unique_id=2115864266 node_paths=PackedStringArray("clipmap")]
 script = ExtResource("12_186hp")
 clipmap = NodePath("../Clipmap3D")
 material_a = ExtResource("13_gwnk7")
+material_b = ExtResource("9_186hp")
 
 [node name="Label" type="Label" parent="DebugMaterialSwitcher" unique_id=96221593]
 offset_top = 209.0
