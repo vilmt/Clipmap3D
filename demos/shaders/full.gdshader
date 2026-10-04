@@ -52,7 +52,7 @@ varying vec3 world_position;
 
 varying float vertex_lod_fract;
 
-varying flat vec3 debug_albedo;
+varying vec3 debug_albedo;
 
 vec2 get_uv(vec2 texel, vec2 sampler_size) {
 	return (texel + 0.5) / sampler_size;
@@ -115,6 +115,8 @@ void vertex() {
 	vec2 geomorph = lod_fract * mod(floor(world_position.xz / scale + 0.5), 2.0);
 	world_position.xz += geomorph * scale;
 	texel += geomorph * vec2(_texels_per_vertex);
+	
+	debug_albedo = vec3(lod_fract);
 	
 	// Height sampling
 	
@@ -445,7 +447,7 @@ void fragment() {
 	uvec4 ids_1_0 = controls_0 >> uvec4(22u) & uvec4(0x1Fu);
 	vec4 blends_0 = vec4(controls_0 >> uvec4(14u) & uvec4(0xFFu)) / 255.0;
 	
-	vec4 weights_0 = bilinear_weights_0;// * (1.0 - lod_fract);
+	vec4 weights_0 = bilinear_weights_0 * (1.0 - lod_fract);
 	
 	uvec2 ids_0[4] = uvec2[4](
 		uvec2(ids_0_0[0], ids_1_0[0]),
@@ -476,12 +478,12 @@ void fragment() {
 	accumulate_material(mat, positions_0[2], normals_0[2], ids_0[2], weights_0[2], blends_0[2], lod_0, P, dPdx, dPdy);
 	accumulate_material(mat, positions_0[3], normals_0[3], ids_0[3], weights_0[3], blends_0[3], lod_0, P, dPdx, dPdy);
 	
-	//if (lod_fract > 0.001) {
-		//accumulate_material(mat, positions_1[0], normals_1[0], ids_1[0], weights_1[0], blends_1[0], lod_1, P, dPdx, dPdy);
-		//accumulate_material(mat, positions_1[1], normals_1[1], ids_1[1], weights_1[1], blends_1[1], lod_1, P, dPdx, dPdy);
-		//accumulate_material(mat, positions_1[2], normals_1[2], ids_1[2], weights_1[2], blends_1[2], lod_1, P, dPdx, dPdy);
-		//accumulate_material(mat, positions_1[3], normals_1[3], ids_1[3], weights_1[3], blends_1[3], lod_1, P, dPdx, dPdy);
-	//}
+	if (lod_fract > 0.001) {
+		accumulate_material(mat, positions_1[0], normals_1[0], ids_1[0], weights_1[0], blends_1[0], lod_1, P, dPdx, dPdy);
+		accumulate_material(mat, positions_1[1], normals_1[1], ids_1[1], weights_1[1], blends_1[1], lod_1, P, dPdx, dPdy);
+		accumulate_material(mat, positions_1[2], normals_1[2], ids_1[2], weights_1[2], blends_1[2], lod_1, P, dPdx, dPdy);
+		accumulate_material(mat, positions_1[3], normals_1[3], ids_1[3], weights_1[3], blends_1[3], lod_1, P, dPdx, dPdy);
+	}
 	
 	// PBR
 	
@@ -491,5 +493,5 @@ void fragment() {
 	NORMAL_MAP_DEPTH = mat.normal_map_depth;
 	AO = mat.ao;
 	
-	//ALBEDO = vec3(lod_fract);
+	ALBEDO = vec3(debug_albedo);
 }
